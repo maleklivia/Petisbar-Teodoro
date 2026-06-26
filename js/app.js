@@ -89,6 +89,14 @@ const statusClass = {
   Saída: "red"
 };
 
+const channelClass = {
+  WhatsApp: "green",
+  iFood: "red",
+  "99Food": "blue",
+  Instagram: "blue",
+  Presencial: "muted"
+};
+
 function loadState() {
   const saved = localStorage.getItem(storeKey);
   if (!saved) return structuredClone(seedData);
@@ -248,6 +256,7 @@ function renderOrders() {
       <td>#${item.id}</td>
       <td>${item.client}</td>
       <td>${item.product}</td>
+      <td><span class="pill ${channelClass[item.channel] || ""}">${item.channel}</span></td>
       <td><span class="pill ${statusClass[item.status] || ""}">${item.status}</span></td>
       <td>${currency(item.total)}</td>
     </tr>
@@ -433,7 +442,7 @@ function openModal(type) {
         ["client", "Cliente", "text"],
         ["product", "Produto", "text"],
         ["total", "Total", "number"],
-        ["channel", "Origem", "text"]
+        ["channel", "Canal", "select", ["WhatsApp", "iFood", "99Food", "Instagram", "Presencial"]]
       ],
       submit: "Adicionar pedido"
     },
@@ -461,7 +470,7 @@ function openModal(type) {
       title: "Nova campanha",
       fields: [
         ["name", "Nome da campanha", "text"],
-        ["channel", "Canal", "text"],
+        ["channel", "Canal", "select", ["Instagram", "WhatsApp", "Meta Ads", "iFood", "99Food", "TikTok"]],
         ["reach", "Alcance estimado", "number"],
         ["budget", "Investimento (R$)", "number"]
       ],
@@ -472,12 +481,15 @@ function openModal(type) {
   const config = templates[type];
   title.textContent = config.title;
   form.dataset.type = type;
-  form.innerHTML = config.fields.map(([id, label, inputType]) => `
-    <label>${label}<input name="${id}" type="${inputType}" step="0.01" required></label>
-  `).join("") + `<button class="primary-button" type="submit">${config.submit}</button>`;
+  form.innerHTML = config.fields.map(([id, label, inputType, options]) => {
+    if (inputType === "select") {
+      return `<label>${label}<select name="${id}" required>${options.map((o) => `<option value="${o}">${o}</option>`).join("")}</select></label>`;
+    }
+    return `<label>${label}<input name="${id}" type="${inputType}" step="0.01" required></label>`;
+  }).join("") + `<button class="primary-button" type="submit">${config.submit}</button>`;
 
   backdrop.hidden = false;
-  form.querySelector("input").focus();
+  (form.querySelector("input") || form.querySelector("select")).focus();
 }
 
 function closeModal() {
