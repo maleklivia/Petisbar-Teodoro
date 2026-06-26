@@ -82,10 +82,17 @@ svg {
   width: 46px;
   height: 46px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--gold), #7f5b1b);
-  color: var(--ink);
-  font-weight: 900;
-  letter-spacing: 0;
+  border: 1px solid rgba(240, 200, 106, 0.56);
+  background: #050505;
+  overflow: hidden;
+  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.08);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.18);
 }
 
 .brand strong,
@@ -271,6 +278,34 @@ small {
   box-shadow: var(--shadow);
 }
 
+.hero-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  margin-bottom: 18px;
+  padding: 8px 14px 8px 8px;
+  border: 1px solid rgba(240, 200, 106, 0.28);
+  border-radius: var(--radius);
+  background: rgba(8, 9, 7, 0.62);
+}
+
+.hero-brand img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--gold);
+}
+
+.hero-brand span {
+  color: var(--gold-2);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+}
+
 .hero-panel h2 {
   max-width: 720px;
   font-size: clamp(2rem, 5vw, 4.6rem);
@@ -310,9 +345,86 @@ small {
 .report-grid,
 .product-grid,
 .stock-grid,
+.brand-board,
 .settings-grid {
   display: grid;
   gap: 16px;
+}
+
+.brand-board {
+  grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 0.8fr) minmax(220px, 0.8fr);
+  margin-top: 16px;
+}
+
+.brand-card {
+  min-height: 118px;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(24, 25, 20, 0.88);
+}
+
+.main-brand-card {
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  align-content: initial;
+}
+
+.main-brand-card img {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--gold);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34);
+}
+
+.main-brand-card h3 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.main-brand-card span {
+  color: var(--gold-2);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.swatches span {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  background: var(--swatch);
+  border: 1px solid rgba(246, 240, 223, 0.22);
+}
+
+.brand-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brand-tags span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: rgba(217, 164, 65, 0.12);
+  color: var(--gold-2);
+  border: 1px solid rgba(217, 164, 65, 0.28);
+  font-weight: 800;
 }
 
 .metric-grid {
@@ -720,6 +832,7 @@ th {
   .metric-grid.compact,
   .product-grid,
   .stock-grid,
+  .brand-board,
   .report-grid,
   .settings-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -772,6 +885,7 @@ th {
   .metric-grid.compact,
   .product-grid,
   .stock-grid,
+  .brand-board,
   .report-grid,
   .settings-grid {
     grid-template-columns: 1fr;
@@ -784,6 +898,15 @@ th {
 
   .hero-panel h2 {
     font-size: 2.35rem;
+  }
+
+  .main-brand-card {
+    grid-template-columns: 70px minmax(0, 1fr);
+  }
+
+  .main-brand-card img {
+    width: 62px;
+    height: 62px;
   }
 
   .panel-header {
