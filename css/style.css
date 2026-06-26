@@ -507,6 +507,14 @@ small {
   padding-top: 24px;
 }
 
+.empty-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 24px 0;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
 .bar {
   min-height: 44px;
   border-radius: 8px 8px 2px 2px;

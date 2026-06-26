@@ -7,61 +7,16 @@ const seedData = {
     cmvGoal: 32,
     stockAlerts: true
   },
-  products: [
-    { id: 1, name: "Batata XVII Cheddar & Bacon", price: 39.9, cost: 12.8, sold: 86, category: "Batatas" },
-    { id: 2, name: "Frango Crocante", price: 44.9, cost: 15.2, sold: 63, category: "Proteínas" },
-    { id: 3, name: "Caldo Verde", price: 21.9, cost: 6.1, sold: 52, category: "Caldos" },
-    { id: 4, name: "Combo XVII", price: 69.9, cost: 22.6, sold: 48, category: "Combos" },
-    { id: 5, name: "Molho Especial", price: 5.9, cost: 1.1, sold: 94, category: "Extras" }
-  ],
-  clients: [
-    { name: "João Silva", phone: "(21) 98888-1122", orders: 18, average: 68, total: 1224, status: "VIP", last: "há 12 dias" },
-    { name: "Ana Costa", phone: "(21) 97777-3344", orders: 6, average: 47, total: 282, status: "Frequente", last: "ontem" },
-    { name: "Mariana Lopes", phone: "(21) 96666-2200", orders: 3, average: 41, total: 123, status: "Novo", last: "hoje" },
-    { name: "Carlos Mendes", phone: "(21) 95555-8800", orders: 9, average: 58, total: 522, status: "Frequente", last: "há 4 dias" },
-    { name: "Fernanda Reis", phone: "(21) 94444-7700", orders: 14, average: 72, total: 1008, status: "VIP", last: "há 2 dias" }
-  ],
-  stock: [
-    { item: "Batata", unit: "kg", quantity: 15, min: 5, capacity: 25, cost: 7.8 },
-    { item: "Bacon", unit: "kg", quantity: 3, min: 4, capacity: 10, cost: 34 },
-    { item: "Cheddar", unit: "kg", quantity: 8, min: 3, capacity: 12, cost: 28 },
-    { item: "Frango", unit: "kg", quantity: 11, min: 6, capacity: 18, cost: 17.5 },
-    { item: "Embalagem", unit: "un", quantity: 86, min: 40, capacity: 150, cost: 1.1 },
-    { item: "Caldo base", unit: "L", quantity: 9, min: 5, capacity: 20, cost: 5.2 }
-  ],
-  orders: [
-    { id: "0018", client: "Mariana Lopes", product: "Batata XVII Cheddar & Bacon", status: "Em produção", total: 39.9, channel: "WhatsApp", time: "12:42" },
-    { id: "0017", client: "Carlos Mendes", product: "Combo XVII", status: "Saiu para entrega", total: 69.9, channel: "iFood", time: "12:31" },
-    { id: "0016", client: "Ana Costa", product: "Caldo Verde", status: "Pedido finalizado", total: 21.9, channel: "Instagram", time: "12:12" },
-    { id: "0015", client: "João Silva", product: "Frango Crocante", status: "Pedido finalizado", total: 44.9, channel: "WhatsApp", time: "11:58" },
-    { id: "0014", client: "Fernanda Reis", product: "Combo XVII", status: "Aguardando pagamento", total: 69.9, channel: "WhatsApp", time: "11:46" }
-  ],
-  finance: [
-    { date: "26/06", description: "Pedidos WhatsApp", category: "Vendas", type: "Entrada", value: 842.4 },
-    { date: "26/06", description: "Pedidos iFood", category: "Vendas", type: "Entrada", value: 443.0 },
-    { date: "26/06", description: "Compra de bacon", category: "Insumos", type: "Saída", value: -238.0 },
-    { date: "25/06", description: "Embalagens", category: "Operação", type: "Saída", value: -96.0 },
-    { date: "25/06", description: "Pix clientes", category: "Vendas", type: "Entrada", value: 1010.8 }
-  ],
-  week: [
-    { day: "Seg", revenue: 820, orders: 19 },
-    { day: "Ter", revenue: 940, orders: 21 },
-    { day: "Qua", revenue: 1120, orders: 25 },
-    { day: "Qui", revenue: 1285, orders: 32 },
-    { day: "Sex", revenue: 1540, orders: 36 },
-    { day: "Sáb", revenue: 1880, orders: 42 },
-    { day: "Dom", revenue: 1320, orders: 29 }
-  ],
-  campaigns: [
-    { name: "Batata XVII — Lançamento", channel: "Instagram", status: "Ativo", reach: 4200, leads: 38, budget: 150 },
-    { name: "Combo Fim de Semana", channel: "WhatsApp", status: "Encerrado", reach: 820, leads: 64, budget: 0 },
-    { name: "Caldos de Inverno", channel: "Meta Ads", status: "Ativo", reach: 11500, leads: 92, budget: 300 },
-    { name: "Cupom VIP", channel: "WhatsApp", status: "Pausado", reach: 180, leads: 27, budget: 0 },
-    { name: "iFood — Destaque junho", channel: "iFood", status: "Ativo", reach: 6800, leads: 51, budget: 200 }
-  ]
+  products: [],
+  clients: [],
+  stock: [],
+  orders: [],
+  finance: [],
+  week: [],
+  campaigns: []
 };
 
-const storeKey = "distrito-os-v1";
+const storeKey = "distrito-os-v2";
 let state = loadState();
 
 const viewTitles = {
@@ -115,9 +70,13 @@ function currency(value) {
   return BRL.format(value);
 }
 
+function today() {
+  return new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
 function todayRevenue() {
   return state.finance
-    .filter((item) => item.type === "Entrada" && item.date === "26/06")
+    .filter((item) => item.type === "Entrada" && item.date === today())
     .reduce((sum, item) => sum + item.value, 0);
 }
 
@@ -136,6 +95,7 @@ function monthlyCosts() {
 function cmvAverage() {
   const totalSales = state.products.reduce((sum, item) => sum + item.price * item.sold, 0);
   const totalCosts = state.products.reduce((sum, item) => sum + item.cost * item.sold, 0);
+  if (totalSales === 0) return 0;
   return Math.round((totalCosts / totalSales) * 100);
 }
 
@@ -190,8 +150,11 @@ function renderMetrics() {
 
 function renderChart() {
   const mode = document.getElementById("chartMode").value;
+  if (!state.week.length) {
+    document.getElementById("salesChart").innerHTML = `<div class="empty-hint">Nenhum dado de vendas ainda.</div>`;
+    return;
+  }
   const max = Math.max(...state.week.map((item) => item[mode]));
-
   document.getElementById("salesChart").innerHTML = state.week.map((item) => {
     const value = item[mode];
     const height = Math.max(18, Math.round((value / max) * 220));
@@ -311,7 +274,7 @@ function renderFinance() {
     ["Receita bruta", revenue],
     ["Custos e despesas", -costs],
     ["Resultado parcial", revenue - costs],
-    ["Margem líquida", `${Math.round(((revenue - costs) / revenue) * 100)}%`]
+    ["Margem líquida", revenue > 0 ? `${Math.round(((revenue - costs) / revenue) * 100)}%` : "—"]
   ];
   document.getElementById("dreList").innerHTML = dre.map(([label, value]) => `
     <div class="dre-item">
@@ -325,14 +288,17 @@ function renderReports() {
   const topClient = [...state.clients].sort((a, b) => b.total - a.total)[0];
   const topProduct = [...state.products].sort((a, b) => b.sold - a.sold)[0];
   const lowStock = state.stock.filter((item) => item.quantity <= item.min).length;
+
+  if (!topClient && !topProduct) {
+    document.getElementById("reportsGrid").innerHTML = `<div class="empty-hint">Cadastre produtos e clientes para ver os relatórios.</div>`;
+    return;
+  }
+
   const reports = [
-    { title: "Melhor cliente", value: topClient.name, detail: `${currency(topClient.total)} acumulados` },
-    { title: "Produto líder", value: topProduct.name, detail: `${topProduct.sold} vendas no período` },
-    { title: "Estoque crítico", value: `${lowStock} item(ns)`, detail: "priorizar próxima compra" },
-    { title: "Melhor dia", value: "Sábado", detail: "pico de faturamento semanal" },
-    { title: "Canal principal", value: "WhatsApp", detail: "maior margem por pedido" },
-    { title: "Próxima ação", value: "Campanha VIP", detail: "cupom para clientes frequentes" }
-  ];
+    topClient && { title: "Melhor cliente", value: topClient.name, detail: `${currency(topClient.total)} acumulados` },
+    topProduct && { title: "Produto líder", value: topProduct.name, detail: `${topProduct.sold} vendas no período` },
+    { title: "Estoque crítico", value: `${lowStock} item(ns)`, detail: "priorizar próxima compra" }
+  ].filter(Boolean);
 
   document.getElementById("reportsGrid").innerHTML = reports.map((item) => `
     <article class="report-card">
@@ -406,13 +372,19 @@ function askAssistant(prompt) {
     answer = `Hoje o faturamento registrado é ${currency(todayRevenue())}, com ${state.orders.length} pedidos no painel.`;
   } else if (question.includes("bacon")) {
     const bacon = state.stock.find((item) => item.item.toLowerCase() === "bacon");
-    answer = `Você tem ${bacon.quantity} ${bacon.unit} de bacon. O mínimo configurado é ${bacon.min} ${bacon.unit}.`;
+    answer = bacon
+      ? `Você tem ${bacon.quantity} ${bacon.unit} de bacon. O mínimo configurado é ${bacon.min} ${bacon.unit}.`
+      : "Bacon não encontrado no estoque.";
   } else if (question.includes("vip") || question.includes("cliente")) {
     const client = [...state.clients].sort((a, b) => b.total - a.total)[0];
-    answer = `${client.name} é o cliente de maior valor, com ${client.orders} pedidos e ${currency(client.total)} gastos.`;
+    answer = client
+      ? `${client.name} é o cliente de maior valor, com ${client.orders} pedidos e ${currency(client.total)} gastos.`
+      : "Nenhum cliente cadastrado ainda.";
   } else if (question.includes("produto") || question.includes("vende")) {
     const product = [...state.products].sort((a, b) => b.sold - a.sold)[0];
-    answer = `${product.name} lidera o período, com ${product.sold} vendas.`;
+    answer = product
+      ? `${product.name} lidera o período, com ${product.sold} vendas.`
+      : "Nenhum produto cadastrado ainda.";
   } else if (question.includes("lucro")) {
     answer = `O lucro parcial estimado é ${currency(monthRevenue() - monthlyCosts())}, antes de impostos e taxas adicionais.`;
   }
@@ -513,7 +485,7 @@ function handleModalSubmit(event) {
       channel: data.channel,
       time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
     });
-    state.finance.unshift({ date: "26/06", description: `Pedido #${nextId}`, category: "Vendas", type: "Entrada", value: Number(data.total) });
+    state.finance.unshift({ date: today(), description: `Pedido #${nextId}`, category: "Vendas", type: "Entrada", value: Number(data.total) });
   }
 
   if (type === "new-product") {
@@ -547,7 +519,7 @@ function handleModalSubmit(event) {
     } else {
       state.stock.push({ item: data.item, unit: data.unit, quantity: Number(data.quantity), min: 1, capacity: Number(data.quantity) * 2, cost: Number(data.cost) });
     }
-    state.finance.unshift({ date: "26/06", description: `Compra de ${data.item}`, category: "Insumos", type: "Saída", value: -(Number(data.quantity) * Number(data.cost)) });
+    state.finance.unshift({ date: today(), description: `Compra de ${data.item}`, category: "Insumos", type: "Saída", value: -(Number(data.quantity) * Number(data.cost)) });
   }
 
   saveState();
