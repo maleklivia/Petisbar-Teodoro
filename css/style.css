@@ -689,6 +689,12 @@ th {
   font-size: 1.35rem;
 }
 
+.product-margins {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .progress {
   height: 10px;
   border-radius: 999px;
