@@ -7,7 +7,28 @@ const seedData = {
     cmvGoal: 32,
     stockAlerts: true
   },
-  products: [],
+  products: [
+    { id: 1,  name: "Batata Clássica",              price: 29.90, cost: 0, sold: 0, category: "Batatas" },
+    { id: 2,  name: "Batata Cheddar & Bacon",        price: 39.90, cost: 0, sold: 0, category: "Batatas" },
+    { id: 3,  name: "Batata XVII Suprema",           price: 54.90, cost: 0, sold: 0, category: "Batatas" },
+    { id: 4,  name: "Frango Crocante",               price: 39.90, cost: 0, sold: 0, category: "Frango"  },
+    { id: 5,  name: "Iscas de Frango",               price: 37.90, cost: 0, sold: 0, category: "Frango"  },
+    { id: 6,  name: "Calabresa Acebolada",           price: 34.90, cost: 0, sold: 0, category: "Petiscos"},
+    { id: 7,  name: "Torresmo Crocante",             price: 39.90, cost: 0, sold: 0, category: "Petiscos"},
+    { id: 8,  name: "Caldo Verde",                   price: 22.90, cost: 0, sold: 0, category: "Caldos"  },
+    { id: 9,  name: "Caldo de Aipim com Carne Seca", price: 24.90, cost: 0, sold: 0, category: "Caldos"  },
+    { id: 10, name: "Maionese Verde",                price:  3.50, cost: 0, sold: 0, category: "Molhos"  },
+    { id: 11, name: "Barbecue",                      price:  3.50, cost: 0, sold: 0, category: "Molhos"  },
+    { id: 12, name: "Cheddar Extra",                 price:  5.90, cost: 0, sold: 0, category: "Molhos"  },
+    { id: 13, name: "Coca-Cola Lata 350 ml",         price:  6.90, cost: 0, sold: 0, category: "Bebidas" },
+    { id: 14, name: "Coca-Cola Zero Lata",           price:  6.90, cost: 0, sold: 0, category: "Bebidas" },
+    { id: 15, name: "Guaraná Antarctica Lata",       price:  6.50, cost: 0, sold: 0, category: "Bebidas" },
+    { id: 16, name: "Água Mineral 500 ml",           price:  3.50, cost: 0, sold: 0, category: "Bebidas" },
+    { id: 17, name: "Combo XVII Individual",         price: 45.90, cost: 0, sold: 0, category: "Combos"  },
+    { id: 18, name: "Combo Crocante",                price: 64.90, cost: 0, sold: 0, category: "Combos"  },
+    { id: 19, name: "Combo Casal",                   price: 99.90, cost: 0, sold: 0, category: "Combos"  },
+    { id: 20, name: "Combo Inverno",                 price: 79.90, cost: 0, sold: 0, category: "Combos"  }
+  ],
   clients: [],
   stock: [],
   orders: [],
@@ -16,7 +37,7 @@ const seedData = {
   campaigns: []
 };
 
-const storeKey = "distrito-os-v2";
+const storeKey = "distrito-os-v3";
 let state = loadState();
 
 const viewTitles = {
@@ -173,14 +194,14 @@ function renderProducts() {
   `).join("");
 
   document.getElementById("productGrid").innerHTML = state.products.map((item) => {
-    const margin = Math.round(((item.price - item.cost) / item.price) * 100);
+    const margin = item.cost > 0 ? Math.round(((item.price - item.cost) / item.price) * 100) : null;
     return `
       <article class="product-card">
         <span>${item.category}</span>
         <strong>${item.name}</strong>
         <div>Preço: ${currency(item.price)}</div>
-        <div>Custo: ${currency(item.cost)}</div>
-        <span class="pill ${margin < 55 ? "red" : "green"}">Margem ${margin}%</span>
+        <div>Custo: ${item.cost > 0 ? currency(item.cost) : "— preencher"}</div>
+        ${margin !== null ? `<span class="pill ${margin < 55 ? "red" : "green"}">Margem ${margin}%</span>` : `<span class="pill muted">Custo pendente</span>`}
       </article>
     `;
   }).join("");
