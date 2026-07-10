@@ -265,19 +265,18 @@ const Modules = {
     },
   },
 
-  /* Módulos ativos — stubs para os ainda não implementados */
-  financeiro:   { async init() {} },
-  pedidos:      { async init() { if (typeof PedidosModule   !== 'undefined') PedidosModule.init();   } },
-  producao:     { async init() { if (typeof ProducaoModule  !== 'undefined') ProducaoModule.init();  } },
-  produtos:     { async init() { if (typeof ProdutosModule  !== 'undefined') ProdutosModule.init();  } },
-  clientes:     { async init() { if (typeof ClientesModule  !== 'undefined') ClientesModule.init();  } },
-  estoque:      { async init() {} },
-  compras:      { async init() {} },
-  fornecedores: { async init() {} },
-  marketing:    { async init() {} },
-  documentos:   { async init() {} },
-  relatorios:   { async init() {} },
-  configuracoes:{ async init() {} },
+  financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') FinanceiroModule.init();   } },
+  pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') PedidosModule.init();      } },
+  producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') ProducaoModule.init();     } },
+  produtos:     { async init() { if (typeof ProdutosModule     !== 'undefined') ProdutosModule.init();     } },
+  clientes:     { async init() { if (typeof ClientesModule     !== 'undefined') ClientesModule.init();     } },
+  estoque:      { async init() { if (typeof EstoqueModule      !== 'undefined') EstoqueModule.init();      } },
+  compras:      { async init() { if (typeof ComprasModule      !== 'undefined') ComprasModule.init();      } },
+  fornecedores: { async init() { if (typeof FornecedoresModule !== 'undefined') FornecedoresModule.init(); } },
+  marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') MarketingModule.init();    } },
+  documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') DocumentosModule.init();   } },
+  relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') RelatoriosModule.init();   } },
+  configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') ConfiguracoesModule.init();} },
 };
 
 /* ── Auto-init via data-page attribute ───────────────────────── */

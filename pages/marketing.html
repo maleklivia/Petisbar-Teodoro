@@ -8,34 +8,36 @@
   <link rel="stylesheet" href="../css/global.css">
   <link rel="stylesheet" href="../css/sidebar.css">
   <link rel="stylesheet" href="../css/dashboard.css">
+  <link rel="stylesheet" href="../css/modules.css">
+  <link rel="stylesheet" href="../css/pedidos.css">
 </head>
 <body class="app-body" data-page="marketing">
   <div class="app-layout">
     <aside id="sidebar-slot"></aside>
     <div id="header-slot"></div>
+
     <main class="app-main" id="page-content">
       <div class="page-header">
         <div class="page-header__left">
           <h2 class="page-title-main">Marketing</h2>
-          <span class="badge badge-warning">Em Desenvolvimento</span>
+          <span class="badge badge-gold">CRM v0.4</span>
         </div>
       </div>
-      <div class="page-coming-soon">
-        <div class="page-coming-soon__icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
-          </svg>
-        </div>
-        <h3 class="page-coming-soon__title">Marketing</h3>
-        <p class="page-coming-soon__desc">Campanhas, cupons, gestão de redes sociais e integração com Meta Ads.</p>
-        <span class="badge badge-neutral">Previsto para v0.3</span>
+
+      <div id="marketing-content">
+        <!-- Renderizado por MarketingModule -->
       </div>
     </main>
   </div>
+
+  <script src="../js/core/event-bus.js"></script>
+  <script src="../js/core/logger.js"></script>
   <script src="../js/storage.js"></script>
+  <script src="../js/stores.js"></script>
   <script src="../js/utils.js"></script>
   <script src="../js/api.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/modules/marketing.js"></script>
   <script src="../js/app.js"></script>
 </body>
 </html>

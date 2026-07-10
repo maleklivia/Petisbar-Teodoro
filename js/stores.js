@@ -277,17 +277,134 @@ const SEED_CLIENTES = [
   },
 ];
 
-/* ── Stores ──────────────────────────────────────────────────── */
+/* ── Store Keys v3 ───────────────────────────────────────────── */
 
 const STORE_KEYS_V3 = {
   PEDIDOS:  'distrito-pedidos-v1',
   CLIENTES: 'distrito-clientes-v1',
 };
 
+/* ── Store Keys v4 (Sprint 4) ────────────────────────────────── */
+
+const STORE_KEYS_V4 = {
+  FORNECEDORES:  'distrito-fornecedores-v1',
+  COMPRAS:       'distrito-compras-v1',
+  MOVIMENTACOES: 'distrito-movimentacoes-v1',
+  CUPONS:        'distrito-cupons-v1',
+  DOCUMENTOS:    'distrito-documentos-v1',
+  CONFIG:        'distrito-config-v1',
+};
+
+/* ── Seed Data: Fornecedores ─────────────────────────────────── */
+
+const SEED_FORNECEDORES = [
+  { id: 'for-001', nome: 'Supra Hortifrutti', cnpj: '', telefone: '(11) 9 9999-0003', email: '', contato: '', categoria: 'Hortifruti', prazoEntrega: 1, condicoesPagamento: 'À vista', observacoes: 'Pedido na segunda', ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-002', nome: 'Frigorífico São Jorge', cnpj: '', telefone: '(11) 9 9999-0001', email: '', contato: '', categoria: 'Carnes', prazoEntrega: 2, condicoesPagamento: '30 dias', observacoes: 'Entrega ter/qui', ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-003', nome: 'Distribuidora Cheddar+', cnpj: '', telefone: '(11) 9 9999-0002', email: '', contato: '', categoria: 'Laticínios', prazoEntrega: 3, condicoesPagamento: '15 dias', observacoes: 'Pedir 2 dias antes', ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-004', nome: 'Bebidas & Cia', cnpj: '', telefone: '(11) 9 9999-0004', email: '', contato: '', categoria: 'Bebidas', prazoEntrega: 2, condicoesPagamento: 'À vista', observacoes: 'Mín. 2 caixas', ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-005', nome: 'Embalagem Pro', cnpj: '', telefone: '(11) 9 9999-0005', email: '', contato: '', categoria: 'Embalagens', prazoEntrega: 5, condicoesPagamento: 'À vista', observacoes: 'A cada 2 semanas', ativo: true, dataCadastro: '2026-07-01' },
+];
+
+const CATS_FORNECEDOR = ['Hortifruti', 'Carnes', 'Laticínios', 'Bebidas', 'Embalagens', 'Grãos', 'Temperos', 'Outros'];
+
+/* ── Seed Data: Compras ──────────────────────────────────────── */
+
+const STATUS_COMPRA = ['Rascunho', 'Aprovado', 'Pedido', 'Recebido', 'Cancelado'];
+
+const SEED_COMPRAS = [
+  {
+    id: 'cmp-001', numeroPedidoCompra: 1,
+    fornecedorId: 'for-001', fornecedorNome: 'Supra Hortifrutti',
+    status: 'Recebido', tipo: 'manual',
+    itens: [
+      { ingredienteId: 'i-001', nome: 'Batata Palito', quantidade: 10, unidade: 'kg', custoUnitario: 4.50, subtotal: 45 },
+      { ingredienteId: 'i-005', nome: 'Couve', quantidade: 3, unidade: 'kg', custoUnitario: 5.20, subtotal: 15.60 },
+    ],
+    total: 60.60, observacoes: '',
+    dataCompra: '2026-07-03', dataRecebimento: '2026-07-03',
+    notaFiscal: '', formaPagamento: 'À vista',
+  },
+  {
+    id: 'cmp-002', numeroPedidoCompra: 2,
+    fornecedorId: 'for-002', fornecedorNome: 'Frigorífico São Jorge',
+    status: 'Recebido', tipo: 'manual',
+    itens: [
+      { ingredienteId: 'i-003', nome: 'Bacon Fatiado', quantidade: 3, unidade: 'kg', custoUnitario: 38, subtotal: 114 },
+      { ingredienteId: 'i-007', nome: 'Costela Bovina', quantidade: 5, unidade: 'kg', custoUnitario: 48, subtotal: 240 },
+    ],
+    total: 354, observacoes: '',
+    dataCompra: '2026-07-02', dataRecebimento: '2026-07-02',
+    notaFiscal: '', formaPagamento: '30 dias',
+  },
+  {
+    id: 'cmp-003', numeroPedidoCompra: 3,
+    fornecedorId: 'for-003', fornecedorNome: 'Distribuidora Cheddar+',
+    status: 'Aprovado', tipo: 'automatico',
+    itens: [
+      { ingredienteId: 'i-002', nome: 'Cheddar Cremoso', quantidade: 5, unidade: 'kg', custoUnitario: 22, subtotal: 110 },
+    ],
+    total: 110, observacoes: 'Estoque crítico — gerado automaticamente',
+    dataCompra: '2026-07-10', dataRecebimento: '',
+    notaFiscal: '', formaPagamento: '15 dias',
+  },
+];
+
+/* ── Seed Data: Movimentações de Estoque ─────────────────────── */
+
+const TIPOS_MOVIMENTACAO = ['entrada', 'saída', 'ajuste', 'perda'];
+
+const SEED_MOVIMENTACOES = [
+  { id: 'mov-001', tipo: 'entrada', ingredienteId: 'i-001', ingredienteNome: 'Batata Palito', quantidade: 10, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-03', usuario: 'admin' },
+  { id: 'mov-002', tipo: 'entrada', ingredienteId: 'i-005', ingredienteNome: 'Couve', quantidade: 3, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-03', usuario: 'admin' },
+  { id: 'mov-003', tipo: 'entrada', ingredienteId: 'i-003', ingredienteNome: 'Bacon Fatiado', quantidade: 3, unidade: 'kg', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-02', usuario: 'admin' },
+  { id: 'mov-004', tipo: 'entrada', ingredienteId: 'i-007', ingredienteNome: 'Costela Bovina', quantidade: 5, unidade: 'kg', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-02', usuario: 'admin' },
+  { id: 'mov-005', tipo: 'saída', ingredienteId: 'i-003', ingredienteNome: 'Bacon Fatiado', quantidade: 2.2, unidade: 'kg', motivo: 'venda', referencia: 'ped-001', data: '2026-07-09', usuario: 'sistema' },
+  { id: 'mov-006', tipo: 'saída', ingredienteId: 'i-007', ingredienteNome: 'Costela Bovina', quantidade: 3, unidade: 'kg', motivo: 'venda', referencia: 'ped-002', data: '2026-07-08', usuario: 'sistema' },
+];
+
+/* ── Seed Data: Cupons ───────────────────────────────────────── */
+
+const SEED_CUPONS = [
+  { id: 'cup-001', codigo: 'BEMVINDO10', tipo: 'percentual', valor: 10, ativo: true, usos: 3, limite: 100, validade: '2026-12-31', descricao: 'Desconto de boas-vindas para novos clientes' },
+  { id: 'cup-002', codigo: 'FIDELIDADE5', tipo: 'fixo', valor: 5, ativo: true, usos: 12, limite: 50, validade: '2026-09-30', descricao: 'Desconto fidelidade R$ 5' },
+];
+
+/* ── Seed Data: Documentos ───────────────────────────────────── */
+
+const CATS_DOCUMENTO = ['Alvará', 'Contrato', 'Fiscal', 'Manual', 'Receita', 'Outros'];
+
+const SEED_DOCUMENTOS = [
+  { id: 'doc-001', titulo: 'Alvará de Funcionamento 2026', categoria: 'Alvará', data: '2026-01-15', link: '', notas: 'Válido até 31/12/2026', dataCadastro: '2026-07-01' },
+  { id: 'doc-002', titulo: 'AVCB — Corpo de Bombeiros', categoria: 'Alvará', data: '2025-08-20', link: '', notas: 'Renovar em ago/2026', dataCadastro: '2026-07-01' },
+  { id: 'doc-003', titulo: 'Manual de Boas Práticas de Manipulação', categoria: 'Manual', data: '2026-01-01', link: '', notas: '', dataCadastro: '2026-07-01' },
+];
+
+/* ── Seed Data: Configurações ────────────────────────────────── */
+
+const SEED_CONFIG = {
+  restaurante: { nome: 'Distrito XVII', cnpj: '', telefone: '', email: '', endereco: '', cidade: 'São Paulo', estado: 'SP', cep: '' },
+  metas: { cmvMeta: 35, margemMeta: 60, ticketMedioMeta: 60, clientesInativosDias: 30 },
+  taxas: { taxaEntregaPadrao: 5, taxaIfood: 15, comissaoEntregador: 0 },
+  horario: {
+    segunda: 'Fechado', terca: '18:00 – 23:00', quarta: '18:00 – 23:00',
+    quinta: '18:00 – 23:00', sexta: '18:00 – 00:00',
+    sabado: '12:00 – 00:00', domingo: '12:00 – 22:00',
+  },
+  integracoes: { whatsapp: false, pix: false, impressora: false, ifood: false, ocr: false },
+};
+
+/* ── Stores ──────────────────────────────────────────────────── */
+
 const Stores = {
-  produtos:     makeStore(STORE_KEYS.PRODUTOS,     SEED_PRODUTOS),
-  ingredientes: makeStore(STORE_KEYS.INGREDIENTES, SEED_INGREDIENTES),
-  fichas:       makeStore(STORE_KEYS.FICHAS,       SEED_FICHAS),
-  pedidos:      makeStore(STORE_KEYS_V3.PEDIDOS,   SEED_PEDIDOS),
-  clientes:     makeStore(STORE_KEYS_V3.CLIENTES,  SEED_CLIENTES),
+  produtos:      makeStore(STORE_KEYS.PRODUTOS,          SEED_PRODUTOS),
+  ingredientes:  makeStore(STORE_KEYS.INGREDIENTES,      SEED_INGREDIENTES),
+  fichas:        makeStore(STORE_KEYS.FICHAS,            SEED_FICHAS),
+  pedidos:       makeStore(STORE_KEYS_V3.PEDIDOS,        SEED_PEDIDOS),
+  clientes:      makeStore(STORE_KEYS_V3.CLIENTES,       SEED_CLIENTES),
+  fornecedores:  makeStore(STORE_KEYS_V4.FORNECEDORES,   SEED_FORNECEDORES),
+  compras:       makeStore(STORE_KEYS_V4.COMPRAS,        SEED_COMPRAS),
+  movimentacoes: makeStore(STORE_KEYS_V4.MOVIMENTACOES,  SEED_MOVIMENTACOES),
+  cupons:        makeStore(STORE_KEYS_V4.CUPONS,         SEED_CUPONS),
+  documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     SEED_DOCUMENTOS),
+  config:        makeStore(STORE_KEYS_V4.CONFIG,         SEED_CONFIG),
 };
