@@ -33,6 +33,25 @@ const FinanceiroService = {
       value:       pedido.total,
     });
 
+    /* Registra CMV como saída para manter o relatório preciso */
+    if (typeof calcCustoProduto !== 'undefined') {
+      const cmvTotal = (pedido.itens || []).reduce((sum, item) => {
+        const custo = calcCustoProduto(item.produtoId);
+        return custo !== null ? sum + custo * item.qty : sum;
+      }, 0);
+
+      if (cmvTotal > 0) {
+        state.finance.unshift({
+          id:          Utils.uid(),
+          date:        Utils.today(),
+          description: `CMV Pedido #${pedido.numeroPedido}`,
+          category:    'CMV',
+          type:        'Saída',
+          value:       -Math.abs(cmvTotal),
+        });
+      }
+    }
+
     Storage.setState(state);
     Logger.log('financeiro.venda_registrada', { pedidoId: pedido.id, valor: pedido.total });
     EventBus.emit(EVENTS.VENDA_REGISTRADA, { pedidoId: pedido.id, valor: pedido.total });

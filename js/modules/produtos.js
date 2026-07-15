@@ -76,7 +76,9 @@ const ProdutosModule = {
 
   getCusto(produtoId) {
     const ficha = FichasModule.getByProduto(produtoId);
-    return ficha ? FichasModule.calcCusto(ficha) : null;
+    if (ficha) return FichasModule.calcCusto(ficha);
+    const produto = this._items.find(p => p.id === produtoId);
+    return produto?.custoCompra ?? null;
   },
 
   /* ── Render tabela Cardápio ────────────────────────────────── */
@@ -89,7 +91,7 @@ const ProdutosModule = {
     if (!items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
+          <td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
             Nenhum produto encontrado.
           </td>
         </tr>`;
@@ -102,22 +104,30 @@ const ProdutosModule = {
         ? Math.round(((p.precoVenda - custo) / p.precoVenda) * 100)
         : null;
 
-      const custoStr     = custo  !== null ? Utils.currency(custo)  : '<span style="color:var(--text-muted)">—</span>';
-      const margemColor  = margem !== null && margem < 0 ? 'var(--color-danger)' : 'var(--color-success)';
-      const margemStr    = margem !== null
+      const custoStr    = custo  !== null ? Utils.currency(custo)  : '<span style="color:var(--text-muted)">—</span>';
+      const margemColor = margem !== null && margem < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+      const margemStr   = margem !== null
         ? `<span style="color:${margemColor};font-weight:600">${margem}%</span>`
         : '<span style="color:var(--text-muted)">—</span>';
+
+      const estoque = p.estoqueAtual !== null && p.estoqueAtual !== undefined;
+      const estoqueStr = estoque
+        ? (p.estoqueAtual <= (p.estoqueMinimo || 0)
+            ? `<span style="color:var(--color-danger);font-weight:600">${p.estoqueAtual}</span>`
+            : `<span>${p.estoqueAtual}</span>`)
+        : '<span style="color:var(--text-muted)">ficha</span>';
 
       return `
         <tr>
           <td>
             <div style="font-weight:600;color:var(--text-primary)">${Utils.escapeHtml(p.nome)}</div>
-            ${p.codigo ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo)}</div>` : ''}
+            ${p.sku ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.sku)}</div>` : (p.codigo ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo)}</div>` : '')}
           </td>
           <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
+          <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
           <td style="color:var(--text-muted)">${p.tempoPreparo ? p.tempoPreparo + ' min' : '—'}</td>
           <td>
             <span class="status-dot ${p.ativo ? 'status-dot--active' : 'status-dot--inactive'}"></span>

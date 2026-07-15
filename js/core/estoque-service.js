@@ -83,24 +83,32 @@ const EstoqueService = {
 
     const ingredientes = Stores.ingredientes.get();
     const fichas       = Stores.fichas.get();
+    const produtos     = Stores.produtos.get();
 
     for (const item of itensPedido) {
       const ficha = fichas.find(f => f.produtoId === item.produtoId);
-      if (!ficha) continue;
 
-      for (const fi of ficha.itens) {
-        const ing = ingredientes.find(i => i.id === fi.ingredienteId);
-        if (!ing) continue;
+      if (ficha) {
+        for (const fi of ficha.itens) {
+          const ing = ingredientes.find(i => i.id === fi.ingredienteId);
+          if (!ing) continue;
 
-        const necessario = fi.quantidade * item.qty;
-        const fator      = convertUnits(fi.unidade, ing.unidade);
-        const baixa      = fator !== null ? necessario * fator : necessario;
+          const necessario = fi.quantidade * item.qty;
+          const fator      = convertUnits(fi.unidade, ing.unidade);
+          const baixa      = fator !== null ? necessario * fator : necessario;
 
-        ing.estoqueAtual = Math.max(0, ing.estoqueAtual - baixa);
+          ing.estoqueAtual = Math.max(0, ing.estoqueAtual - baixa);
+        }
+      } else {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        if (produto && produto.estoqueAtual !== null && produto.estoqueAtual !== undefined) {
+          produto.estoqueAtual = Math.max(0, produto.estoqueAtual - item.qty);
+        }
       }
     }
 
     Stores.ingredientes.set(ingredientes);
+    Stores.produtos.set(produtos);
     Logger.log('estoque.baixado', { pedidoId });
     EventBus.emit(EVENTS.ESTOQUE_BAIXADO, { pedidoId });
     return { ok: true };

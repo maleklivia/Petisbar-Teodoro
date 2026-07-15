@@ -1,25 +1,24 @@
 /* ============================================================
-   Distrito OS — Stores v0.2
+   Distrito OS — Stores v0.3
    Armazenamento separado por domínio: Produtos, Ingredientes,
    Fichas Técnicas. Cada store é independente do storage.js
    legado (que persiste pedidos, finanças, clientes, etc.).
    ============================================================ */
 
 const STORE_KEYS = {
-  PRODUTOS:     'distrito-produtos-v1',
-  INGREDIENTES: 'distrito-ingredientes-v1',
-  FICHAS:       'distrito-fichas-v1',
+  PRODUTOS:     'distrito-produtos-v2',
+  INGREDIENTES: 'distrito-ingredientes-v2',
+  FICHAS:       'distrito-fichas-v2',
 };
 
 /* ── Domínio: Categorias e Unidades ──────────────────────────── */
 
 const CATEGORIAS_PRODUTO = [
-  'Batatas', 'Caldos', 'Aperitivos', 'Pratos', 'Combos', 'Bebidas', 'Sobremesas', 'Outros',
+  'Drinks', 'Cervejas', 'Refrigerantes', 'Águas', 'Energéticos', 'Açaí', 'Conveniência', 'Outros',
 ];
 
 const CATEGORIAS_INGREDIENTE = [
-  'Proteínas', 'Vegetais', 'Laticínios', 'Grãos e Farinhas',
-  'Temperos', 'Embalagens', 'Bebidas', 'Outros',
+  'Destilados', 'Frutas', 'Açúcares e Xaropes', 'Embalagens', 'Bebidas', 'Insumos', 'Outros',
 ];
 
 const UNIDADES = ['g', 'kg', 'ml', 'L', 'un', 'cx', 'sc'];
@@ -72,79 +71,227 @@ function calcIngredienteCost(ingrediente, qty, unit) {
   return qty * factor * custoUnitario;
 }
 
-/* ── Seed Data ───────────────────────────────────────────────── */
+/* Calcula custo de um produto via ficha técnica ou custoCompra */
+function calcCustoProduto(produtoId) {
+  if (typeof Stores === 'undefined') return null;
+  const fichas = Stores.fichas.get();
+  const ficha  = fichas.find(f => f.produtoId === produtoId);
+  if (!ficha) {
+    const produto = Stores.produtos.get().find(p => p.id === produtoId);
+    return produto?.custoCompra ?? null;
+  }
+  const ingredientes = Stores.ingredientes.get();
+  const total = ficha.itens.reduce((sum, fi) => {
+    const ing = ingredientes.find(i => i.id === fi.ingredienteId);
+    if (!ing) return sum;
+    const custo = calcIngredienteCost(ing, fi.quantidade, fi.unidade);
+    return custo !== null ? sum + custo : sum;
+  }, 0);
+  return total / (ficha.rendimento || 1);
+}
 
-const SEED_PRODUTOS = [
-  {
-    id: 'p-001', nome: 'Batata Cheddar', categoria: 'Batatas',
-    descricao: 'Batata frita crocante com molho cheddar cremoso',
-    precoVenda: 38, ativo: true, tempoPreparo: 12, peso: 350,
-    codigo: 'BAT-CH', dataCadastro: '2026-07-01', foto: '',
-  },
-  {
-    id: 'p-002', nome: 'Batata Bacon', categoria: 'Batatas',
-    descricao: 'Batata frita com bacon crocante e cebolinha',
-    precoVenda: 42, ativo: true, tempoPreparo: 12, peso: 370,
-    codigo: 'BAT-BA', dataCadastro: '2026-07-01', foto: '',
-  },
-  {
-    id: 'p-003', nome: 'Caldo Verde', categoria: 'Caldos',
-    descricao: 'Caldo cremoso de couve com linguiça artesanal',
-    precoVenda: 28, ativo: true, tempoPreparo: 8, peso: 300,
-    codigo: 'CAL-VR', dataCadastro: '2026-07-01', foto: '',
-  },
-  {
-    id: 'p-004', nome: 'Bolinho de Aipim', categoria: 'Aperitivos',
-    descricao: 'Bolinho crocante de aipim recheado com queijo',
-    precoVenda: 32, ativo: true, tempoPreparo: 15, peso: 250,
-    codigo: 'APE-AI', dataCadastro: '2026-07-01', foto: '',
-  },
-  {
-    id: 'p-005', nome: 'Combo Família', categoria: 'Combos',
-    descricao: 'Batata grande + 2 caldos + 2 refrigerantes',
-    precoVenda: 89, ativo: true, tempoPreparo: 20, peso: 1200,
-    codigo: 'COM-FA', dataCadastro: '2026-07-01', foto: '',
-  },
-];
+/* ── Seed Data: Ingredientes (15 insumos de bar) ─────────────── */
 
 const SEED_INGREDIENTES = [
-  { id: 'i-001', nome: 'Batata Palito',     categoria: 'Vegetais',   unidade: 'kg', estoqueAtual: 12,  estoqueMinimo: 5,  custoUnitario: 4.50,  fornecedor: 'Supra Hortifrutti',      ativo: true },
-  { id: 'i-002', nome: 'Cheddar Cremoso',   categoria: 'Laticínios', unidade: 'kg', estoqueAtual: 1.5, estoqueMinimo: 3,  custoUnitario: 22.00, fornecedor: 'Distribuidora Cheddar+', ativo: true },
-  { id: 'i-003', nome: 'Bacon Fatiado',     categoria: 'Proteínas',  unidade: 'kg', estoqueAtual: 0.8, estoqueMinimo: 2,  custoUnitario: 38.00, fornecedor: 'Frigorífico São Jorge',  ativo: true },
-  { id: 'i-004', nome: 'Aipim',             categoria: 'Vegetais',   unidade: 'kg', estoqueAtual: 6,   estoqueMinimo: 3,  custoUnitario: 3.80,  fornecedor: 'Supra Hortifrutti',      ativo: true },
-  { id: 'i-005', nome: 'Couve',             categoria: 'Vegetais',   unidade: 'kg', estoqueAtual: 3,   estoqueMinimo: 2,  custoUnitario: 5.20,  fornecedor: 'Supra Hortifrutti',      ativo: true },
-  { id: 'i-006', nome: 'Óleo de Soja',      categoria: 'Temperos',   unidade: 'L',  estoqueAtual: 8,   estoqueMinimo: 3,  custoUnitario: 7.50,  fornecedor: '',                       ativo: true },
-  { id: 'i-007', nome: 'Costela Bovina',    categoria: 'Proteínas',  unidade: 'kg', estoqueAtual: 2,   estoqueMinimo: 4,  custoUnitario: 48.00, fornecedor: 'Frigorífico São Jorge',  ativo: true },
-  { id: 'i-008', nome: 'Refrigerante 350ml',categoria: 'Bebidas',    unidade: 'un', estoqueAtual: 36,  estoqueMinimo: 12, custoUnitario: 2.50,  fornecedor: 'Bebidas & Cia',          ativo: true },
+  /* Destilados — custoUnitario por ml (preco_garrafa / volume_ml) */
+  { id: 'i-001', sku: 'INS001', nome: 'Cachaça 51',           categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1930, estoqueMinimo: 965,  custoUnitario: 15 / 965,  fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-002', sku: 'INS002', nome: 'Vodka Smirnoff',       categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 2000, estoqueMinimo: 1000, custoUnitario: 28 / 1000, fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-003', sku: 'INS003', nome: 'Saquê Azuma Kirin',    categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1480, estoqueMinimo: 740,  custoUnitario: 22 / 740,  fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-004', sku: 'INS004', nome: 'Whisky Red Label',     categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1000, estoqueMinimo: 500,  custoUnitario: 75 / 1000, fornecedor: 'Bebidas & Cia',     ativo: true },
+  /* Frutas frescas — custo por kg */
+  { id: 'i-005', sku: 'INS005', nome: 'Morango Fresco',       categoria: 'Frutas',             unidade: 'kg', estoqueAtual: 2,    estoqueMinimo: 1,    custoUnitario: 12,         fornecedor: 'Supra Hortifrutti', ativo: true },
+  { id: 'i-006', sku: 'INS006', nome: 'Limão Tahiti',         categoria: 'Frutas',             unidade: 'kg', estoqueAtual: 3,    estoqueMinimo: 1,    custoUnitario: 8,          fornecedor: 'Supra Hortifrutti', ativo: true },
+  { id: 'i-007', sku: 'INS007', nome: 'Maracujá Polpa',       categoria: 'Frutas',             unidade: 'kg', estoqueAtual: 1.5,  estoqueMinimo: 0.5,  custoUnitario: 10,         fornecedor: 'Supra Hortifrutti', ativo: true },
+  /* Açúcares e Insumos secos */
+  { id: 'i-008', sku: 'INS008', nome: 'Açúcar Cristal',       categoria: 'Açúcares e Xaropes', unidade: 'kg', estoqueAtual: 5,    estoqueMinimo: 2,    custoUnitario: 4,          fornecedor: '',                  ativo: true },
+  { id: 'i-009', sku: 'INS009', nome: 'Gelo em Cubo',         categoria: 'Insumos',            unidade: 'kg', estoqueAtual: 20,   estoqueMinimo: 5,    custoUnitario: 2,          fornecedor: '',                  ativo: true },
+  /* Bebidas unitárias */
+  { id: 'i-010', sku: 'INS010', nome: 'Energético 250ml',     categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 24,   estoqueMinimo: 12,   custoUnitario: 4.50,       fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-011', sku: 'INS011', nome: 'Copo Plástico 500ml',  categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 200,  estoqueMinimo: 100,  custoUnitario: 0.30,       fornecedor: 'Embalagem Pro',     ativo: true },
+  { id: 'i-012', sku: 'INS012', nome: 'Canudo Descartável',   categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 500,  estoqueMinimo: 200,  custoUnitario: 0.10,       fornecedor: 'Embalagem Pro',     ativo: true },
+  { id: 'i-013', sku: 'INS013', nome: 'Cerveja Brahma 350ml', categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 48,   estoqueMinimo: 24,   custoUnitario: 3.00,       fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-014', sku: 'INS014', nome: 'Coca-Cola 350ml',      categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 36,   estoqueMinimo: 12,   custoUnitario: 2.80,       fornecedor: 'Bebidas & Cia',     ativo: true },
+  { id: 'i-015', sku: 'INS015', nome: 'Água Mineral 500ml',   categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 48,   estoqueMinimo: 24,   custoUnitario: 1.20,       fornecedor: 'Bebidas & Cia',     ativo: true },
 ];
 
+/* ── Seed Data: Produtos (35 itens de bar) ───────────────────── */
+
+const SEED_PRODUTOS = [
+  /* ── Drinks (11) — custo calculado pela ficha técnica ──────── */
+  { id: 'p-drk001', sku: 'DRK001', nome: 'Caipirinha Limão',           categoria: 'Drinks',        descricao: 'Cachaça 51, limão tahiti, açúcar e gelo',                precoVenda: 15.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk002', sku: 'DRK002', nome: 'Caipirinha Morango',         categoria: 'Drinks',        descricao: 'Cachaça 51, morango fresco, açúcar e gelo',              precoVenda: 16.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk003', sku: 'DRK003', nome: 'Caipirinha Maracujá',        categoria: 'Drinks',        descricao: 'Cachaça 51, polpa de maracujá, açúcar e gelo',           precoVenda: 17.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk004', sku: 'DRK004', nome: 'Caipivodka Limão',           categoria: 'Drinks',        descricao: 'Vodka Smirnoff, limão tahiti, açúcar e gelo',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk005', sku: 'DRK005', nome: 'Caipivodka Morango',         categoria: 'Drinks',        descricao: 'Vodka Smirnoff, morango fresco, açúcar e gelo',          precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk006', sku: 'DRK006', nome: 'Caipivodka Maracujá',        categoria: 'Drinks',        descricao: 'Vodka Smirnoff, polpa de maracujá, açúcar e gelo',       precoVenda: 21.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk007', sku: 'DRK007', nome: 'Caipisaquê Limão',           categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, limão tahiti, açúcar e gelo',         precoVenda: 18.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk008', sku: 'DRK008', nome: 'Caipisaquê Morango',         categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, morango fresco, açúcar e gelo',       precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk009', sku: 'DRK009', nome: 'Caipisaquê Maracujá',        categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, polpa de maracujá, açúcar e gelo',    precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk010', sku: 'DRK010', nome: 'Vodka + Energético',         categoria: 'Drinks',        descricao: 'Dose de vodka Smirnoff com energético 250ml',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk011', sku: 'DRK011', nome: 'Whisky + Energético',        categoria: 'Drinks',        descricao: 'Dose de whisky Red Label com energético 250ml',          precoVenda: 24.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  /* ── Cervejas (6) — estoque físico, custo de compra ────────── */
+  { id: 'p-bee001', sku: 'BEE001', nome: 'Brahma Lata 350ml',          categoria: 'Cervejas',      descricao: 'Cerveja Brahma lata 350ml',                              precoVenda: 6.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 48, estoqueMinimo: 24, dataCadastro: '2026-07-01' },
+  { id: 'p-bee002', sku: 'BEE002', nome: 'Skol Lata 350ml',            categoria: 'Cervejas',      descricao: 'Cerveja Skol lata 350ml',                                precoVenda: 6.00,  custoCompra: 2.80, ativo: true, tempoPreparo: 1, estoqueAtual: 48, estoqueMinimo: 24, dataCadastro: '2026-07-01' },
+  { id: 'p-bee003', sku: 'BEE003', nome: 'Corona 355ml',               categoria: 'Cervejas',      descricao: 'Cerveja Corona garrafa 355ml',                           precoVenda: 12.00, custoCompra: 5.50, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-bee004', sku: 'BEE004', nome: 'Heineken 330ml',             categoria: 'Cervejas',      descricao: 'Cerveja Heineken lata 330ml',                            precoVenda: 10.00, custoCompra: 4.50, ativo: true, tempoPreparo: 1, estoqueAtual: 36, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-bee005', sku: 'BEE005', nome: 'Budweiser 350ml',            categoria: 'Cervejas',      descricao: 'Cerveja Budweiser lata 350ml',                           precoVenda: 8.00,  custoCompra: 3.50, ativo: true, tempoPreparo: 1, estoqueAtual: 36, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-bee006', sku: 'BEE006', nome: 'Artesanal 600ml',            categoria: 'Cervejas',      descricao: 'Cerveja artesanal local garrafa 600ml',                  precoVenda: 18.00, custoCompra: 9.00, ativo: true, tempoPreparo: 1, estoqueAtual: 12, estoqueMinimo: 6,  dataCadastro: '2026-07-01' },
+  /* ── Refrigerantes (4) ─────────────────────────────────────── */
+  { id: 'p-ref001', sku: 'REF001', nome: 'Coca-Cola 350ml',            categoria: 'Refrigerantes', descricao: 'Coca-Cola lata 350ml',                                   precoVenda: 6.00,  custoCompra: 2.80, ativo: true, tempoPreparo: 1, estoqueAtual: 36, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-ref002', sku: 'REF002', nome: 'Guaraná Antarctica 350ml',   categoria: 'Refrigerantes', descricao: 'Guaraná Antarctica lata 350ml',                          precoVenda: 5.00,  custoCompra: 2.50, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-ref003', sku: 'REF003', nome: 'Sprite 350ml',               categoria: 'Refrigerantes', descricao: 'Sprite lata 350ml',                                     precoVenda: 5.00,  custoCompra: 2.50, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-ref004', sku: 'REF004', nome: 'Schweppes Tônica 350ml',     categoria: 'Refrigerantes', descricao: 'Schweppes água tônica lata 350ml',                      precoVenda: 5.50,  custoCompra: 2.80, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  /* ── Águas (2) ─────────────────────────────────────────────── */
+  { id: 'p-agu001', sku: 'AGU001', nome: 'Água Mineral 500ml',         categoria: 'Águas',         descricao: 'Água mineral sem gás 500ml',                             precoVenda: 3.00,  custoCompra: 1.20, ativo: true, tempoPreparo: 1, estoqueAtual: 48, estoqueMinimo: 24, dataCadastro: '2026-07-01' },
+  { id: 'p-agu002', sku: 'AGU002', nome: 'Água com Gás 500ml',         categoria: 'Águas',         descricao: 'Água mineral com gás 500ml',                             precoVenda: 4.00,  custoCompra: 1.80, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  /* ── Energéticos (2) ───────────────────────────────────────── */
+  { id: 'p-ene001', sku: 'ENE001', nome: 'Red Bull 250ml',             categoria: 'Energéticos',   descricao: 'Red Bull lata 250ml',                                    precoVenda: 12.00, custoCompra: 5.50, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  { id: 'p-ene002', sku: 'ENE002', nome: 'Monster Energy 473ml',       categoria: 'Energéticos',   descricao: 'Monster Energy lata 473ml',                              precoVenda: 12.00, custoCompra: 6.00, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
+  /* ── Açaí (5) ──────────────────────────────────────────────── */
+  { id: 'p-aca001', sku: 'ACA001', nome: 'Açaí 300ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 300ml',                       precoVenda: 22.00, custoCompra: 8.00,  ativo: true, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5,  dataCadastro: '2026-07-01' },
+  { id: 'p-aca002', sku: 'ACA002', nome: 'Açaí 500ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 500ml',                       precoVenda: 32.00, custoCompra: 12.00, ativo: true, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5,  dataCadastro: '2026-07-01' },
+  { id: 'p-aca003', sku: 'ACA003', nome: 'Açaí 700ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 700ml',                       precoVenda: 42.00, custoCompra: 16.00, ativo: true, tempoPreparo: 5, estoqueAtual: 10, estoqueMinimo: 3,  dataCadastro: '2026-07-01' },
+  { id: 'p-aca004', sku: 'ACA004', nome: 'Açaí 1L',                    categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 1 litro',                     precoVenda: 55.00, custoCompra: 22.00, ativo: true, tempoPreparo: 5, estoqueAtual: 8,  estoqueMinimo: 2,  dataCadastro: '2026-07-01' },
+  { id: 'p-aca005', sku: 'ACA005', nome: 'Açaí c/ Complementos 500ml', categoria: 'Açaí',          descricao: 'Açaí 500ml com granola, banana e leite condensado',       precoVenda: 38.00, custoCompra: 15.00, ativo: true, tempoPreparo: 7, estoqueAtual: 10, estoqueMinimo: 3,  dataCadastro: '2026-07-01' },
+  /* ── Conveniência (5) ──────────────────────────────────────── */
+  { id: 'p-con001', sku: 'CON001', nome: 'Amendoim Temperado 100g',    categoria: 'Conveniência',  descricao: 'Amendoim crocante temperado 100g',                       precoVenda: 8.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
+  { id: 'p-con002', sku: 'CON002', nome: 'Mix de Nuts 100g',           categoria: 'Conveniência',  descricao: 'Mix de castanhas e nozes premium 100g',                  precoVenda: 12.00, custoCompra: 5.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
+  { id: 'p-con003', sku: 'CON003', nome: 'Batata Chips 60g',           categoria: 'Conveniência',  descricao: 'Batata chips crocante sabor original 60g',               precoVenda: 8.00,  custoCompra: 3.50, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
+  { id: 'p-con004', sku: 'CON004', nome: 'Azeitona Temperada 100g',    categoria: 'Conveniência',  descricao: 'Azeitona verde temperada com ervas 100g',                precoVenda: 10.00, custoCompra: 4.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
+  { id: 'p-con005', sku: 'CON005', nome: 'Torresmo 150g',              categoria: 'Conveniência',  descricao: 'Torresmo artesanal crocante 150g',                       precoVenda: 15.00, custoCompra: 5.50, ativo: true, tempoPreparo: 3, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
+];
+
+/* ── Seed Data: Fichas Técnicas (11 drinks) ──────────────────── */
+/*
+  CMV de referência (calculado pelos custos dos insumos):
+    DRK001 Caipirinha Limão      R$3.13 / R$15.90 = 19.7%
+    DRK002 Caipirinha Morango    R$3.29 / R$16.90 = 19.5%
+    DRK003 Caipirinha Maracujá   R$2.93 / R$17.90 = 16.4%
+    DRK004 Caipivodka Limão      R$4.38 / R$19.90 = 22.0%
+    DRK005 Caipivodka Morango    R$4.54 / R$20.90 = 21.7%
+    DRK006 Caipivodka Maracujá   R$4.18 / R$21.90 = 19.1%
+    DRK007 Caipisaquê Limão      R$4.55 / R$18.90 = 24.1%
+    DRK008 Caipisaquê Morango    R$4.71 / R$19.90 = 23.7%
+    DRK009 Caipisaquê Maracujá   R$4.35 / R$20.90 = 20.8%
+    DRK010 Vodka + Energético    R$6.30 / R$19.90 = 31.7%
+    DRK011 Whisky + Energético   R$8.65 / R$24.90 = 34.7%
+*/
 const SEED_FICHAS = [
   {
-    id: 'f-001', produtoId: 'p-001', rendimento: 1,
+    id: 'f-drk001', produtoId: 'p-drk001', rendimento: 1,
     itens: [
-      { ingredienteId: 'i-001', quantidade: 0.25, unidade: 'kg' },
-      { ingredienteId: 'i-002', quantidade: 0.08, unidade: 'kg' },
-      { ingredienteId: 'i-006', quantidade: 0.05, unidade: 'L'  },
+      { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
   },
   {
-    id: 'f-002', produtoId: 'p-002', rendimento: 1,
+    id: 'f-drk002', produtoId: 'p-drk002', rendimento: 1,
     itens: [
-      { ingredienteId: 'i-001', quantidade: 0.25, unidade: 'kg' },
-      { ingredienteId: 'i-003', quantidade: 0.06, unidade: 'kg' },
-      { ingredienteId: 'i-006', quantidade: 0.05, unidade: 'L'  },
+      { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
   },
   {
-    id: 'f-003', produtoId: 'p-003', rendimento: 1,
+    id: 'f-drk003', produtoId: 'p-drk003', rendimento: 1,
     itens: [
-      { ingredienteId: 'i-005', quantidade: 0.10, unidade: 'kg' },
+      { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
   },
   {
-    id: 'f-004', produtoId: 'p-004', rendimento: 1,
+    id: 'f-drk004', produtoId: 'p-drk004', rendimento: 1,
     itens: [
-      { ingredienteId: 'i-004', quantidade: 0.12, unidade: 'kg' },
+      { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk005', produtoId: 'p-drk005', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk006', produtoId: 'p-drk006', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk007', produtoId: 'p-drk007', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk008', produtoId: 'p-drk008', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk009', produtoId: 'p-drk009', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
+      { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
+      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk010', produtoId: 'p-drk010', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-002', quantidade: 50,  unidade: 'ml' },
+      { ingredienteId: 'i-010', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
+    id: 'f-drk011', produtoId: 'p-drk011', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-004', quantidade: 50,  unidade: 'ml' },
+      { ingredienteId: 'i-010', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
   },
 ];
@@ -199,51 +346,52 @@ function nextNumeroPedido(pedidos) {
 const SEED_PEDIDOS = [
   {
     id: 'ped-001', numeroPedido: 1,
-    origem: 'WhatsApp', clienteId: 'cli-001', clienteNome: 'Ana Lima',
+    origem: 'Balcão', clienteId: null, clienteNome: 'Balcão',
     status: 'Entregue',
-    itens: [{ produtoId: 'p-001', nome: 'Batata Cheddar', qty: 2, precoUnitario: 38, subtotal: 76 }],
-    subtotal: 76, taxaEntrega: 5, desconto: 0, total: 81,
+    itens: [
+      { produtoId: 'p-drk001', nome: 'Caipirinha Limão',  qty: 2, precoUnitario: 15.90, subtotal: 31.80 },
+      { produtoId: 'p-bee001', nome: 'Brahma Lata 350ml', qty: 2, precoUnitario: 6.00,  subtotal: 12.00 },
+    ],
+    subtotal: 43.80, taxaEntrega: 0, desconto: 0, total: 43.80,
     formaPagamento: 'PIX', observacoes: '',
-    dataCriacao: '2026-07-10T10:00:00.000Z', dataAtualizacao: '2026-07-10T11:30:00.000Z',
+    dataCriacao: '2026-07-10T20:00:00.000Z', dataAtualizacao: '2026-07-10T20:30:00.000Z',
   },
   {
     id: 'ped-002', numeroPedido: 2,
-    origem: 'iFood', clienteId: 'cli-002', clienteNome: 'Carlos Matos',
+    origem: 'WhatsApp', clienteId: 'cli-001', clienteNome: 'Ana Lima',
     status: 'Entregue',
-    itens: [{ produtoId: 'p-005', nome: 'Combo Família', qty: 1, precoUnitario: 89, subtotal: 89 }],
-    subtotal: 89, taxaEntrega: 0, desconto: 5, total: 84,
-    formaPagamento: 'iFood', observacoes: '',
-    dataCriacao: '2026-07-10T11:00:00.000Z', dataAtualizacao: '2026-07-10T12:45:00.000Z',
+    itens: [
+      { produtoId: 'p-drk004', nome: 'Caipivodka Limão',         qty: 1, precoUnitario: 19.90, subtotal: 19.90 },
+      { produtoId: 'p-drk005', nome: 'Caipivodka Morango',        qty: 1, precoUnitario: 20.90, subtotal: 20.90 },
+      { produtoId: 'p-con001', nome: 'Amendoim Temperado 100g',   qty: 1, precoUnitario: 8.00,  subtotal: 8.00  },
+    ],
+    subtotal: 48.80, taxaEntrega: 8, desconto: 0, total: 56.80,
+    formaPagamento: 'PIX', observacoes: '',
+    dataCriacao: '2026-07-12T19:30:00.000Z', dataAtualizacao: '2026-07-12T20:15:00.000Z',
   },
   {
     id: 'ped-003', numeroPedido: 3,
     origem: 'Balcão', clienteId: null, clienteNome: 'Balcão',
     status: 'Em Produção',
     itens: [
-      { produtoId: 'p-002', nome: 'Batata Bacon',  qty: 1, precoUnitario: 42, subtotal: 42 },
-      { produtoId: 'p-003', nome: 'Caldo Verde',   qty: 2, precoUnitario: 28, subtotal: 56 },
+      { produtoId: 'p-drk002', nome: 'Caipirinha Morango', qty: 2, precoUnitario: 16.90, subtotal: 33.80 },
+      { produtoId: 'p-ref001', nome: 'Coca-Cola 350ml',    qty: 1, precoUnitario: 6.00,  subtotal: 6.00  },
     ],
-    subtotal: 98, taxaEntrega: 0, desconto: 0, total: 98,
-    formaPagamento: 'Dinheiro', observacoes: 'Sem bacon no caldo',
-    dataCriacao: '2026-07-10T13:00:00.000Z', dataAtualizacao: '2026-07-10T13:15:00.000Z',
+    subtotal: 39.80, taxaEntrega: 0, desconto: 0, total: 39.80,
+    formaPagamento: 'Dinheiro', observacoes: 'Sem açúcar em uma das caipirinhas',
+    dataCriacao: '2026-07-15T20:00:00.000Z', dataAtualizacao: '2026-07-15T20:05:00.000Z',
   },
   {
     id: 'ped-004', numeroPedido: 4,
-    origem: 'Instagram', clienteId: 'cli-003', clienteNome: 'Fernanda Costa',
-    status: 'Aguardando Pagamento',
-    itens: [{ produtoId: 'p-004', nome: 'Bolinho de Aipim', qty: 2, precoUnitario: 32, subtotal: 64 }],
-    subtotal: 64, taxaEntrega: 8, desconto: 0, total: 72,
-    formaPagamento: 'PIX', observacoes: '',
-    dataCriacao: '2026-07-10T13:30:00.000Z', dataAtualizacao: '2026-07-10T13:30:00.000Z',
-  },
-  {
-    id: 'ped-005', numeroPedido: 5,
-    origem: 'WhatsApp', clienteId: 'cli-001', clienteNome: 'Ana Lima',
+    origem: 'Instagram', clienteId: 'cli-002', clienteNome: 'Carlos Matos',
     status: 'Novo',
-    itens: [{ produtoId: 'p-001', nome: 'Batata Cheddar', qty: 1, precoUnitario: 38, subtotal: 38 }],
-    subtotal: 38, taxaEntrega: 5, desconto: 0, total: 43,
-    formaPagamento: 'Cartão Crédito', observacoes: 'Capricha no molho!',
-    dataCriacao: '2026-07-10T14:00:00.000Z', dataAtualizacao: '2026-07-10T14:00:00.000Z',
+    itens: [
+      { produtoId: 'p-drk011', nome: 'Whisky + Energético', qty: 1, precoUnitario: 24.90, subtotal: 24.90 },
+      { produtoId: 'p-aca002', nome: 'Açaí 500ml',          qty: 1, precoUnitario: 32.00, subtotal: 32.00 },
+    ],
+    subtotal: 56.90, taxaEntrega: 8, desconto: 0, total: 64.90,
+    formaPagamento: 'PIX', observacoes: '',
+    dataCriacao: '2026-07-15T20:30:00.000Z', dataAtualizacao: '2026-07-15T20:30:00.000Z',
   },
 ];
 
@@ -253,7 +401,7 @@ const SEED_CLIENTES = [
   {
     id: 'cli-001', nome: 'Ana Lima',
     telefone: '(11) 99999-0001', email: 'ana.lima@email.com', cpf: '',
-    observacoes: 'Cliente fiel, sempre pede cheddar',
+    observacoes: 'Prefere caipivodka',
     enderecos: [
       { id: 'end-001', rua: 'Rua das Flores', numero: '123', bairro: 'Centro', cidade: 'São Paulo', estado: 'SP', cep: '01000-000', complemento: 'Apto 5' },
     ],
@@ -271,7 +419,7 @@ const SEED_CLIENTES = [
   {
     id: 'cli-003', nome: 'Fernanda Costa',
     telefone: '(11) 97777-0003', email: 'fernanda@email.com', cpf: '',
-    observacoes: 'Alérgica a bacon',
+    observacoes: '',
     enderecos: [],
     dataCadastro: '2026-07-08',
   },
@@ -298,11 +446,9 @@ const STORE_KEYS_V4 = {
 /* ── Seed Data: Fornecedores ─────────────────────────────────── */
 
 const SEED_FORNECEDORES = [
-  { id: 'for-001', nome: 'Supra Hortifrutti', cnpj: '', telefone: '(11) 9 9999-0003', email: '', contato: '', categoria: 'Hortifruti', prazoEntrega: 1, condicoesPagamento: 'À vista', observacoes: 'Pedido na segunda', ativo: true, dataCadastro: '2026-07-01' },
-  { id: 'for-002', nome: 'Frigorífico São Jorge', cnpj: '', telefone: '(11) 9 9999-0001', email: '', contato: '', categoria: 'Carnes', prazoEntrega: 2, condicoesPagamento: '30 dias', observacoes: 'Entrega ter/qui', ativo: true, dataCadastro: '2026-07-01' },
-  { id: 'for-003', nome: 'Distribuidora Cheddar+', cnpj: '', telefone: '(11) 9 9999-0002', email: '', contato: '', categoria: 'Laticínios', prazoEntrega: 3, condicoesPagamento: '15 dias', observacoes: 'Pedir 2 dias antes', ativo: true, dataCadastro: '2026-07-01' },
-  { id: 'for-004', nome: 'Bebidas & Cia', cnpj: '', telefone: '(11) 9 9999-0004', email: '', contato: '', categoria: 'Bebidas', prazoEntrega: 2, condicoesPagamento: 'À vista', observacoes: 'Mín. 2 caixas', ativo: true, dataCadastro: '2026-07-01' },
-  { id: 'for-005', nome: 'Embalagem Pro', cnpj: '', telefone: '(11) 9 9999-0005', email: '', contato: '', categoria: 'Embalagens', prazoEntrega: 5, condicoesPagamento: 'À vista', observacoes: 'A cada 2 semanas', ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-001', nome: 'Supra Hortifrutti',   cnpj: '', telefone: '(11) 9 9999-0003', email: '', contato: '', categoria: 'Hortifruti', prazoEntrega: 1, condicoesPagamento: 'À vista', observacoes: 'Pedido na segunda',  ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-002', nome: 'Bebidas & Cia',        cnpj: '', telefone: '(11) 9 9999-0004', email: '', contato: '', categoria: 'Bebidas',    prazoEntrega: 2, condicoesPagamento: 'À vista', observacoes: 'Mín. 2 caixas',     ativo: true, dataCadastro: '2026-07-01' },
+  { id: 'for-003', nome: 'Embalagem Pro',        cnpj: '', telefone: '(11) 9 9999-0005', email: '', contato: '', categoria: 'Embalagens', prazoEntrega: 5, condicoesPagamento: 'À vista', observacoes: 'A cada 2 semanas', ativo: true, dataCadastro: '2026-07-01' },
 ];
 
 const CATS_FORNECEDOR = ['Hortifruti', 'Carnes', 'Laticínios', 'Bebidas', 'Embalagens', 'Grãos', 'Temperos', 'Outros'];
@@ -317,35 +463,26 @@ const SEED_COMPRAS = [
     fornecedorId: 'for-001', fornecedorNome: 'Supra Hortifrutti',
     status: 'Recebido', tipo: 'manual',
     itens: [
-      { ingredienteId: 'i-001', nome: 'Batata Palito', quantidade: 10, unidade: 'kg', custoUnitario: 4.50, subtotal: 45 },
-      { ingredienteId: 'i-005', nome: 'Couve', quantidade: 3, unidade: 'kg', custoUnitario: 5.20, subtotal: 15.60 },
+      { ingredienteId: 'i-005', nome: 'Morango Fresco', quantidade: 3, unidade: 'kg', custoUnitario: 12, subtotal: 36 },
+      { ingredienteId: 'i-006', nome: 'Limão Tahiti',   quantidade: 4, unidade: 'kg', custoUnitario: 8,  subtotal: 32 },
+      { ingredienteId: 'i-007', nome: 'Maracujá Polpa', quantidade: 2, unidade: 'kg', custoUnitario: 10, subtotal: 20 },
     ],
-    total: 60.60, observacoes: '',
-    dataCompra: '2026-07-03', dataRecebimento: '2026-07-03',
+    total: 88, observacoes: '',
+    dataCompra: '2026-07-10', dataRecebimento: '2026-07-10',
     notaFiscal: '', formaPagamento: 'À vista',
   },
   {
     id: 'cmp-002', numeroPedidoCompra: 2,
-    fornecedorId: 'for-002', fornecedorNome: 'Frigorífico São Jorge',
+    fornecedorId: 'for-002', fornecedorNome: 'Bebidas & Cia',
     status: 'Recebido', tipo: 'manual',
     itens: [
-      { ingredienteId: 'i-003', nome: 'Bacon Fatiado', quantidade: 3, unidade: 'kg', custoUnitario: 38, subtotal: 114 },
-      { ingredienteId: 'i-007', nome: 'Costela Bovina', quantidade: 5, unidade: 'kg', custoUnitario: 48, subtotal: 240 },
+      { ingredienteId: 'i-001', nome: 'Cachaça 51',       quantidade: 4,  unidade: 'un', custoUnitario: 15,   subtotal: 60  },
+      { ingredienteId: 'i-002', nome: 'Vodka Smirnoff',   quantidade: 2,  unidade: 'un', custoUnitario: 28,   subtotal: 56  },
+      { ingredienteId: 'i-010', nome: 'Energético 250ml', quantidade: 24, unidade: 'un', custoUnitario: 4.50, subtotal: 108 },
     ],
-    total: 354, observacoes: '',
-    dataCompra: '2026-07-02', dataRecebimento: '2026-07-02',
-    notaFiscal: '', formaPagamento: '30 dias',
-  },
-  {
-    id: 'cmp-003', numeroPedidoCompra: 3,
-    fornecedorId: 'for-003', fornecedorNome: 'Distribuidora Cheddar+',
-    status: 'Aprovado', tipo: 'automatico',
-    itens: [
-      { ingredienteId: 'i-002', nome: 'Cheddar Cremoso', quantidade: 5, unidade: 'kg', custoUnitario: 22, subtotal: 110 },
-    ],
-    total: 110, observacoes: 'Estoque crítico — gerado automaticamente',
-    dataCompra: '2026-07-10', dataRecebimento: '',
-    notaFiscal: '', formaPagamento: '15 dias',
+    total: 224, observacoes: '',
+    dataCompra: '2026-07-08', dataRecebimento: '2026-07-08',
+    notaFiscal: '', formaPagamento: 'À vista',
   },
 ];
 
@@ -354,19 +491,17 @@ const SEED_COMPRAS = [
 const TIPOS_MOVIMENTACAO = ['entrada', 'saída', 'ajuste', 'perda'];
 
 const SEED_MOVIMENTACOES = [
-  { id: 'mov-001', tipo: 'entrada', ingredienteId: 'i-001', ingredienteNome: 'Batata Palito', quantidade: 10, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-03', usuario: 'admin' },
-  { id: 'mov-002', tipo: 'entrada', ingredienteId: 'i-005', ingredienteNome: 'Couve', quantidade: 3, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-03', usuario: 'admin' },
-  { id: 'mov-003', tipo: 'entrada', ingredienteId: 'i-003', ingredienteNome: 'Bacon Fatiado', quantidade: 3, unidade: 'kg', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-02', usuario: 'admin' },
-  { id: 'mov-004', tipo: 'entrada', ingredienteId: 'i-007', ingredienteNome: 'Costela Bovina', quantidade: 5, unidade: 'kg', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-02', usuario: 'admin' },
-  { id: 'mov-005', tipo: 'saída', ingredienteId: 'i-003', ingredienteNome: 'Bacon Fatiado', quantidade: 2.2, unidade: 'kg', motivo: 'venda', referencia: 'ped-001', data: '2026-07-09', usuario: 'sistema' },
-  { id: 'mov-006', tipo: 'saída', ingredienteId: 'i-007', ingredienteNome: 'Costela Bovina', quantidade: 3, unidade: 'kg', motivo: 'venda', referencia: 'ped-002', data: '2026-07-08', usuario: 'sistema' },
+  { id: 'mov-001', tipo: 'entrada', ingredienteId: 'i-005', ingredienteNome: 'Morango Fresco', quantidade: 3, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-10', usuario: 'admin' },
+  { id: 'mov-002', tipo: 'entrada', ingredienteId: 'i-006', ingredienteNome: 'Limão Tahiti',   quantidade: 4, unidade: 'kg', motivo: 'compra', referencia: 'cmp-001', data: '2026-07-10', usuario: 'admin' },
+  { id: 'mov-003', tipo: 'entrada', ingredienteId: 'i-001', ingredienteNome: 'Cachaça 51',     quantidade: 4, unidade: 'un', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-08', usuario: 'admin' },
+  { id: 'mov-004', tipo: 'entrada', ingredienteId: 'i-002', ingredienteNome: 'Vodka Smirnoff', quantidade: 2, unidade: 'un', motivo: 'compra', referencia: 'cmp-002', data: '2026-07-08', usuario: 'admin' },
 ];
 
 /* ── Seed Data: Cupons ───────────────────────────────────────── */
 
 const SEED_CUPONS = [
-  { id: 'cup-001', codigo: 'BEMVINDO10', tipo: 'percentual', valor: 10, ativo: true, usos: 3, limite: 100, validade: '2026-12-31', descricao: 'Desconto de boas-vindas para novos clientes' },
-  { id: 'cup-002', codigo: 'FIDELIDADE5', tipo: 'fixo', valor: 5, ativo: true, usos: 12, limite: 50, validade: '2026-09-30', descricao: 'Desconto fidelidade R$ 5' },
+  { id: 'cup-001', codigo: 'BEMVINDO10',  tipo: 'percentual', valor: 10, ativo: true, usos: 3,  limite: 100, validade: '2026-12-31', descricao: 'Desconto de boas-vindas para novos clientes' },
+  { id: 'cup-002', codigo: 'FIDELIDADE5', tipo: 'fixo',        valor: 5,  ativo: true, usos: 12, limite: 50,  validade: '2026-09-30', descricao: 'Desconto fidelidade R$ 5' },
 ];
 
 /* ── Seed Data: Documentos ───────────────────────────────────── */
@@ -374,9 +509,9 @@ const SEED_CUPONS = [
 const CATS_DOCUMENTO = ['Alvará', 'Contrato', 'Fiscal', 'Manual', 'Receita', 'Outros'];
 
 const SEED_DOCUMENTOS = [
-  { id: 'doc-001', titulo: 'Alvará de Funcionamento 2026', categoria: 'Alvará', data: '2026-01-15', link: '', notas: 'Válido até 31/12/2026', dataCadastro: '2026-07-01' },
-  { id: 'doc-002', titulo: 'AVCB — Corpo de Bombeiros', categoria: 'Alvará', data: '2025-08-20', link: '', notas: 'Renovar em ago/2026', dataCadastro: '2026-07-01' },
-  { id: 'doc-003', titulo: 'Manual de Boas Práticas de Manipulação', categoria: 'Manual', data: '2026-01-01', link: '', notas: '', dataCadastro: '2026-07-01' },
+  { id: 'doc-001', titulo: 'Alvará de Funcionamento 2026',           categoria: 'Alvará', data: '2026-01-15', link: '', notas: 'Válido até 31/12/2026', dataCadastro: '2026-07-01' },
+  { id: 'doc-002', titulo: 'AVCB — Corpo de Bombeiros',              categoria: 'Alvará', data: '2025-08-20', link: '', notas: 'Renovar em ago/2026',  dataCadastro: '2026-07-01' },
+  { id: 'doc-003', titulo: 'Manual de Boas Práticas de Manipulação', categoria: 'Manual', data: '2026-01-01', link: '', notas: '',                     dataCadastro: '2026-07-01' },
 ];
 
 /* ── Seed Data: Configurações ────────────────────────────────── */
