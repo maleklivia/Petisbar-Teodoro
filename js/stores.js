@@ -118,17 +118,17 @@ const SEED_INGREDIENTES = [
 
 const SEED_PRODUTOS = [
   /* ── Drinks (11) — custo calculado pela ficha técnica ──────── */
-  { id: 'p-drk001', sku: 'DRK001', nome: 'Caipirinha Limão',           categoria: 'Drinks',        descricao: 'Cachaça 51, limão tahiti, açúcar e gelo',                precoVenda: 15.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk002', sku: 'DRK002', nome: 'Caipirinha Morango',         categoria: 'Drinks',        descricao: 'Cachaça 51, morango fresco, açúcar e gelo',              precoVenda: 16.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk003', sku: 'DRK003', nome: 'Caipirinha Maracujá',        categoria: 'Drinks',        descricao: 'Cachaça 51, polpa de maracujá, açúcar e gelo',           precoVenda: 17.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk004', sku: 'DRK004', nome: 'Caipivodka Limão',           categoria: 'Drinks',        descricao: 'Vodka Smirnoff, limão tahiti, açúcar e gelo',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk005', sku: 'DRK005', nome: 'Caipivodka Morango',         categoria: 'Drinks',        descricao: 'Vodka Smirnoff, morango fresco, açúcar e gelo',          precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk006', sku: 'DRK006', nome: 'Caipivodka Maracujá',        categoria: 'Drinks',        descricao: 'Vodka Smirnoff, polpa de maracujá, açúcar e gelo',       precoVenda: 21.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk007', sku: 'DRK007', nome: 'Caipisaquê Limão',           categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, limão tahiti, açúcar e gelo',         precoVenda: 18.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk008', sku: 'DRK008', nome: 'Caipisaquê Morango',         categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, morango fresco, açúcar e gelo',       precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk009', sku: 'DRK009', nome: 'Caipisaquê Maracujá',        categoria: 'Drinks',        descricao: 'Saquê Azuma Kirin, polpa de maracujá, açúcar e gelo',    precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk010', sku: 'DRK010', nome: 'Vodka + Energético',         categoria: 'Drinks',        descricao: 'Dose de vodka Smirnoff com energético 250ml',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk011', sku: 'DRK011', nome: 'Whisky + Energético',        categoria: 'Drinks',        descricao: 'Dose de whisky Red Label com energético 250ml',          precoVenda: 24.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk001', sku: 'DRK001', nome: 'Caipirinha Limão 500ml',           categoria: 'Drinks',        descricao: 'Copo 500ml com cachaça 51, limão tahiti, açúcar e gelo',                precoVenda: 15.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk002', sku: 'DRK002', nome: 'Caipirinha Morango 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com cachaça 51, morango fresco, açúcar e gelo',              precoVenda: 16.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk003', sku: 'DRK003', nome: 'Caipirinha Maracujá 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com cachaça 51, polpa de maracujá, açúcar e gelo',           precoVenda: 17.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk004', sku: 'DRK004', nome: 'Caipivodka Limão 500ml',           categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, limão tahiti, açúcar e gelo',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk005', sku: 'DRK005', nome: 'Caipivodka Morango 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, morango fresco, açúcar e gelo',          precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk006', sku: 'DRK006', nome: 'Caipivodka Maracujá 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, polpa de maracujá, açúcar e gelo',       precoVenda: 21.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk007', sku: 'DRK007', nome: 'Caipisaquê Limão 500ml',           categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, limão tahiti, açúcar e gelo',         precoVenda: 18.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk008', sku: 'DRK008', nome: 'Caipisaquê Morango 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, morango fresco, açúcar e gelo',       precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk009', sku: 'DRK009', nome: 'Caipisaquê Maracujá 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, polpa de maracujá, açúcar e gelo',    precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk010', sku: 'DRK010', nome: 'Vodka + Energético 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, energético 250ml e gelo',                precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
+  { id: 'p-drk011', sku: 'DRK011', nome: 'Whisky + Energético 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com whisky Red Label, energético 250ml e gelo',              precoVenda: 24.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   /* ── Cervejas (6) — estoque físico, custo de compra ────────── */
   { id: 'p-bee001', sku: 'BEE001', nome: 'Brahma Lata 350ml',          categoria: 'Cervejas',      descricao: 'Cerveja Brahma lata 350ml',                              precoVenda: 6.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 48, estoqueMinimo: 24, dataCadastro: '2026-07-01' },
   { id: 'p-bee002', sku: 'BEE002', nome: 'Skol Lata 350ml',            categoria: 'Cervejas',      descricao: 'Cerveja Skol lata 350ml',                                precoVenda: 6.00,  custoCompra: 2.80, ativo: true, tempoPreparo: 1, estoqueAtual: 48, estoqueMinimo: 24, dataCadastro: '2026-07-01' },
@@ -148,11 +148,11 @@ const SEED_PRODUTOS = [
   { id: 'p-ene001', sku: 'ENE001', nome: 'Red Bull 250ml',             categoria: 'Energéticos',   descricao: 'Red Bull lata 250ml',                                    precoVenda: 12.00, custoCompra: 5.50, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
   { id: 'p-ene002', sku: 'ENE002', nome: 'Monster Energy 473ml',       categoria: 'Energéticos',   descricao: 'Monster Energy lata 473ml',                              precoVenda: 12.00, custoCompra: 6.00, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
   /* ── Açaí (5) ──────────────────────────────────────────────── */
-  { id: 'p-aca001', sku: 'ACA001', nome: 'Açaí 300ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 300ml',                       precoVenda: 22.00, custoCompra: 8.00,  ativo: true, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5,  dataCadastro: '2026-07-01' },
-  { id: 'p-aca002', sku: 'ACA002', nome: 'Açaí 500ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 500ml',                       precoVenda: 32.00, custoCompra: 12.00, ativo: true, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5,  dataCadastro: '2026-07-01' },
-  { id: 'p-aca003', sku: 'ACA003', nome: 'Açaí 700ml',                 categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 700ml',                       precoVenda: 42.00, custoCompra: 16.00, ativo: true, tempoPreparo: 5, estoqueAtual: 10, estoqueMinimo: 3,  dataCadastro: '2026-07-01' },
-  { id: 'p-aca004', sku: 'ACA004', nome: 'Açaí 1L',                    categoria: 'Açaí',          descricao: 'Açaí puro sem complementos 1 litro',                     precoVenda: 55.00, custoCompra: 22.00, ativo: true, tempoPreparo: 5, estoqueAtual: 8,  estoqueMinimo: 2,  dataCadastro: '2026-07-01' },
-  { id: 'p-aca005', sku: 'ACA005', nome: 'Açaí c/ Complementos 500ml', categoria: 'Açaí',          descricao: 'Açaí 500ml com granola, banana e leite condensado',       precoVenda: 38.00, custoCompra: 15.00, ativo: true, tempoPreparo: 7, estoqueAtual: 10, estoqueMinimo: 3,  dataCadastro: '2026-07-01' },
+  { id: 'p-aca001', sku: 'ACA001', nome: 'Batidinha de Açaí 300ml',    categoria: 'Açaí',          descricao: 'Açaí batido e servido em garrafinha de 300ml',           precoVenda: 15.00, custoCompra: 8.00,  ativo: true,  tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5, dataCadastro: '2026-07-01' },
+  { id: 'p-aca002', sku: 'ACA002', nome: 'Açaí 500ml',                 categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 32.00, custoCompra: 12.00, ativo: false, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5, dataCadastro: '2026-07-01' },
+  { id: 'p-aca003', sku: 'ACA003', nome: 'Açaí 700ml',                 categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 42.00, custoCompra: 16.00, ativo: false, tempoPreparo: 5, estoqueAtual: 10, estoqueMinimo: 3, dataCadastro: '2026-07-01' },
+  { id: 'p-aca004', sku: 'ACA004', nome: 'Açaí 1L',                    categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 55.00, custoCompra: 22.00, ativo: false, tempoPreparo: 5, estoqueAtual: 8,  estoqueMinimo: 2, dataCadastro: '2026-07-01' },
+  { id: 'p-aca005', sku: 'ACA005', nome: 'Açaí c/ Complementos 500ml', categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 38.00, custoCompra: 15.00, ativo: false, tempoPreparo: 7, estoqueAtual: 10, estoqueMinimo: 3, dataCadastro: '2026-07-01' },
   /* ── Conveniência (5) ──────────────────────────────────────── */
   { id: 'p-con001', sku: 'CON001', nome: 'Amendoim Temperado 100g',    categoria: 'Conveniência',  descricao: 'Amendoim crocante temperado 100g',                       precoVenda: 8.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
   { id: 'p-con002', sku: 'CON002', nome: 'Mix de Nuts 100g',           categoria: 'Conveniência',  descricao: 'Mix de castanhas e nozes premium 100g',                  precoVenda: 12.00, custoCompra: 5.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
@@ -164,17 +164,17 @@ const SEED_PRODUTOS = [
 /* ── Seed Data: Fichas Técnicas (11 drinks) ──────────────────── */
 /*
   CMV de referência (calculado pelos custos dos insumos):
-    DRK001 Caipirinha Limão      R$3.13 / R$15.90 = 19.7%
-    DRK002 Caipirinha Morango    R$3.29 / R$16.90 = 19.5%
-    DRK003 Caipirinha Maracujá   R$2.93 / R$17.90 = 16.4%
-    DRK004 Caipivodka Limão      R$4.38 / R$19.90 = 22.0%
-    DRK005 Caipivodka Morango    R$4.54 / R$20.90 = 21.7%
-    DRK006 Caipivodka Maracujá   R$4.18 / R$21.90 = 19.1%
-    DRK007 Caipisaquê Limão      R$4.55 / R$18.90 = 24.1%
-    DRK008 Caipisaquê Morango    R$4.71 / R$19.90 = 23.7%
-    DRK009 Caipisaquê Maracujá   R$4.35 / R$20.90 = 20.8%
-    DRK010 Vodka + Energético    R$6.30 / R$19.90 = 31.7%
-    DRK011 Whisky + Energético   R$8.65 / R$24.90 = 34.7%
+    DRK001 Caipirinha Limão      R$3.33 / R$15.90 = 21.0%
+    DRK002 Caipirinha Morango    R$3.49 / R$16.90 = 20.7%
+    DRK003 Caipirinha Maracujá   R$3.13 / R$17.90 = 17.5%
+    DRK004 Caipivodka Limão      R$4.58 / R$19.90 = 23.0%
+    DRK005 Caipivodka Morango    R$4.74 / R$20.90 = 22.7%
+    DRK006 Caipivodka Maracujá   R$4.38 / R$21.90 = 20.0%
+    DRK007 Caipisaquê Limão      R$4.75 / R$18.90 = 25.1%
+    DRK008 Caipisaquê Morango    R$4.91 / R$19.90 = 24.7%
+    DRK009 Caipisaquê Maracujá   R$4.55 / R$20.90 = 21.8%
+    DRK010 Vodka + Energético    R$6.70 / R$19.90 = 33.7%
+    DRK011 Whisky + Energético   R$9.05 / R$24.90 = 36.3%
 */
 const SEED_FICHAS = [
   {
@@ -183,7 +183,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -194,7 +194,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -205,7 +205,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-001', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -216,7 +216,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -227,7 +227,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -238,7 +238,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -249,7 +249,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -260,7 +260,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -271,7 +271,7 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 150, unidade: 'g'  },
+      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -281,6 +281,7 @@ const SEED_FICHAS = [
     itens: [
       { ingredienteId: 'i-002', quantidade: 50,  unidade: 'ml' },
       { ingredienteId: 'i-010', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-009', quantidade: 200, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -290,6 +291,7 @@ const SEED_FICHAS = [
     itens: [
       { ingredienteId: 'i-004', quantidade: 50,  unidade: 'ml' },
       { ingredienteId: 'i-010', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-009', quantidade: 200, unidade: 'g'  },
       { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
       { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
     ],
@@ -551,3 +553,70 @@ if (['Distrito XVII', 'Distrito OS'].includes(storedConfig.restaurante?.nome)) {
   storedConfig.restaurante.nome = 'Petisbar Teodoro';
   Stores.config.set(storedConfig);
 }
+
+// Padroniza os drinks existentes para copos de 500ml sem apagar outros dados do cardápio.
+const drinkIds = new Set(SEED_PRODUTOS.filter(p => p.categoria === 'Drinks').map(p => p.id));
+const drinkDefaults = new Map(SEED_PRODUTOS.filter(p => drinkIds.has(p.id)).map(p => [p.id, p]));
+const storedProducts = Stores.produtos.get();
+let productsChanged = false;
+
+storedProducts.forEach(product => {
+  const defaults = drinkDefaults.get(product.id);
+  if (!defaults) return;
+  if (product.nome !== defaults.nome || product.descricao !== defaults.descricao) {
+    product.nome = defaults.nome;
+    product.descricao = defaults.descricao;
+    productsChanged = true;
+  }
+});
+
+// Substitui os tamanhos antigos de açaí pela batidinha em garrafinha de 300ml.
+const acai300 = storedProducts.find(product => product.id === 'p-aca001');
+if (acai300) {
+  const acaiDefault = SEED_PRODUTOS.find(product => product.id === 'p-aca001');
+  const acaiUpdate = {
+    nome: acaiDefault.nome,
+    descricao: acaiDefault.descricao,
+    precoVenda: acaiDefault.precoVenda,
+    ativo: true,
+  };
+  if (Object.entries(acaiUpdate).some(([key, value]) => acai300[key] !== value)) {
+    Object.assign(acai300, acaiUpdate);
+    productsChanged = true;
+  }
+}
+
+storedProducts.forEach(product => {
+  if (['p-aca002', 'p-aca003', 'p-aca004', 'p-aca005'].includes(product.id) && product.ativo) {
+    product.ativo = false;
+    productsChanged = true;
+  }
+});
+
+if (productsChanged) Stores.produtos.set(storedProducts);
+
+const iceByProductId = new Map([
+  ['p-drk001', 250], ['p-drk002', 250], ['p-drk003', 250],
+  ['p-drk004', 250], ['p-drk005', 250], ['p-drk006', 250],
+  ['p-drk007', 250], ['p-drk008', 250], ['p-drk009', 250],
+  ['p-drk010', 200], ['p-drk011', 200],
+]);
+const storedFichas = Stores.fichas.get();
+let fichasChanged = false;
+
+storedFichas.forEach(ficha => {
+  const iceGrams = iceByProductId.get(ficha.produtoId);
+  if (!iceGrams) return;
+  let ice = ficha.itens.find(item => item.ingredienteId === 'i-009');
+  if (!ice) {
+    ice = { ingredienteId: 'i-009', quantidade: iceGrams, unidade: 'g' };
+    ficha.itens.push(ice);
+    fichasChanged = true;
+  } else if (ice.quantidade !== iceGrams || ice.unidade !== 'g') {
+    ice.quantidade = iceGrams;
+    ice.unidade = 'g';
+    fichasChanged = true;
+  }
+});
+
+if (fichasChanged) Stores.fichas.set(storedFichas);
