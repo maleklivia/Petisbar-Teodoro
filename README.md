@@ -37,11 +37,10 @@ Distrito-OS/
 ├── css/
 │   ├── variables.css   Tokens de design (cores, espaçamentos, fontes)
 │   ├── global.css      Reset, base, utilitários, botões, tabelas
-│   ├── login.css       Tela de login
 │   ├── sidebar.css     Layout do app + sidebar
 │   └── dashboard.css   Header, KPIs, painéis, notificações, modal
 ├── js/
-│   ├── storage.js      Estado local, autenticação, seed data
+│   ├── storage.js      Estado local e seed data
 │   ├── utils.js        Formatadores, datas, helpers puros
 │   ├── api.js          Interface de dados (localStorage → backend futuro)
 │   ├── ui.js           ComponentLoader, Toast, Modal
@@ -62,7 +61,7 @@ Distrito-OS/
 │   └── configuracoes.html Configurações do sistema
 ├── docs/               Documentação técnica
 ├── database/           Schemas e migrations futuras
-├── index.html          Tela de login
+├── index.html          Redirecionamento para o dashboard
 ├── README.md
 ├── MASTERPLAN.md
 └── CHANGELOG.md
@@ -93,19 +92,11 @@ npx serve .
 **Opção 3 — VS Code:**
 Instale a extensão **Live Server** e clique em "Go Live".
 
-### Credenciais de acesso
-```
-Usuário: admin
-Senha:   petisbarteodoro
-```
-
----
-
 ## Roadmap
 
 | Versão | Foco                                  | Status      |
 |--------|---------------------------------------|-------------|
-| v0.1   | Estrutura, Dashboard, Login, Sidebar  | ✅ Entregue  |
+| v0.1   | Estrutura, Dashboard e Sidebar        | ✅ Entregue  |
 | v0.2   | Pedidos, Produção, Financeiro, Estoque| 🔄 Próximo  |
 | v0.3   | Clientes, Fornecedores, Compras       | ⏳ Planejado |
 | v0.4   | Relatórios, Marketing, Configurações  | ⏳ Planejado |

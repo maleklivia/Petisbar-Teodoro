@@ -24,7 +24,7 @@
 ### Stack
 ```
 Browser
-  └── index.html (login)
+  └── index.html (redireciona para o dashboard)
   └── pages/*.html (views multi-page)
         └── components/sidebar.html  (injetado via fetch)
         └── components/header.html   (injetado via fetch)
@@ -32,7 +32,7 @@ Browser
         └── css/global.css           (base + utilitários)
         └── css/sidebar.css          (layout app)
         └── css/dashboard.css        (views + componentes)
-        └── js/storage.js            (estado + auth)
+        └── js/storage.js            (estado local)
         └── js/utils.js              (helpers puros)
         └── js/api.js                (interface de dados)
         └── js/ui.js                 (ComponentLoader + UI)
@@ -51,10 +51,8 @@ Browser
 ## 3. Fluxo dos Módulos
 
 ```
-Login (index.html)
-  → Auth check (Storage.isAuthenticated)
-  → [OK] pages/dashboard.html
-  → [FAIL] permanece no login
+Entrada (index.html)
+  → Redireciona diretamente para pages/dashboard.html
 
 Dashboard
   → Carrega sidebar + header (UI.loadSidebar, UI.loadHeader)
