@@ -80,7 +80,11 @@ const Modules = {
           id: p.id, name: p.nome, sold: soldByProduct.get(p.id) || 0,
         })),
         stock: Stores.ingredientes.get().filter(i => i.ativo).map(i => ({
-          id: i.id, name: i.nome, unit: i.unidade, quantity: i.estoqueAtual, min: i.estoqueMinimo,
+          id: i.id,
+          name: i.nome,
+          unit: i.unidade,
+          quantity: i.estoqueAtual,
+          min: Math.max(Number(i.estoqueMinimo) || 0, (Number(i.consumoMedioDiario) || 0) * (Number(i.prazoReposicaoDias) || 0)),
         })),
         orders: pedidos.map(p => ({
           id: `#${String(p.numeroPedido).padStart(3, '0')}`,

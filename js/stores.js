@@ -96,7 +96,6 @@ const SEED_INGREDIENTES = [
   /* Destilados — custoUnitario por ml (preco_garrafa / volume_ml) */
   { id: 'i-001', sku: 'INS001', nome: 'Cachaça 51',           categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1930, estoqueMinimo: 965,  custoUnitario: 15 / 965,  fornecedor: 'Bebidas & Cia',     ativo: true },
   { id: 'i-002', sku: 'INS002', nome: 'Vodka Smirnoff',       categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 2000, estoqueMinimo: 1000, custoUnitario: 28 / 1000, fornecedor: 'Bebidas & Cia',     ativo: true },
-  { id: 'i-003', sku: 'INS003', nome: 'Saquê Azuma Kirin',    categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1480, estoqueMinimo: 740,  custoUnitario: 22 / 740,  fornecedor: 'Bebidas & Cia',     ativo: true },
   { id: 'i-004', sku: 'INS004', nome: 'Whisky Red Label',     categoria: 'Destilados',         unidade: 'ml', estoqueAtual: 1000, estoqueMinimo: 500,  custoUnitario: 75 / 1000, fornecedor: 'Bebidas & Cia',     ativo: true },
   /* Frutas frescas — custo por kg */
   { id: 'i-005', sku: 'INS005', nome: 'Morango Fresco',       categoria: 'Frutas',             unidade: 'kg', estoqueAtual: 2,    estoqueMinimo: 1,    custoUnitario: 12,         fornecedor: 'Supra Hortifrutti', ativo: true },
@@ -107,7 +106,7 @@ const SEED_INGREDIENTES = [
   { id: 'i-009', sku: 'INS009', nome: 'Gelo em Cubo',         categoria: 'Insumos',            unidade: 'kg', estoqueAtual: 20,   estoqueMinimo: 5,    custoUnitario: 2,          fornecedor: '',                  ativo: true },
   /* Bebidas unitárias */
   { id: 'i-010', sku: 'INS010', nome: 'Energético 250ml',     categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 24,   estoqueMinimo: 12,   custoUnitario: 4.50,       fornecedor: 'Bebidas & Cia',     ativo: true },
-  { id: 'i-011', sku: 'INS011', nome: 'Copo Plástico 500ml',  categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 200,  estoqueMinimo: 100,  custoUnitario: 0.30,       fornecedor: 'Embalagem Pro',     ativo: true },
+  { id: 'i-011', sku: 'INS011', nome: 'Copo Plástico 500ml',  categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 200,  estoqueMinimo: 50,   consumoMedioDiario: 10, prazoReposicaoDias: 5, quantidadePacote: 100, custoUnitario: 0.30, fornecedor: 'Embalagem Pro', ativo: true },
   { id: 'i-012', sku: 'INS012', nome: 'Canudo Descartável',   categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 500,  estoqueMinimo: 200,  custoUnitario: 0.10,       fornecedor: 'Embalagem Pro',     ativo: true },
   { id: 'i-013', sku: 'INS013', nome: 'Cerveja Brahma 350ml', categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 48,   estoqueMinimo: 24,   custoUnitario: 3.00,       fornecedor: 'Bebidas & Cia',     ativo: true },
   { id: 'i-014', sku: 'INS014', nome: 'Coca-Cola 350ml',      categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 36,   estoqueMinimo: 12,   custoUnitario: 2.80,       fornecedor: 'Bebidas & Cia',     ativo: true },
@@ -124,9 +123,6 @@ const SEED_PRODUTOS = [
   { id: 'p-drk004', sku: 'DRK004', nome: 'Caipivodka Limão 500ml',           categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, limão tahiti, açúcar e gelo',            precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   { id: 'p-drk005', sku: 'DRK005', nome: 'Caipivodka Morango 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, morango fresco, açúcar e gelo',          precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   { id: 'p-drk006', sku: 'DRK006', nome: 'Caipivodka Maracujá 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, polpa de maracujá, açúcar e gelo',       precoVenda: 21.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk007', sku: 'DRK007', nome: 'Caipisaquê Limão 500ml',           categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, limão tahiti, açúcar e gelo',         precoVenda: 18.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk008', sku: 'DRK008', nome: 'Caipisaquê Morango 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, morango fresco, açúcar e gelo',       precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
-  { id: 'p-drk009', sku: 'DRK009', nome: 'Caipisaquê Maracujá 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com saquê Azuma Kirin, polpa de maracujá, açúcar e gelo',    precoVenda: 20.90, custoCompra: null, ativo: true, tempoPreparo: 5, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   { id: 'p-drk010', sku: 'DRK010', nome: 'Vodka + Energético 500ml',         categoria: 'Drinks',        descricao: 'Copo 500ml com vodka Smirnoff, energético 250ml e gelo',                precoVenda: 19.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   { id: 'p-drk011', sku: 'DRK011', nome: 'Whisky + Energético 500ml',        categoria: 'Drinks',        descricao: 'Copo 500ml com whisky Red Label, energético 250ml e gelo',              precoVenda: 24.90, custoCompra: null, ativo: true, tempoPreparo: 3, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-07-01' },
   /* ── Cervejas (6) — estoque físico, custo de compra ────────── */
@@ -164,6 +160,9 @@ const SEED_PRODUTOS = [
 // A operação começa sem compras realizadas.
 SEED_INGREDIENTES.forEach(ingrediente => {
   ingrediente.estoqueAtual = 0;
+  ingrediente.consumoMedioDiario ??= 0;
+  ingrediente.prazoReposicaoDias ??= 0;
+  ingrediente.quantidadePacote ??= 1;
 });
 
 const PRODUCT_PHOTOS_BY_CATEGORY = {
@@ -199,9 +198,6 @@ SEED_PRODUTOS.forEach(product => {
     DRK004 Caipivodka Limão      R$4.58 / R$19.90 = 23.0%
     DRK005 Caipivodka Morango    R$4.74 / R$20.90 = 22.7%
     DRK006 Caipivodka Maracujá   R$4.38 / R$21.90 = 20.0%
-    DRK007 Caipisaquê Limão      R$4.75 / R$18.90 = 25.1%
-    DRK008 Caipisaquê Morango    R$4.91 / R$19.90 = 24.7%
-    DRK009 Caipisaquê Maracujá   R$4.55 / R$20.90 = 21.8%
     DRK010 Vodka + Energético    R$6.70 / R$19.90 = 33.7%
     DRK011 Whisky + Energético   R$9.05 / R$24.90 = 36.3%
 */
@@ -265,39 +261,6 @@ const SEED_FICHAS = [
     id: 'f-drk006', produtoId: 'p-drk006', rendimento: 1,
     itens: [
       { ingredienteId: 'i-002', quantidade: 100, unidade: 'ml' },
-      { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
-      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
-      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
-      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
-    ],
-  },
-  {
-    id: 'f-drk007', produtoId: 'p-drk007', rendimento: 1,
-    itens: [
-      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
-      { ingredienteId: 'i-006', quantidade: 100, unidade: 'g'  },
-      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
-      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
-      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
-    ],
-  },
-  {
-    id: 'f-drk008', produtoId: 'p-drk008', rendimento: 1,
-    itens: [
-      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
-      { ingredienteId: 'i-005', quantidade: 80,  unidade: 'g'  },
-      { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
-      { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
-      { ingredienteId: 'i-011', quantidade: 1,   unidade: 'un' },
-      { ingredienteId: 'i-012', quantidade: 1,   unidade: 'un' },
-    ],
-  },
-  {
-    id: 'f-drk009', produtoId: 'p-drk009', rendimento: 1,
-    itens: [
-      { ingredienteId: 'i-003', quantidade: 100, unidade: 'ml' },
       { ingredienteId: 'i-007', quantidade: 60,  unidade: 'g'  },
       { ingredienteId: 'i-008', quantidade: 20,  unidade: 'g'  },
       { ingredienteId: 'i-009', quantidade: 250, unidade: 'g'  },
@@ -594,6 +557,25 @@ if (!localStorage.getItem(CLEAN_START_KEY)) {
   localStorage.setItem(CLEAN_START_KEY, 'concluido');
 }
 
+// Remove o saquê e adiciona parâmetros de compra antecipada aos dados existentes.
+const STOCK_PLANNING_MIGRATION_KEY = 'petisbar-stock-planning-v1';
+if (!localStorage.getItem(STOCK_PLANNING_MIGRATION_KEY)) {
+  const removedProductIds = new Set(['p-drk007', 'p-drk008', 'p-drk009']);
+  Stores.produtos.set(Stores.produtos.get().filter(p => !removedProductIds.has(p.id)));
+  Stores.fichas.set(Stores.fichas.get().filter(f => !removedProductIds.has(f.produtoId)));
+  const ingredientesAtualizados = Stores.ingredientes.get()
+    .filter(i => i.id !== 'i-003')
+    .map(i => ({
+      ...i,
+      consumoMedioDiario: i.id === 'i-011' ? 10 : (i.consumoMedioDiario || 0),
+      prazoReposicaoDias: i.id === 'i-011' ? 5 : (i.prazoReposicaoDias || 0),
+      quantidadePacote: i.id === 'i-011' ? 100 : (i.quantidadePacote || 1),
+      estoqueMinimo: i.id === 'i-011' ? 50 : i.estoqueMinimo,
+    }));
+  Stores.ingredientes.set(ingredientesAtualizados);
+  localStorage.setItem(STOCK_PLANNING_MIGRATION_KEY, 'concluido');
+}
+
 const storedConfig = Stores.config.get();
 if (['Distrito XVII', 'Distrito OS'].includes(storedConfig.restaurante?.nome)) {
   storedConfig.restaurante.nome = 'Petisbar Teodoro';
@@ -653,7 +635,6 @@ if (productsChanged) Stores.produtos.set(storedProducts);
 const iceByProductId = new Map([
   ['p-drk001', 250], ['p-drk002', 250], ['p-drk003', 250],
   ['p-drk004', 250], ['p-drk005', 250], ['p-drk006', 250],
-  ['p-drk007', 250], ['p-drk008', 250], ['p-drk009', 250],
   ['p-drk010', 200], ['p-drk011', 200],
 ]);
 const storedFichas = Stores.fichas.get();

@@ -58,7 +58,11 @@ const IngredientesModule = {
     }
 
     tbody.innerHTML = items.map(i => {
-      const estoqueBaixo = i.estoqueAtual <= i.estoqueMinimo;
+      const pontoPedido = Math.max(
+        Number(i.estoqueMinimo) || 0,
+        (Number(i.consumoMedioDiario) || 0) * (Number(i.prazoReposicaoDias) || 0),
+      );
+      const estoqueBaixo = i.estoqueAtual <= pontoPedido;
       return `
         <tr>
           <td style="font-weight:600">${Utils.escapeHtml(i.nome)}</td>
@@ -144,6 +148,25 @@ const IngredientesModule = {
             </div>
           </div>
 
+          <div style="padding:var(--sp-3);background:var(--bg-raised);border-radius:var(--radius-md);margin-bottom:var(--sp-3)">
+            <div class="form-label" style="margin-bottom:var(--sp-3)">Planejamento de reposição</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3)">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Consumo médio/dia</label>
+                <input class="form-input" name="consumoMedioDiario" type="number" step="0.001" min="0" value="${item?.consumoMedioDiario ?? 0}">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Prazo de entrega (dias)</label>
+                <input class="form-input" name="prazoReposicaoDias" type="number" step="1" min="0" value="${item?.prazoReposicaoDias ?? 0}">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Quantidade por pacote</label>
+                <input class="form-input" name="quantidadePacote" type="number" step="0.001" min="0.001" value="${item?.quantidadePacote ?? 1}">
+              </div>
+            </div>
+            <small style="display:block;margin-top:var(--sp-2);color:var(--text-muted)">O alerta usa o maior valor entre o estoque mínimo e o consumo diário × prazo de entrega.</small>
+          </div>
+
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)">
             <div class="form-group">
               <label class="form-label">Custo Unitário (R$) *</label>
@@ -159,7 +182,7 @@ const IngredientesModule = {
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)">
             <div class="form-group">
-              <label class="form-label">Estoque Mínimo *</label>
+              <label class="form-label">Quantidade mínima *</label>
               <input class="form-input" name="estoqueMinimo" type="number" step="0.001" min="0" required
                 value="${item?.estoqueMinimo ?? ''}">
             </div>
@@ -193,6 +216,9 @@ const IngredientesModule = {
     const custoUnitario = parseFloat(fd.get('custoUnitario'));
     const estoqueAtual  = parseFloat(fd.get('estoqueAtual'));
     const estoqueMinimo = parseFloat(fd.get('estoqueMinimo'));
+    const consumoMedioDiario = parseFloat(fd.get('consumoMedioDiario') || 0);
+    const prazoReposicaoDias = parseInt(fd.get('prazoReposicaoDias') || 0, 10);
+    const quantidadePacote = parseFloat(fd.get('quantidadePacote') || 1);
 
     if (custoUnitario < 0) { UI.toast('Custo não pode ser negativo', 'danger'); return; }
     if (estoqueAtual  < 0) { UI.toast('Estoque não pode ser negativo', 'danger'); return; }
@@ -206,6 +232,9 @@ const IngredientesModule = {
       custoUnitario,
       estoqueAtual,
       estoqueMinimo,
+      consumoMedioDiario,
+      prazoReposicaoDias,
+      quantidadePacote,
       fornecedor:    fd.get('fornecedor').trim(),
       ativo:         fd.get('ativo') === 'true',
     };

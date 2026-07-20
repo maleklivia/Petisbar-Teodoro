@@ -15,11 +15,21 @@ const EstoqueModule = {
     this._verificarAlertasAutomaticos();
   },
 
+  _pontoPedido(item) {
+    const minimo = Number(item.estoqueMinimo) || 0;
+    const consumoNoPrazo = (Number(item.consumoMedioDiario) || 0) * (Number(item.prazoReposicaoDias) || 0);
+    return Math.max(minimo, consumoNoPrazo);
+  },
+
+  _precisaComprar(item) {
+    return Number(item.estoqueAtual) <= this._pontoPedido(item);
+  },
+
   _render() {
     const el = document.getElementById('estoque-content');
     if (!el) return;
     const ings = Stores.ingredientes.get();
-    const criticos = ings.filter(i => i.estoqueAtual <= i.estoqueMinimo && i.ativo).length;
+    const criticos = ings.filter(i => i.ativo && this._precisaComprar(i)).length;
     const valorTotal = ings.filter(i => i.ativo).reduce((s, i) => s + (i.estoqueAtual * i.custoUnitario), 0);
 
     el.innerHTML = `
@@ -27,7 +37,7 @@ const EstoqueModule = {
         <article class="kpi-card ${criticos > 0 ? 'kpi-card--warn' : 'kpi-card--ok'}">
           <span class="kpi-card__label">Alertas</span>
           <strong class="kpi-card__value">${criticos}</strong>
-          <small class="kpi-card__sub">${criticos > 0 ? 'abaixo do mínimo' : 'tudo ok'}</small>
+          <small class="kpi-card__sub">${criticos > 0 ? 'compras antecipadas' : 'tudo ok'}</small>
         </article>
         <article class="kpi-card">
           <span class="kpi-card__label">Ingredientes</span>
@@ -72,15 +82,15 @@ const EstoqueModule = {
       const b = this._busca.toLowerCase();
       data = data.filter(i => i.nome.toLowerCase().includes(b) || i.categoria.toLowerCase().includes(b));
     }
-    if (this._filtroStatus === 'critico') data = data.filter(i => i.estoqueAtual <= i.estoqueMinimo);
-    if (this._filtroStatus === 'ok')      data = data.filter(i => i.estoqueAtual > i.estoqueMinimo);
+    if (this._filtroStatus === 'critico') data = data.filter(i => this._precisaComprar(i));
+    if (this._filtroStatus === 'ok')      data = data.filter(i => !this._precisaComprar(i));
 
     return `
       <div class="module-toolbar">
         <input type="text" class="form-input toolbar-search" id="est-busca" placeholder="Buscar ingrediente…" value="${Utils.escapeHtml(this._busca)}">
         <select class="form-input toolbar-filter" id="est-status">
           <option value="todos" ${this._filtroStatus === 'todos' ? 'selected' : ''}>Todos</option>
-          <option value="critico" ${this._filtroStatus === 'critico' ? 'selected' : ''}>Abaixo do mínimo</option>
+          <option value="critico" ${this._filtroStatus === 'critico' ? 'selected' : ''}>Comprar agora</option>
           <option value="ok" ${this._filtroStatus === 'ok' ? 'selected' : ''}>OK</option>
         </select>
         <button class="btn btn-secondary" id="btn-lista-compras">Baixar lista de compras (.txt)</button>
@@ -93,7 +103,7 @@ const EstoqueModule = {
               <th>Ingrediente</th>
               <th>Categoria</th>
               <th style="text-align:right">Estoque Atual</th>
-              <th style="text-align:right">Mínimo</th>
+              <th style="text-align:right">Ponto de Compra</th>
               <th style="text-align:right">Custo Unit.</th>
               <th style="text-align:right">Valor</th>
               <th>Status</th>
@@ -109,8 +119,9 @@ const EstoqueModule = {
   },
 
   _rowIng(i) {
-    const critico = i.estoqueAtual <= i.estoqueMinimo;
-    const pct     = i.estoqueMinimo > 0 ? Math.min(100, (i.estoqueAtual / (i.estoqueMinimo * 2)) * 100) : 100;
+    const pontoPedido = this._pontoPedido(i);
+    const critico = this._precisaComprar(i);
+    const pct     = pontoPedido > 0 ? Math.min(100, (i.estoqueAtual / (pontoPedido * 2)) * 100) : 100;
     const barColor = critico ? 'var(--color-danger)' : 'var(--color-success)';
     return `
       <tr class="${critico ? 'row--alert' : ''}">
@@ -122,7 +133,10 @@ const EstoqueModule = {
             <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px"></div>
           </div>
         </td>
-        <td style="text-align:right;color:var(--text-muted)">${i.estoqueMinimo} ${i.unidade}</td>
+        <td style="text-align:right;color:var(--text-muted)">
+          ${Number(pontoPedido.toFixed(3))} ${i.unidade}
+          <div style="font-size:var(--text-xs)">mínimo ${i.estoqueMinimo} · prazo ${i.prazoReposicaoDias || 0}d</div>
+        </td>
         <td style="text-align:right;color:var(--text-muted);font-size:var(--text-sm)">${Utils.currency(i.custoUnitario)}/${i.unidade}</td>
         <td style="text-align:right;font-size:var(--text-sm)">${Utils.currency(i.estoqueAtual * i.custoUnitario)}</td>
         <td>
@@ -176,20 +190,21 @@ const EstoqueModule = {
   },
 
   _renderAlertas(ings) {
-    const criticos = ings.filter(i => i.ativo && i.estoqueAtual <= i.estoqueMinimo);
+    const criticos = ings.filter(i => i.ativo && this._precisaComprar(i));
     if (!criticos.length) {
       return `<div class="empty-state" style="padding:48px 0"><p style="color:var(--color-success);font-weight:600">✓ Todos os ingredientes estão dentro do estoque mínimo.</p></div>`;
     }
     return `
       <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
         ${criticos.map(i => {
-          const deficit = i.estoqueMinimo - i.estoqueAtual;
+          const pontoPedido = this._pontoPedido(i);
+          const deficit = Math.max(0, pontoPedido - i.estoqueAtual);
           return `
             <div style="background:var(--bg-surface);border:1px solid rgba(239,68,68,0.30);border-left:3px solid var(--color-danger);border-radius:var(--radius-lg);padding:var(--sp-4) var(--sp-5);display:flex;align-items:center;gap:var(--sp-4)">
               <span style="font-size:20px">⚠</span>
               <div style="flex:1">
                 <div style="font-weight:700">${Utils.escapeHtml(i.nome)}</div>
-                <div style="font-size:var(--text-sm);color:var(--text-muted)">${i.categoria} · Atual: <strong style="color:var(--color-danger)">${i.estoqueAtual} ${i.unidade}</strong> · Mínimo: ${i.estoqueMinimo} ${i.unidade} · Deficit: ${deficit.toFixed(2)} ${i.unidade}</div>
+                <div style="font-size:var(--text-sm);color:var(--text-muted)">${i.categoria} · Atual: <strong style="color:var(--color-danger)">${i.estoqueAtual} ${i.unidade}</strong> · Ponto de compra: ${Number(pontoPedido.toFixed(3))} ${i.unidade} · Necessidade: ${Number(deficit.toFixed(3))} ${i.unidade}</div>
               </div>
               <button class="btn btn-primary" data-est-repor="${i.id}" style="font-size:var(--text-sm)">Repor Estoque</button>
             </div>
@@ -230,8 +245,12 @@ const EstoqueModule = {
 
   _baixarListaCompras() {
     const itens = Stores.ingredientes.get()
-      .filter(i => i.ativo && i.estoqueAtual < i.estoqueMinimo)
-      .map(i => ({ ...i, quantidadeComprar: i.estoqueMinimo - i.estoqueAtual }));
+      .filter(i => i.ativo && this._precisaComprar(i))
+      .map(i => {
+        const deficit = Math.max(0, this._pontoPedido(i) - i.estoqueAtual);
+        const pacote = Number(i.quantidadePacote) || 1;
+        return { ...i, quantidadeComprar: Math.max(pacote, Math.ceil(deficit / pacote) * pacote) };
+      });
 
     if (!itens.length) {
       UI.toast('Não há itens abaixo do estoque mínimo.', 'info');
@@ -242,7 +261,12 @@ const EstoqueModule = {
       'LISTA DE COMPRAS - PETISBAR TEODORO',
       `Data: ${new Date().toLocaleDateString('pt-BR')}`,
       '',
-      ...itens.map(i => `☐ ${i.nome}: ${Number(i.quantidadeComprar.toFixed(3))} ${i.unidade}`),
+      ...itens.map(i => {
+        const pacote = Number(i.quantidadePacote) || 1;
+        const pacotes = Math.ceil(i.quantidadeComprar / pacote);
+        const detalhePacote = pacote > 1 ? ` (${pacotes} pacote${pacotes > 1 ? 's' : ''} de ${pacote})` : '';
+        return `☐ ${i.nome}: ${Number(i.quantidadeComprar.toFixed(3))} ${i.unidade}${detalhePacote}`;
+      }),
       '',
       `Total de itens: ${itens.length}`,
     ];
@@ -347,7 +371,7 @@ const EstoqueModule = {
 
   _verificarAlertasAutomaticos() {
     const ings = Stores.ingredientes.get();
-    const criticos = ings.filter(i => i.ativo && i.estoqueAtual <= i.estoqueMinimo);
+    const criticos = ings.filter(i => i.ativo && this._precisaComprar(i));
     if (criticos.length > 0 && typeof EventBus !== 'undefined') {
       EventBus.emit('estoque.alertas', { ingredientes: criticos.map(i => i.nome) });
     }

@@ -16,6 +16,9 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 - Removidos pedidos, clientes, compras, fornecedores, cupons e documentos fictícios; o sistema agora inicia sem dados operacionais.
 - Zerado o estoque inicial e conciliado o Dashboard com os mesmos produtos, pedidos e ingredientes das demais telas.
 - Adicionado botão no Estoque para baixar uma lista de compras em TXT pronta para envio pelo WhatsApp.
+- Removidos os drinks com saquê, suas fichas técnicas e o insumo de saquê.
+- Adicionado planejamento de reposição por estoque de segurança, consumo diário, prazo de entrega e quantidade por pacote.
+- Alertas e lista de compras agora antecipam a reposição e arredondam a compra para pacotes completos.
 
 ---
 
