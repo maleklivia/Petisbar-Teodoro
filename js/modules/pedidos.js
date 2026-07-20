@@ -203,7 +203,11 @@ const PedidosModule = {
       <div class="produto-item" data-id="${p.id}" data-nome="${Utils.escapeHtml(p.nome)}" data-preco="${p.precoVenda}">
         <span class="produto-item__nome">${Utils.escapeHtml(p.nome)}</span>
         <span class="produto-item__preco">${Utils.currency(p.precoVenda)}</span>
-        <button type="button" class="btn btn-sm btn-primary produto-item__add" data-id="${p.id}">+</button>
+        <div class="produto-item__qty-control" aria-label="Quantidade de ${Utils.escapeHtml(p.nome)}">
+          <button type="button" class="produto-item__qty-btn produto-item__qty-btn--minus" data-product-action="dec" data-id="${p.id}" aria-label="Diminuir quantidade" disabled>−</button>
+          <output class="produto-item__qty" data-product-qty="${p.id}" aria-live="polite">0</output>
+          <button type="button" class="produto-item__qty-btn produto-item__qty-btn--plus" data-product-action="inc" data-id="${p.id}" aria-label="Adicionar produto">+</button>
+        </div>
       </div>`).join('');
 
     const optsOrigens = ORIGENS.map(o => `<option>${Utils.escapeHtml(o)}</option>`).join('');
@@ -266,11 +270,15 @@ const PedidosModule = {
       });
     });
 
-    // Adicionar ao carrinho
-    document.querySelectorAll('.produto-item__add').forEach(btn => {
+    // Alterar a quantidade diretamente na lista de produtos
+    document.querySelectorAll('[data-product-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const produto = produtos.find(p => p.id === btn.dataset.id);
-        if (produto) { Carrinho.adicionar(produto); this._renderCarrinho(); }
+        if (!produto) return;
+        const item = Carrinho.getItens().find(i => i.produtoId === produto.id);
+        if (btn.dataset.productAction === 'inc') Carrinho.adicionar(produto);
+        if (btn.dataset.productAction === 'dec') Carrinho.atualizarQty(produto.id, (item?.qty || 0) - 1);
+        this._renderCarrinho();
       });
     });
 
@@ -324,6 +332,7 @@ const PedidosModule = {
     if (!itensEl) return;
 
     const itens = Carrinho.getItens();
+    this._syncProductQuantities(itens);
 
     if (!itens.length) {
       itensEl.innerHTML  = '<p class="carrinho-vazio">Carrinho vazio — adicione produtos à esquerda.</p>';
@@ -361,6 +370,18 @@ const PedidosModule = {
         if (ca === 'rm')  Carrinho.remover(id);
         this._renderCarrinho();
       });
+    });
+  },
+
+  _syncProductQuantities(itens = Carrinho.getItens()) {
+    const quantities = new Map(itens.map(item => [item.produtoId, item.qty]));
+    document.querySelectorAll('.produto-item').forEach(row => {
+      const qty = quantities.get(row.dataset.id) || 0;
+      const output = row.querySelector('[data-product-qty]');
+      const minus = row.querySelector('[data-product-action="dec"]');
+      if (output) output.textContent = String(qty);
+      if (minus) minus.disabled = qty === 0;
+      row.classList.toggle('produto-item--selected', qty > 0);
     });
   },
 
