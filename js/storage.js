@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Storage
+   Petisbar Teodoro — Storage
    Toda persistência passa por aqui. Quando o backend chegar,
    apenas api.js muda — storage.js continua sendo a fonte
    de verdade para o estado local (cache, offline, etc.).
@@ -11,7 +11,7 @@ const AUTH_KEY  = 'distrito-os-auth';
 /* ── Seed Data ────────────────────────────────────────────────── */
 const seedData = {
   settings: {
-    restaurantName: 'Distrito XVII',
+    restaurantName: 'Petisbar Teodoro',
     cmvGoal: 35,
     currency: 'BRL',
     version: '0.1.0',
@@ -40,7 +40,7 @@ const seedData = {
     { id: 7,  name: 'Costela Bovina',     unit: 'kg',  quantity: 2,  min: 4  }, // LOW
     { id: 8,  name: 'Caixa Delivery',     unit: 'un',  quantity: 62, min: 20 },
     { id: 9,  name: 'Sacola Kraft',       unit: 'un',  quantity: 85, min: 30 },
-    { id: 10, name: 'Adesivo Distrito',   unit: 'un',  quantity: 90, min: 40 },
+    { id: 10, name: 'Adesivo Petisbar Teodoro',   unit: 'un',  quantity: 90, min: 40 },
     { id: 11, name: 'Gás P13',            unit: 'un',  quantity: 2,  min: 1  },
     { id: 12, name: 'Refrigerante 350ml', unit: 'un',  quantity: 36, min: 12 },
   ],
@@ -111,6 +111,10 @@ const Storage = {
       if (!parsed.fornecedores) parsed.fornecedores = structuredClone(seedData.fornecedores);
       if (!parsed.campaigns)    parsed.campaigns    = [];
       if (!parsed.settings)     parsed.settings     = structuredClone(seedData.settings);
+      if (['Distrito XVII', 'Distrito OS'].includes(parsed.settings.restaurantName)) {
+        parsed.settings.restaurantName = 'Petisbar Teodoro';
+        localStorage.setItem(STORE_KEY, JSON.stringify(parsed));
+      }
       return parsed;
     } catch {
       return structuredClone(seedData);
@@ -133,7 +137,7 @@ const Storage = {
 
   login(username, password) {
     // TODO: replace with API call when backend is ready
-    if (username === 'admin' && password === 'distrito17') {
+    if (username === 'admin' && password === 'petisbarteodoro') {
       localStorage.setItem(AUTH_KEY, 'ok');
       return true;
     }

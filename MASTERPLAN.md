@@ -1,4 +1,4 @@
-# MASTERPLAN — Distrito OS
+# MASTERPLAN — Petisbar Teodoro
 
 > Documento vivo. Toda decisão arquitetural é registrada aqui.
 > Última atualização: Julho 2026 — v0.1
@@ -7,9 +7,9 @@
 
 ## 1. Visão
 
-**Distrito OS** nasceu para resolver um problema real: donos de delivery trabalham no escuro. Não sabem exatamente quanto estão lucrando, quais produtos drenam o caixa, quando o estoque vai acabar ou qual cliente está prestes a abandonar a marca.
+**Petisbar Teodoro** nasceu para resolver um problema real: donos de delivery trabalham no escuro. Não sabem exatamente quanto estão lucrando, quais produtos drenam o caixa, quando o estoque vai acabar ou qual cliente está prestes a abandonar a marca.
 
-**Visão de curto prazo:** ERP interno do Distrito XVII — operação mais eficiente, menos desperdício, mais lucro.
+**Visão de curto prazo:** ERP interno do Petisbar Teodoro — operação mais eficiente, menos desperdício, mais lucro.
 
 **Visão de longo prazo:** Produto SaaS para restaurantes de delivery premium em todo o Brasil.
 
@@ -234,4 +234,4 @@ suppliers (id, restaurant_id, name, contact, notes)
 
 ---
 
-*Distrito OS — Feito para durar. Projetado para crescer.*
+*Petisbar Teodoro — Feito para durar. Projetado para crescer.*

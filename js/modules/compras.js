@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — ComprasModule
+   Petisbar Teodoro — ComprasModule
    Pedidos de compra: criação, aprovação, recebimento.
    Ao receber: atualiza estoque + custo + registra despesa.
    Gera automaticamente pedidos para ingredientes críticos.

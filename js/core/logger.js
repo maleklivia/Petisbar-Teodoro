@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Logger
+   Petisbar Teodoro — Logger
    Registro auditável de todas as ações do sistema.
    Mantém os últimos 500 logs em memória e 200 no localStorage.
 
@@ -44,7 +44,7 @@ const Logger = {
       // Quota excedida — não crítico
     }
 
-    console.debug(`[Distrito OS] ${event}`, data);
+    console.debug(`[Petisbar Teodoro] ${event}`, data);
   },
 
   /* Retorna os últimos N logs */

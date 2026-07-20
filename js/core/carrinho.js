@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Carrinho
+   Petisbar Teodoro — Carrinho
    Estado em memória (não persiste entre reloads — intencional).
    Toda venda começa aqui antes de virar Pedido.
 

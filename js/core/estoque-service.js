@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — EstoqueService
+   Petisbar Teodoro — EstoqueService
    Camada de serviço para operações de estoque.
 
    HOJE:   lê/escreve diretamente nos Stores (localStorage).

@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — ClientesModule
+   Petisbar Teodoro — ClientesModule
    CRUD completo de clientes com gestão de endereços.
    ============================================================ */
 

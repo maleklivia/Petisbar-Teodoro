@@ -1,12 +1,12 @@
-# Distrito OS
+# Petisbar Teodoro
 
-> ERP web para gestão completa de delivery — construído para o Distrito XVII, projetado para escalar.
+> ERP web para gestão completa de delivery — construído para o Petisbar Teodoro, projetado para escalar.
 
 ---
 
 ## Objetivo
 
-Distrito OS é um sistema de gestão operacional desenvolvido para restaurantes de delivery premium. Nasceu como ferramenta interna do **Distrito XVII — Petiscos & Caldos Premium**, com arquitetura pensada desde o início para crescer como produto SaaS.
+Petisbar Teodoro é um sistema de gestão operacional desenvolvido para restaurantes de delivery premium. Nasceu como ferramenta interna do **Petisbar Teodoro — Petiscos & Caldos Premium**, com arquitetura pensada desde o início para crescer como produto SaaS.
 
 ---
 
@@ -96,7 +96,7 @@ Instale a extensão **Live Server** e clique em "Go Live".
 ### Credenciais de acesso
 ```
 Usuário: admin
-Senha:   distrito17
+Senha:   petisbarteodoro
 ```
 
 ---
@@ -120,4 +120,4 @@ Este projeto é proprietário. Para contribuir ou reportar problemas, entre em c
 
 ---
 
-*Distrito OS — construído para durar.*
+*Petisbar Teodoro — construído para durar.*

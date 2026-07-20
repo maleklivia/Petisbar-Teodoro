@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — EstoqueModule
+   Petisbar Teodoro — EstoqueModule
    Gestão de estoque de ingredientes: visualização, movimentações
    manuais (entrada, saída, ajuste), histórico e alertas.
    ============================================================ */

@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — FornecedoresModule
+   Petisbar Teodoro — FornecedoresModule
    CRUD de fornecedores com histórico de compras.
    ============================================================ */
 

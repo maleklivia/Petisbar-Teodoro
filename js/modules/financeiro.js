@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — FinanceiroModule
+   Petisbar Teodoro — FinanceiroModule
    Extrato, DRE e lançamentos manuais. Lê state.finance[] do
    Storage legado + escreve via FinanceiroService quando possível.
    ============================================================ */

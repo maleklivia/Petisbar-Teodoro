@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — FinanceiroService
+   Petisbar Teodoro — FinanceiroService
    Camada de serviço para registros financeiros.
 
    HOJE:   escreve diretamente no estado legado (Storage.getState().finance)

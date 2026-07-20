@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Stores v0.3
+   Petisbar Teodoro — Stores v0.3
    Armazenamento separado por domínio: Produtos, Ingredientes,
    Fichas Técnicas. Cada store é independente do storage.js
    legado (que persiste pedidos, finanças, clientes, etc.).
@@ -517,7 +517,7 @@ const SEED_DOCUMENTOS = [
 /* ── Seed Data: Configurações ────────────────────────────────── */
 
 const SEED_CONFIG = {
-  restaurante: { nome: 'Distrito XVII', cnpj: '', telefone: '', email: '', endereco: '', cidade: 'São Paulo', estado: 'SP', cep: '' },
+  restaurante: { nome: 'Petisbar Teodoro', cnpj: '', telefone: '', email: '', endereco: '', cidade: 'São Paulo', estado: 'SP', cep: '' },
   metas: { cmvMeta: 35, margemMeta: 60, ticketMedioMeta: 60, clientesInativosDias: 30 },
   taxas: { taxaEntregaPadrao: 5, taxaIfood: 15, comissaoEntregador: 0 },
   horario: {
@@ -544,3 +544,10 @@ const Stores = {
   documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     SEED_DOCUMENTOS),
   config:        makeStore(STORE_KEYS_V4.CONFIG,         SEED_CONFIG),
 };
+
+// Atualiza apenas o nome padrão antigo, preservando configurações personalizadas.
+const storedConfig = Stores.config.get();
+if (['Distrito XVII', 'Distrito OS'].includes(storedConfig.restaurante?.nome)) {
+  storedConfig.restaurante.nome = 'Petisbar Teodoro';
+  Stores.config.set(storedConfig);
+}

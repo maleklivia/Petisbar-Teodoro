@@ -1,4 +1,4 @@
-# CHANGELOG — Distrito OS
+# CHANGELOG — Petisbar Teodoro
 
 Todas as mudanças significativas são documentadas aqui.
 Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
@@ -80,7 +80,7 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 - **Estrutura completa do projeto** com separação por responsabilidade (assets, components, css, js, pages, docs)
 - **Design system** via `css/variables.css` com tokens de cor, tipografia, espaçamento, sombras e layout
 - **CSS modular:** `global.css` (reset + utilitários), `login.css`, `sidebar.css`, `dashboard.css`
-- **Identidade visual** Distrito XVII: paleta preto `#111111` + dourado `#C8A24A` + cinza; fontes Bebas Neue e Montserrat
+- **Identidade visual** Petisbar Teodoro: paleta preto `#111111` + dourado `#C8A24A` + cinza; fontes Bebas Neue e Montserrat
 - **Tela de Login** profissional com validação, feedback de erro e redirecionamento automático
 - **Sidebar** com 13 seções, ícones SVG e estado ativo dinâmico
 - **Header** compartilhado com data e botão de logout
@@ -92,7 +92,7 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 - **`js/api.js`** — interface de dados unificada (proxy localStorage → preparada para backend)
 - **`js/ui.js`** — ComponentLoader via fetch, Toast, Modal, setActiveNav
 - **`js/app.js`** — App controller com auto-init via `data-page`, módulos por view
-- **Sistema de autenticação** com localStorage; credenciais: `admin` / `distrito17`
+- **Sistema de autenticação** com localStorage; credenciais: `admin` / `petisbarteodoro`
 - **ERP básico:** criação de pedido registra receita e CMV automaticamente no financeiro
 - **`README.md`** com estrutura, como executar e roadmap
 - **`MASTERPLAN.md`** com arquitetura, modelo de dados, regras de negócio e roadmap técnico

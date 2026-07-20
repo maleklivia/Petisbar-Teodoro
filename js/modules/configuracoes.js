@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — ConfiguracoesModule
+   Petisbar Teodoro — ConfiguracoesModule
    Dados do restaurante, metas, horário e integrações.
    ============================================================ */
 
@@ -49,7 +49,7 @@ const ConfiguracoesModule = {
           <div class="form-row">
             <div class="form-group" style="flex:2">
               <label class="form-label">Nome do Estabelecimento</label>
-              <input type="text" class="form-input" id="cfg-nome" value="${Utils.escapeHtml(r.nome || '')}" placeholder="Distrito XVII">
+              <input type="text" class="form-input" id="cfg-nome" value="${Utils.escapeHtml(r.nome || '')}" placeholder="Petisbar Teodoro">
             </div>
           </div>
           <div class="form-row">
@@ -64,7 +64,7 @@ const ConfiguracoesModule = {
           </div>
           <div class="form-group">
             <label class="form-label">E-mail</label>
-            <input type="email" class="form-input" id="cfg-email" value="${Utils.escapeHtml(r.email || '')}" placeholder="contato@distrito17.com.br">
+            <input type="email" class="form-input" id="cfg-email" value="${Utils.escapeHtml(r.email || '')}" placeholder="contato@petisbarteodoro.com.br">
           </div>
           <div class="form-group">
             <label class="form-label">Endereço</label>
@@ -394,7 +394,7 @@ const ConfiguracoesModule = {
 
     // Check current password against stored
     const cfg = Stores.config.get();
-    const senhaAtual = cfg.seguranca?.senha || 'distrito17';
+    const senhaAtual = cfg.seguranca?.senha || 'petisbarteodoro';
     if (atual !== senhaAtual) { UI.toast('Senha atual incorreta.', 'error'); return; }
     if (!nova || nova.length < 6) { UI.toast('Nova senha deve ter pelo menos 6 caracteres.', 'error'); return; }
     if (nova !== conf) { UI.toast('Confirmação de senha não confere.', 'error'); return; }

@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — RelatoriosModule
+   Petisbar Teodoro — RelatoriosModule
    Relatórios analíticos: Vendas, CMV, Estoque e Clientes.
    Todos read-only, com opção de impressão.
    ============================================================ */

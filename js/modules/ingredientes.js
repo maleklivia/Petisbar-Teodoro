@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Módulo Ingredientes
+   Petisbar Teodoro — Módulo Ingredientes
    CRUD completo com busca, filtro por categoria e status,
    ordenação e validação de campos.
    ============================================================ */

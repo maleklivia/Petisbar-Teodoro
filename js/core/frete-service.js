@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — FreteService
+   Petisbar Teodoro — FreteService
    Consulta CEP via ViaCEP e calcula frete por zonas configuradas
    em Configurações → Entrega. Fallback = frete padrão.
    ============================================================ */

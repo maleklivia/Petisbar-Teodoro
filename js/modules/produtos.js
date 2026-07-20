@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Módulo Produtos
+   Petisbar Teodoro — Módulo Produtos
    Orquestra as três abas: Cardápio, Ingredientes, Fichas.
    CRUD completo com duplicar, filtrar, ordenar e validar.
    ============================================================ */

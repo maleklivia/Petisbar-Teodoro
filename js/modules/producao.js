@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — ProducaoModule
+   Petisbar Teodoro — ProducaoModule
    Quadro kanban da cozinha. Três colunas:
      Pendentes  → Novo | Aguardando Pagamento | Pago
      Em Produção→ Em Produção

@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — App
+   Petisbar Teodoro — App
    Inicialização, roteamento de páginas e módulos de cada view.
    Quando uma view crescer o suficiente, extraia para js/pages/<view>.js
    e importe aqui.

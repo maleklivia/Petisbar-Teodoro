@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — PedidosModule
+   Petisbar Teodoro — PedidosModule
    Motor central de pedidos. Gerencia todo o ciclo de vida:
    Novo → Aguardando Pagamento → Pago → Em Produção →
    Pronto → Saiu para Entrega → Entregue / Cancelado.

@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Utilities
+   Petisbar Teodoro — Utilities
    Funções puras sem side-effects. Nunca acessa DOM, Storage ou API.
    ============================================================ */
 

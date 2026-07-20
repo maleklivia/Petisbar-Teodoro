@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — OcrService
+   Petisbar Teodoro — OcrService
    OCR client-side via Tesseract.js para cupons fiscais.
    Carrega a lib sob demanda (CDN). Parseia padrões comuns de
    cupom fiscal brasileiro (NFC-e, ECF, SAT e formato livre).

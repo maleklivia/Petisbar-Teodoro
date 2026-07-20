@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — Módulo Fichas Técnicas
+   Petisbar Teodoro — Módulo Fichas Técnicas
    Editor interativo com cálculo automático de CMV e margem.
    Auto-salva a cada alteração — sem botão "Salvar".
    ============================================================ */

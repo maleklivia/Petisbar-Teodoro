@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — API Layer
+   Petisbar Teodoro — API Layer
    Interface unificada para todas as operações de dados.
 
    AGORA: proxy sobre localStorage via Storage.

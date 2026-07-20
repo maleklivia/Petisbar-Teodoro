@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — UI
+   Petisbar Teodoro — UI
    Carregamento de componentes, notificações, modal.
    Nunca contém regras de negócio — só apresentação.
    ============================================================ */

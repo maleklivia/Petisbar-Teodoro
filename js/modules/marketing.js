@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — MarketingModule
+   Petisbar Teodoro — MarketingModule
    Gestão de cupons, clientes VIP e reativação de inativos.
    ============================================================ */
 

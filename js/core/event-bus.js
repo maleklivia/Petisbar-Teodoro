@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — EventBus
+   Petisbar Teodoro — EventBus
    Barramento de eventos central e desacoplado.
 
    HOJE:  síncrono, in-memory, single-tab.

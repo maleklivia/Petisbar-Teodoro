@@ -1,5 +1,5 @@
 /* ============================================================
-   Distrito OS — DocumentosModule
+   Petisbar Teodoro — DocumentosModule
    Gestão de documentos: alvarás, contratos, manuais, etc.
    Armazena metadados + link/nota (localStorage não suporta arquivos).
    ============================================================ */
