@@ -133,7 +133,7 @@ const IngredientesModule = {
 
           <div class="form-group">
             <label class="form-label">Nome *</label>
-            <input class="form-input" name="nome" required placeholder="ex: Batata Palito"
+            <input class="form-input" name="nome" required placeholder="ex: Limão Tahiti"
               value="${Utils.escapeHtml(item?.nome || '')}">
           </div>
 

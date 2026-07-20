@@ -19,6 +19,11 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 - Removidos os drinks com saquê, suas fichas técnicas e o insumo de saquê.
 - Adicionado planejamento de reposição por estoque de segurança, consumo diário, prazo de entrega e quantidade por pacote.
 - Alertas e lista de compras agora antecipam a reposição e arredondam a compra para pacotes completos.
+- Removidos dados demonstrativos antigos da base do Dashboard e itens antigos de açaí do catálogo.
+- Configurações iniciais de endereço, horários e taxas agora começam vazias ou zeradas.
+- Substituída a falsa troca de senha por um aviso honesto sobre os requisitos de segurança antes do uso online.
+- Adicionado checklist de implantação em `docs/GO-LIVE.md`.
+- Corrigido o carregamento do menu e do cabeçalho quando o sistema estiver em domínio próprio.
 
 ---
 

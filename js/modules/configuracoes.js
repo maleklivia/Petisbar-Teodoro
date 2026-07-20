@@ -271,33 +271,30 @@ const ConfiguracoesModule = {
 
   _renderSeguranca() {
     return `
-      <div style="max-width:400px">
-        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-6)">
-          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Alterar Senha</h3>
-          <div class="form-group">
-            <label class="form-label">Senha Atual</label>
-            <input type="password" class="form-input" id="cfg-senha-atual" placeholder="••••••••">
+      <div style="max-width:620px">
+        <div style="background:var(--bg-surface);border:1px solid var(--color-warning);border-radius:var(--radius-lg);padding:var(--sp-6)">
+          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-3)">Segurança antes do uso online</h3>
+          <p style="color:var(--text-muted);line-height:1.6;margin-bottom:var(--sp-4)">
+            Esta versão salva os dados somente neste navegador e ainda não possui login real, banco de dados central nem backup automático. Use para configuração e testes; antes da operação diária, conecte um backend seguro.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--text-sm)">
+            <div>○ Login individual e controle de acesso</div>
+            <div>○ Banco de dados PostgreSQL no servidor</div>
+            <div>○ HTTPS e domínio próprio</div>
+            <div>○ Backup automático e teste de restauração</div>
+            <div>○ Política de privacidade e tratamento de dados de clientes</div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Nova Senha</label>
-            <input type="password" class="form-input" id="cfg-senha-nova" placeholder="••••••••" minlength="6">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Confirmar Nova Senha</label>
-            <input type="password" class="form-input" id="cfg-senha-conf" placeholder="••••••••">
-          </div>
-          <button class="btn btn-primary" id="btn-salvar-senha">Alterar Senha</button>
         </div>
 
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-5);margin-top:var(--sp-4)">
           <h4 style="font-weight:700;margin-bottom:var(--sp-3)">Dados do Sistema</h4>
           <div style="font-size:var(--text-sm);color:var(--text-muted);display:flex;flex-direction:column;gap:6px">
             <div>Versão: <strong>v0.4.0</strong></div>
-            <div>Armazenamento: <strong>localStorage</strong></div>
-            <div>Usuário: <strong>admin</strong></div>
+            <div>Armazenamento atual: <strong>somente neste navegador</strong></div>
+            <div>Status: <strong>configuração inicial</strong></div>
           </div>
           <button class="btn btn-ghost" id="btn-reset-dados" style="margin-top:var(--sp-4);color:var(--color-danger);font-size:var(--text-sm)">
-            ⚠ Resetar todos os dados (seed)
+            ⚠ Apagar todos os dados locais
           </button>
         </div>
       </div>
@@ -318,9 +315,8 @@ const ConfiguracoesModule = {
       if (e.target.closest('#btn-add-zona'))           { this._adicionarZona(); return; }
       if (e.target.closest('.btn-rm-zona'))            { e.target.closest('.zona-row').remove(); return; }
       if (e.target.closest('#btn-salvar-horario'))     { this._salvarHorario(); return; }
-      if (e.target.closest('#btn-salvar-senha'))       { this._salvarSenha(); return; }
       if (e.target.closest('#btn-reset-dados')) {
-        if (!confirm('ATENÇÃO: Todos os dados serão apagados e substituídos pelo seed inicial. Esta ação é irreversível. Confirmar?')) return;
+        if (!confirm('ATENÇÃO: Todos os dados deste navegador serão apagados. Esta ação é irreversível. Confirmar?')) return;
         ['distrito-os-v5','distrito-produtos-v1','distrito-ingredientes-v1','distrito-fichas-v1','distrito-pedidos-v1','distrito-clientes-v1','distrito-fornecedores-v1','distrito-compras-v1','distrito-movimentacoes-v1','distrito-cupons-v1','distrito-documentos-v1','distrito-config-v1'].forEach(k => localStorage.removeItem(k));
         UI.toast('Dados resetados. Recarregando…', 'success');
         setTimeout(() => location.reload(), 1500);
@@ -385,26 +381,5 @@ const ConfiguracoesModule = {
     }
     Stores.config.set(cfg);
     UI.toast('Horário salvo.', 'success');
-  },
-
-  _salvarSenha() {
-    const atual = document.getElementById('cfg-senha-atual')?.value;
-    const nova  = document.getElementById('cfg-senha-nova')?.value;
-    const conf  = document.getElementById('cfg-senha-conf')?.value;
-
-    // Check current password against stored
-    const cfg = Stores.config.get();
-    const senhaAtual = cfg.seguranca?.senha || 'petisbarteodoro';
-    if (atual !== senhaAtual) { UI.toast('Senha atual incorreta.', 'error'); return; }
-    if (!nova || nova.length < 6) { UI.toast('Nova senha deve ter pelo menos 6 caracteres.', 'error'); return; }
-    if (nova !== conf) { UI.toast('Confirmação de senha não confere.', 'error'); return; }
-
-    if (!cfg.seguranca) cfg.seguranca = {};
-    cfg.seguranca.senha = nova;
-    Stores.config.set(cfg);
-    UI.toast('Senha alterada com sucesso!', 'success');
-    document.getElementById('cfg-senha-atual').value = '';
-    document.getElementById('cfg-senha-nova').value  = '';
-    document.getElementById('cfg-senha-conf').value  = '';
   },
 };

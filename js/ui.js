@@ -9,9 +9,8 @@ const UI = {
 
   // Detecta o prefixo correto de acordo com a profundidade da página
   _componentBase() {
-    const depth = window.location.pathname.split('/').length;
-    // pages/ → "../", root → "./"
-    return depth >= 4 ? '../' : './';
+    // Funciona tanto no subdiretório do GitHub Pages quanto em domínio próprio.
+    return window.location.pathname.includes('/pages/') ? '../' : './';
   },
 
   async loadComponent(slotId, componentPath) {

@@ -196,7 +196,7 @@ const ProdutosModule = {
 
           <div class="form-group">
             <label class="form-label">Nome *</label>
-            <input class="form-input" name="nome" required placeholder="ex: Batata Cheddar"
+            <input class="form-input" name="nome" required placeholder="ex: Caipirinha de Limão 500ml"
               value="${Utils.escapeHtml(item?.nome || '')}">
           </div>
 
@@ -207,7 +207,7 @@ const ProdutosModule = {
             </div>
             <div class="form-group">
               <label class="form-label">Código</label>
-              <input class="form-input" name="codigo" placeholder="ex: BAT-CH"
+              <input class="form-input" name="codigo" placeholder="ex: CAI-LIM"
                 value="${Utils.escapeHtml(item?.codigo || '')}">
             </div>
           </div>

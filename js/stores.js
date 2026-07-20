@@ -145,10 +145,6 @@ const SEED_PRODUTOS = [
   { id: 'p-ene002', sku: 'ENE002', nome: 'Monster Energy 473ml',       categoria: 'Energéticos',   descricao: 'Monster Energy lata 473ml',                              precoVenda: 12.00, custoCompra: 6.00, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
   /* ── Açaí (5) ──────────────────────────────────────────────── */
   { id: 'p-aca001', sku: 'ACA001', nome: 'Batidinha de Açaí 300ml',    categoria: 'Açaí',          descricao: 'Açaí batido e servido em garrafinha de 300ml',           precoVenda: 15.00, custoCompra: 8.00,  ativo: true,  tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5, dataCadastro: '2026-07-01' },
-  { id: 'p-aca002', sku: 'ACA002', nome: 'Açaí 500ml',                 categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 32.00, custoCompra: 12.00, ativo: false, tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5, dataCadastro: '2026-07-01' },
-  { id: 'p-aca003', sku: 'ACA003', nome: 'Açaí 700ml',                 categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 42.00, custoCompra: 16.00, ativo: false, tempoPreparo: 5, estoqueAtual: 10, estoqueMinimo: 3, dataCadastro: '2026-07-01' },
-  { id: 'p-aca004', sku: 'ACA004', nome: 'Açaí 1L',                    categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 55.00, custoCompra: 22.00, ativo: false, tempoPreparo: 5, estoqueAtual: 8,  estoqueMinimo: 2, dataCadastro: '2026-07-01' },
-  { id: 'p-aca005', sku: 'ACA005', nome: 'Açaí c/ Complementos 500ml', categoria: 'Açaí',          descricao: 'Tamanho antigo — item desativado',                       precoVenda: 38.00, custoCompra: 15.00, ativo: false, tempoPreparo: 7, estoqueAtual: 10, estoqueMinimo: 3, dataCadastro: '2026-07-01' },
   /* ── Conveniência (5) ──────────────────────────────────────── */
   { id: 'p-con001', sku: 'CON001', nome: 'Amendoim Temperado 100g',    categoria: 'Conveniência',  descricao: 'Amendoim crocante temperado 100g',                       precoVenda: 8.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
   { id: 'p-con002', sku: 'CON002', nome: 'Mix de Nuts 100g',           categoria: 'Conveniência',  descricao: 'Mix de castanhas e nozes premium 100g',                  precoVenda: 12.00, custoCompra: 5.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
@@ -511,16 +507,16 @@ const SEED_DOCUMENTOS = [
 /* ── Seed Data: Configurações ────────────────────────────────── */
 
 const SEED_CONFIG = {
-  restaurante: { nome: 'Petisbar Teodoro', cnpj: '', telefone: '', email: '', endereco: '', cidade: 'São Paulo', estado: 'SP', cep: '' },
+  restaurante: { nome: 'Petisbar Teodoro', cnpj: '', telefone: '', email: '', endereco: '', cidade: '', estado: '', cep: '' },
   metas: { cmvMeta: 35, margemMeta: 60, ticketMedioMeta: 60, clientesInativosDias: 30 },
-  taxas: { taxaEntregaPadrao: 5, taxaIfood: 15, comissaoEntregador: 0 },
+  taxas: { taxaEntregaPadrao: 0, taxaIfood: 0, comissaoEntregador: 0 },
   horario: {
-    segunda: 'Fechado', terca: '18:00 – 23:00', quarta: '18:00 – 23:00',
-    quinta: '18:00 – 23:00', sexta: '18:00 – 00:00',
-    sabado: '12:00 – 00:00', domingo: '12:00 – 22:00',
+    segunda: 'Fechado', terca: 'Fechado', quarta: 'Fechado',
+    quinta: 'Fechado', sexta: 'Fechado',
+    sabado: 'Fechado', domingo: 'Fechado',
   },
   integracoes: { whatsapp: false, pix: false, impressora: false, ifood: false, ocr: false },
-  frete: { padrao: 8, zonas: [] },
+  frete: { padrao: 0, zonas: [] },
 };
 
 /* ── Stores ──────────────────────────────────────────────────── */
@@ -558,9 +554,12 @@ if (!localStorage.getItem(CLEAN_START_KEY)) {
 }
 
 // Remove o saquê e adiciona parâmetros de compra antecipada aos dados existentes.
-const STOCK_PLANNING_MIGRATION_KEY = 'petisbar-stock-planning-v1';
+const STOCK_PLANNING_MIGRATION_KEY = 'petisbar-stock-planning-v2';
 if (!localStorage.getItem(STOCK_PLANNING_MIGRATION_KEY)) {
-  const removedProductIds = new Set(['p-drk007', 'p-drk008', 'p-drk009']);
+  const removedProductIds = new Set([
+    'p-drk007', 'p-drk008', 'p-drk009',
+    'p-aca002', 'p-aca003', 'p-aca004', 'p-aca005',
+  ]);
   Stores.produtos.set(Stores.produtos.get().filter(p => !removedProductIds.has(p.id)));
   Stores.fichas.set(Stores.fichas.get().filter(f => !removedProductIds.has(f.produtoId)));
   const ingredientesAtualizados = Stores.ingredientes.get()
@@ -577,6 +576,16 @@ if (!localStorage.getItem(STOCK_PLANNING_MIGRATION_KEY)) {
 }
 
 const storedConfig = Stores.config.get();
+const CLEAN_CONFIG_KEY = 'petisbar-clean-config-v1';
+if (!localStorage.getItem(CLEAN_CONFIG_KEY)) {
+  storedConfig.restaurante.cidade = '';
+  storedConfig.restaurante.estado = '';
+  storedConfig.taxas = { taxaEntregaPadrao: 0, taxaIfood: 0, comissaoEntregador: 0 };
+  Object.keys(storedConfig.horario).forEach(dia => { storedConfig.horario[dia] = 'Fechado'; });
+  storedConfig.frete = { padrao: 0, zonas: [] };
+  Stores.config.set(storedConfig);
+  localStorage.setItem(CLEAN_CONFIG_KEY, 'concluido');
+}
 if (['Distrito XVII', 'Distrito OS'].includes(storedConfig.restaurante?.nome)) {
   storedConfig.restaurante.nome = 'Petisbar Teodoro';
   Stores.config.set(storedConfig);

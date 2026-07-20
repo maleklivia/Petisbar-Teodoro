@@ -8,6 +8,8 @@
 
 Petisbar Teodoro é um sistema de gestão operacional desenvolvido para restaurantes de delivery premium. Nasceu como ferramenta interna do **Petisbar Teodoro — Petiscos & Caldos Premium**, com arquitetura pensada desde o início para crescer como produto SaaS.
 
+> **Estado atual:** versão de configuração e testes em um único navegador. Antes do uso operacional online, ainda são necessários backend, autenticação, banco de dados, backup e implantação segura. Consulte [docs/GO-LIVE.md](docs/GO-LIVE.md).
+
 ---
 
 ## Tecnologias
