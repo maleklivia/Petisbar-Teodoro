@@ -161,6 +161,35 @@ const SEED_PRODUTOS = [
   { id: 'p-con005', sku: 'CON005', nome: 'Torresmo 150g',              categoria: 'Conveniência',  descricao: 'Torresmo artesanal crocante 150g',                       precoVenda: 15.00, custoCompra: 5.50, ativo: true, tempoPreparo: 3, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
 ];
 
+// A operação começa sem compras realizadas.
+SEED_INGREDIENTES.forEach(ingrediente => {
+  ingrediente.estoqueAtual = 0;
+});
+
+const PRODUCT_PHOTOS_BY_CATEGORY = {
+  Drinks: '../assets/products/caipirinha.jpg',
+  Cervejas: '../assets/products/beer.jpg',
+  Refrigerantes: '../assets/products/soda.jpg',
+  'Águas': '../assets/products/water.jpg',
+  'Energéticos': '../assets/products/energy-drink.jpg',
+  'Açaí': '../assets/products/acai.jpg',
+  'Conveniência': '../assets/products/snacks.jpg',
+};
+
+function getDefaultProductPhoto(product) {
+  if (['p-drk010', 'p-drk011'].includes(product.id)) {
+    return '../assets/products/energy-cocktail.jpg';
+  }
+  return PRODUCT_PHOTOS_BY_CATEGORY[product.categoria] || null;
+}
+
+SEED_PRODUTOS.forEach(product => {
+  product.foto = getDefaultProductPhoto(product);
+  if (product.estoqueAtual !== null && product.estoqueAtual !== undefined) {
+    product.estoqueAtual = 0;
+  }
+});
+
 /* ── Seed Data: Fichas Técnicas (11 drinks) ──────────────────── */
 /*
   CMV de referência (calculado pelos custos dos insumos):
@@ -537,17 +566,34 @@ const Stores = {
   produtos:      makeStore(STORE_KEYS.PRODUTOS,          SEED_PRODUTOS),
   ingredientes:  makeStore(STORE_KEYS.INGREDIENTES,      SEED_INGREDIENTES),
   fichas:        makeStore(STORE_KEYS.FICHAS,            SEED_FICHAS),
-  pedidos:       makeStore(STORE_KEYS_V3.PEDIDOS,        SEED_PEDIDOS),
-  clientes:      makeStore(STORE_KEYS_V3.CLIENTES,       SEED_CLIENTES),
-  fornecedores:  makeStore(STORE_KEYS_V4.FORNECEDORES,   SEED_FORNECEDORES),
-  compras:       makeStore(STORE_KEYS_V4.COMPRAS,        SEED_COMPRAS),
-  movimentacoes: makeStore(STORE_KEYS_V4.MOVIMENTACOES,  SEED_MOVIMENTACOES),
-  cupons:        makeStore(STORE_KEYS_V4.CUPONS,         SEED_CUPONS),
-  documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     SEED_DOCUMENTOS),
+  pedidos:       makeStore(STORE_KEYS_V3.PEDIDOS,        []),
+  clientes:      makeStore(STORE_KEYS_V3.CLIENTES,       []),
+  fornecedores:  makeStore(STORE_KEYS_V4.FORNECEDORES,   []),
+  compras:       makeStore(STORE_KEYS_V4.COMPRAS,        []),
+  movimentacoes: makeStore(STORE_KEYS_V4.MOVIMENTACOES,  []),
+  cupons:        makeStore(STORE_KEYS_V4.CUPONS,         []),
+  documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     []),
   config:        makeStore(STORE_KEYS_V4.CONFIG,         SEED_CONFIG),
 };
 
 // Atualiza apenas o nome padrão antigo, preservando configurações personalizadas.
+// Limpeza única dos dados de demonstração já gravados em navegadores existentes.
+const CLEAN_START_KEY = 'petisbar-clean-start-v1';
+if (!localStorage.getItem(CLEAN_START_KEY)) {
+  Stores.produtos.set(structuredClone(SEED_PRODUTOS));
+  Stores.ingredientes.set(structuredClone(SEED_INGREDIENTES));
+  Stores.fichas.set(structuredClone(SEED_FICHAS));
+  Stores.pedidos.set([]);
+  Stores.clientes.set([]);
+  Stores.fornecedores.set([]);
+  Stores.compras.set([]);
+  Stores.movimentacoes.set([]);
+  Stores.cupons.set([]);
+  Stores.documentos.set([]);
+  if (typeof Storage !== 'undefined') Storage.setState(structuredClone(seedData));
+  localStorage.setItem(CLEAN_START_KEY, 'concluido');
+}
+
 const storedConfig = Stores.config.get();
 if (['Distrito XVII', 'Distrito OS'].includes(storedConfig.restaurante?.nome)) {
   storedConfig.restaurante.nome = 'Petisbar Teodoro';
@@ -589,6 +635,15 @@ if (acai300) {
 storedProducts.forEach(product => {
   if (['p-aca002', 'p-aca003', 'p-aca004', 'p-aca005'].includes(product.id) && product.ativo) {
     product.ativo = false;
+    productsChanged = true;
+  }
+});
+
+// Acrescenta fotos representativas também aos produtos já salvos no navegador.
+storedProducts.forEach(product => {
+  const defaultPhoto = getDefaultProductPhoto(product);
+  if (defaultPhoto && product.foto !== defaultPhoto) {
+    product.foto = defaultPhoto;
     productsChanged = true;
   }
 });

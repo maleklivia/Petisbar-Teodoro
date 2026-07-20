@@ -83,6 +83,7 @@ const EstoqueModule = {
           <option value="critico" ${this._filtroStatus === 'critico' ? 'selected' : ''}>Abaixo do mínimo</option>
           <option value="ok" ${this._filtroStatus === 'ok' ? 'selected' : ''}>OK</option>
         </select>
+        <button class="btn btn-secondary" id="btn-lista-compras">Baixar lista de compras (.txt)</button>
         <button class="btn btn-primary" id="btn-movimentacao">+ Movimentação</button>
       </div>
       <div class="table-wrap">
@@ -211,6 +212,8 @@ const EstoqueModule = {
 
       if (e.target.closest('#btn-movimentacao')) { this._abrirModalMovimentacao(); return; }
 
+      if (e.target.closest('#btn-lista-compras')) { this._baixarListaCompras(); return; }
+
       const repor = e.target.closest('[data-est-repor]');
       if (repor) {
         this._abrirModalMovimentacao(repor.dataset.estRepor);
@@ -223,6 +226,36 @@ const EstoqueModule = {
 
     const sel = el.querySelector('#est-status');
     if (sel) sel.addEventListener('change', e => { this._filtroStatus = e.target.value; this._render(); this._bindEvents(); });
+  },
+
+  _baixarListaCompras() {
+    const itens = Stores.ingredientes.get()
+      .filter(i => i.ativo && i.estoqueAtual < i.estoqueMinimo)
+      .map(i => ({ ...i, quantidadeComprar: i.estoqueMinimo - i.estoqueAtual }));
+
+    if (!itens.length) {
+      UI.toast('Não há itens abaixo do estoque mínimo.', 'info');
+      return;
+    }
+
+    const linhas = [
+      'LISTA DE COMPRAS - PETISBAR TEODORO',
+      `Data: ${new Date().toLocaleDateString('pt-BR')}`,
+      '',
+      ...itens.map(i => `☐ ${i.nome}: ${Number(i.quantidadeComprar.toFixed(3))} ${i.unidade}`),
+      '',
+      `Total de itens: ${itens.length}`,
+    ];
+    const blob = new Blob([`\uFEFF${linhas.join('\r\n')}`], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `lista-compras-petisbar-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    UI.toast('Lista baixada. O arquivo está pronto para enviar pelo WhatsApp.', 'success');
   },
 
   _abrirModalMovimentacao(ingredienteId = '') {

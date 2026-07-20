@@ -99,6 +99,14 @@ const seedData = {
 };
 
 /* ── State Management ─────────────────────────────────────────── */
+// O painel começa vazio e recebe dados reais pelos módulos operacionais.
+seedData.products = [];
+seedData.stock = [];
+seedData.orders = [];
+seedData.finance = [];
+seedData.clients = [];
+seedData.fornecedores = [];
+
 const Storage = {
   getState() {
     const raw = localStorage.getItem(STORE_KEY);

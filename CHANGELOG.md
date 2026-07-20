@@ -12,6 +12,10 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 - Padronizados todos os drinks preparados em copos de 500ml, com fichas técnicas e CMV recalculados.
 - Substituídos os tamanhos antigos de açaí pela Batidinha de Açaí 300ml em garrafinha, vendida a R$ 15,00.
 - Adicionado ícone de foto ao lado dos produtos no cardápio e nas fichas técnicas.
+- Adicionadas fotos representativas aos produtos no cardápio e nas fichas técnicas.
+- Removidos pedidos, clientes, compras, fornecedores, cupons e documentos fictícios; o sistema agora inicia sem dados operacionais.
+- Zerado o estoque inicial e conciliado o Dashboard com os mesmos produtos, pedidos e ingredientes das demais telas.
+- Adicionado botão no Estoque para baixar uma lista de compras em TXT pronta para envio pelo WhatsApp.
 
 ---
 

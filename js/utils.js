@@ -113,6 +113,18 @@ const Utils = {
       .replace(/'/g, '&#x27;');
   },
 
+  productPhoto(product, modifier = '') {
+    const photo = typeof product?.foto === 'string' ? product.foto : '';
+    const safeLocalPhoto = /^\.\.\/assets\/products\/[a-z0-9._-]+$/i.test(photo);
+    const className = `product-photo-icon${modifier ? ` ${modifier}` : ''}`;
+    const label = `Foto de ${this.escapeHtml(product?.nome || 'produto')}`;
+    const content = safeLocalPhoto
+      ? `<img src="${this.escapeHtml(photo)}" alt="${label}" loading="lazy">`
+      : '<svg aria-hidden="true"><use href="#icon-product-photo"></use></svg>';
+
+    return `<span class="${className}" title="${label}">${content}</span>`;
+  },
+
   /* ── DOM Helpers ────────────────────────────────────────────── */
 
   qs(selector, root = document) {

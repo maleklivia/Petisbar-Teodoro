@@ -54,13 +54,44 @@ const Modules = {
   /* ── Dashboard ─────────────────────────────────────────────── */
   dashboard: {
     async init(state) {
-      this._renderKpis(state);
+      const currentState = this._buildCurrentState(state);
+      this._renderKpis(currentState);
       this._renderOrderStats();
       this._renderCatalogStats();
-      this._renderRecentOrders(state);
-      this._renderTopProducts(state);
-      this._renderStockAlerts(state);
+      this._renderRecentOrders(currentState);
+      this._renderTopProducts(currentState);
+      this._renderStockAlerts(currentState);
       this._renderAlertasCusto();
+    },
+
+    _buildCurrentState(state) {
+      if (typeof Stores === 'undefined') return state;
+      const pedidos = Stores.pedidos.get();
+      const soldByProduct = new Map();
+      pedidos.filter(p => p.status === 'Entregue').forEach(pedido => {
+        pedido.itens.forEach(item => {
+          soldByProduct.set(item.produtoId, (soldByProduct.get(item.produtoId) || 0) + item.qty);
+        });
+      });
+
+      return {
+        ...state,
+        products: Stores.produtos.get().filter(p => p.ativo).map(p => ({
+          id: p.id, name: p.nome, sold: soldByProduct.get(p.id) || 0,
+        })),
+        stock: Stores.ingredientes.get().filter(i => i.ativo).map(i => ({
+          id: i.id, name: i.nome, unit: i.unidade, quantity: i.estoqueAtual, min: i.estoqueMinimo,
+        })),
+        orders: pedidos.map(p => ({
+          id: `#${String(p.numeroPedido).padStart(3, '0')}`,
+          product: p.itens.map(i => i.nome).join(', '),
+          qty: p.itens.reduce((sum, i) => sum + i.qty, 0),
+          total: p.total,
+          client: p.clienteNome,
+          status: p.status,
+          date: p.dataCriacao?.slice(0, 10),
+        })),
+      };
     },
 
     _calcKpis(state) {
