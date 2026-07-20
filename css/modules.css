@@ -526,4 +526,13 @@
   .catalog-bar {
     grid-template-columns: 1fr 1fr;
   }
+  .module-tabs {
+    overflow-x: auto; flex-wrap: nowrap;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .module-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; min-height: 44px; }
+  .module-toolbar .btn { width: 100%; }
+  .ficha-summary { grid-template-columns: 1fr 1fr; }
+  .catalog-stat { padding: var(--sp-3); }
 }

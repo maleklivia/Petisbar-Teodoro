@@ -34,6 +34,40 @@ const UI = {
     await this.loadComponent('header-slot', 'components/header.html');
   },
 
+  initResponsiveNavigation() {
+    const toggle = document.getElementById('mobile-menu-toggle');
+    const sidebarSlot = document.getElementById('sidebar-slot');
+    if (!toggle || !sidebarSlot) return;
+
+    let backdrop = document.getElementById('sidebar-backdrop');
+    if (!backdrop) {
+      backdrop = document.createElement('button');
+      backdrop.id = 'sidebar-backdrop';
+      backdrop.className = 'sidebar-backdrop';
+      backdrop.type = 'button';
+      backdrop.setAttribute('aria-label', 'Fechar menu');
+      document.body.appendChild(backdrop);
+    }
+
+    const setOpen = (open) => {
+      document.body.classList.toggle('mobile-menu-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    };
+
+    toggle.addEventListener('click', () => setOpen(!document.body.classList.contains('mobile-menu-open')));
+    backdrop.addEventListener('click', () => setOpen(false));
+    sidebarSlot.addEventListener('click', (event) => {
+      if (event.target.closest('.nav-item')) setOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 768) setOpen(false);
+    });
+  },
+
   /* ── Navigation ──────────────────────────────────────────────── */
 
   setActiveNav(page) {

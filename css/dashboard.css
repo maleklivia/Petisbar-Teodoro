@@ -445,3 +445,25 @@
   .content-grid { grid-template-columns: 1fr; }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
+
+@media (max-width: 768px) {
+  .app-header { padding: 0 var(--sp-3); min-width: 0; }
+  .header-left { min-width: 0; gap: var(--sp-3); }
+  .header-title {
+    font-size: var(--text-xl); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .header-date { display: none; }
+  .app-main {
+    padding: var(--sp-3); min-width: 0;
+    overscroll-behavior: contain;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+  .page-actions { width: 100%; flex-wrap: wrap; }
+  .page-actions .btn { flex: 1; }
+}

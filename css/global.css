@@ -276,3 +276,27 @@ input, select, textarea { font-family: inherit; }
 .gap-4 { gap: var(--sp-4); }
 .ml-auto { margin-left: auto; }
 .w-full  { width: 100%; }
+
+@media (max-width: 768px) {
+  html { -webkit-text-size-adjust: 100%; }
+  button, .btn, input, select, textarea { min-height: 44px; }
+  .form-input, .form-select { font-size: 16px; }
+  .panel__header, .panel__body { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+  .panel__header { align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap; }
+  .table-wrap {
+    width: 100%; overflow-x: auto;
+    overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch;
+  }
+  .data-table { min-width: 680px; }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal, .modal--wide, .modal--small {
+    width: 100%; max-width: none; max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .modal__body { padding: var(--sp-4); }
+  .modal__footer {
+    position: sticky; bottom: 0; background: var(--bg-surface);
+    padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom));
+  }
+  .modal__footer .btn { flex: 1; }
+}

@@ -36,6 +36,7 @@ const App = {
     UI.setHeaderTitle(PAGE_TITLES[page] || page);
     UI.setHeaderDate();
     UI.setUserInfo('Administrador');
+    UI.initResponsiveNavigation();
 
     // Run page-specific module
     if (Modules[page]) {
