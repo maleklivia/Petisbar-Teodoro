@@ -186,18 +186,3 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
-
-.sidebar-user__logout {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: var(--sp-1);
-  border-radius: var(--radius-sm);
-  display: flex;
-  transition: color var(--t-fast);
-  flex-shrink: 0;
-}
-
-.sidebar-user__logout:hover { color: var(--color-danger); }
-.sidebar-user__logout svg   { width: 15px; height: 15px; }

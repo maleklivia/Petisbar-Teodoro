@@ -3,69 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Petisbar Teodoro — Login</title>
-  <link rel="stylesheet" href="css/variables.css">
-  <link rel="stylesheet" href="css/global.css">
-  <link rel="stylesheet" href="css/login.css">
+  <meta http-equiv="refresh" content="0; url=pages/dashboard.html">
+  <title>Petisbar Teodoro</title>
+  <script>window.location.replace('pages/dashboard.html');</script>
 </head>
-<body class="login-body">
-
-  <div class="login-card">
-    <div class="login-brand">
-      <div class="login-logo">
-        <img src="assets/petisbar-teodoro-logo.jpg" alt="Logo Petisbar Teodoro">
-      </div>
-      <h1 class="login-title display">Petisbar Teodoro</h1>
-      <p class="login-subtitle">Sistema de Gestão — Delivery</p>
-    </div>
-
-    <form class="login-form" id="login-form" novalidate>
-      <div id="login-error" class="login-error hidden">
-        Usuário ou senha incorretos. Tente novamente.
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="username">Usuário</label>
-        <input class="form-input" type="text" id="username" name="username"
-          placeholder="admin" autocomplete="username" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="password">Senha</label>
-        <input class="form-input" type="password" id="password" name="password"
-          placeholder="••••••••" autocomplete="current-password" required>
-      </div>
-      <button type="submit" class="btn btn-primary login-submit" id="login-btn">
-        Entrar
-      </button>
-    </form>
-
-    <p class="login-footer">
-      <span>Petisbar Teodoro</span> &middot; Petiscos &amp; Caldos Premium
-    </p>
-  </div>
-
-  <script src="js/storage.js"></script>
-  <script src="js/utils.js"></script>
-  <script>
-    if (Storage.isAuthenticated()) { window.location.href = 'pages/dashboard.html'; }
-    document.getElementById('login-form').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const btn = document.getElementById('login-btn');
-      const err = document.getElementById('login-error');
-      btn.classList.add('btn-loading'); btn.disabled = true;
-      err.classList.add('hidden');
-      const u = document.getElementById('username').value.trim();
-      const p = document.getElementById('password').value;
-      setTimeout(() => {
-        if (Storage.login(u, p)) {
-          window.location.href = 'pages/dashboard.html';
-        } else {
-          err.classList.remove('hidden');
-          btn.classList.remove('btn-loading'); btn.disabled = false;
-          document.getElementById('password').value = '';
-          document.getElementById('password').focus();
-        }
-      }, 500);
-    });
-  </script>
+<body>
+  <noscript><a href="pages/dashboard.html">Acessar o sistema</a></noscript>
 </body>
 </html>

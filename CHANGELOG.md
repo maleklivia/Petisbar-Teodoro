@@ -5,6 +5,13 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 
 ---
 
+## [Unreleased] — 2026-07-20
+
+- Removida a tela de login inicial; a raiz do sistema agora abre diretamente o dashboard.
+- Removidos o bloqueio de autenticação e os controles de logout da interface.
+
+---
+
 ## [v0.3.0] — 2026-07-10
 
 ### Motor de Pedidos (Core)

@@ -26,12 +26,6 @@ const App = {
   state: null,
 
   async init(page) {
-    if (!Storage.isAuthenticated()) {
-      const base = window.location.pathname.includes('/pages/') ? '../' : './';
-      window.location.href = `${base}index.html`;
-      return;
-    }
-
     this.state = Storage.getState();
 
     // Load shared components
@@ -43,24 +37,10 @@ const App = {
     UI.setHeaderDate();
     UI.setUserInfo('Administrador');
 
-    // Bind global events (logout, etc.)
-    this._bindGlobalEvents();
-
     // Run page-specific module
     if (Modules[page]) {
       await Modules[page].init(this.state);
     }
-  },
-
-  _bindGlobalEvents() {
-    document.addEventListener('click', e => {
-      const logoutBtn = e.target.closest('[data-action="logout"]');
-      if (logoutBtn) {
-        Storage.logout();
-        const base = window.location.pathname.includes('/pages/') ? '../' : './';
-        window.location.href = `${base}index.html`;
-      }
-    });
   },
 
   refresh() {

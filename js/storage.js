@@ -6,7 +6,6 @@
    ============================================================ */
 
 const STORE_KEY = 'distrito-os-v5'; // manter compatibilidade com dados existentes
-const AUTH_KEY  = 'distrito-os-auth';
 
 /* ── Seed Data ────────────────────────────────────────────────── */
 const seedData = {
@@ -130,21 +129,4 @@ const Storage = {
     return structuredClone(seedData);
   },
 
-  /* ── Auth ───────────────────────────────────────────────────── */
-  isAuthenticated() {
-    return localStorage.getItem(AUTH_KEY) === 'ok';
-  },
-
-  login(username, password) {
-    // TODO: replace with API call when backend is ready
-    if (username === 'admin' && password === 'petisbarteodoro') {
-      localStorage.setItem(AUTH_KEY, 'ok');
-      return true;
-    }
-    return false;
-  },
-
-  logout() {
-    localStorage.removeItem(AUTH_KEY);
-  },
 };
