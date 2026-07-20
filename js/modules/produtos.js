@@ -120,8 +120,15 @@ const ProdutosModule = {
       return `
         <tr>
           <td>
-            <div style="font-weight:600;color:var(--text-primary)">${Utils.escapeHtml(p.nome)}</div>
-            ${p.sku ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.sku)}</div>` : (p.codigo ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo)}</div>` : '')}
+            <div class="product-name-cell">
+              <span class="product-photo-icon" title="Foto do produto" aria-label="Foto do produto">
+                <svg><use href="#icon-product-photo"></use></svg>
+              </span>
+              <div>
+                <div style="font-weight:600;color:var(--text-primary)">${Utils.escapeHtml(p.nome)}</div>
+                ${p.sku ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.sku)}</div>` : (p.codigo ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo)}</div>` : '')}
+              </div>
+            </div>
           </td>
           <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>

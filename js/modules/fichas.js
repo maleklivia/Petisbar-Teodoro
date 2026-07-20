@@ -83,8 +83,13 @@ const FichasModule = {
 
     container.innerHTML = filtered.map(p => `
       <div class="ficha-produto-item ${this._activeProdutoId === p.id ? 'active' : ''}" data-pid="${p.id}">
-        <div class="ficha-produto-item__nome">${Utils.escapeHtml(p.nome)}</div>
-        <div class="ficha-produto-item__cat">${Utils.escapeHtml(p.categoria)}</div>
+        <span class="product-photo-icon product-photo-icon--small" title="Foto do produto" aria-label="Foto do produto">
+          <svg><use href="#icon-product-photo"></use></svg>
+        </span>
+        <div class="ficha-produto-item__info">
+          <div class="ficha-produto-item__nome">${Utils.escapeHtml(p.nome)}</div>
+          <div class="ficha-produto-item__cat">${Utils.escapeHtml(p.categoria)}</div>
+        </div>
       </div>
     `).join('');
 
@@ -134,9 +139,14 @@ const FichasModule = {
         : '';
 
     container.innerHTML = `
-      <div>
-        <div class="ficha-editor__title">${Utils.escapeHtml(produto.nome)}</div>
-        <div class="ficha-editor__sub">${Utils.escapeHtml(produto.categoria)} &middot; Preço de venda: ${Utils.currency(preco)}</div>
+      <div class="ficha-editor__product-heading">
+        <span class="product-photo-icon product-photo-icon--large" title="Foto do produto" aria-label="Foto do produto">
+          <svg><use href="#icon-product-photo"></use></svg>
+        </span>
+        <div>
+          <div class="ficha-editor__title">${Utils.escapeHtml(produto.nome)}</div>
+          <div class="ficha-editor__sub">${Utils.escapeHtml(produto.categoria)} &middot; Preço de venda: ${Utils.currency(preco)}</div>
+        </div>
       </div>
 
       <div>
