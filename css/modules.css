@@ -157,6 +157,14 @@
   background: var(--color-gold-muted);
   border: 1px solid var(--color-gold-border);
   border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.product-photo-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .product-photo-icon svg {

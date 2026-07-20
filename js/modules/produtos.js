@@ -121,9 +121,7 @@ const ProdutosModule = {
         <tr>
           <td>
             <div class="product-name-cell">
-              <span class="product-photo-icon" title="Foto do produto" aria-label="Foto do produto">
-                <svg><use href="#icon-product-photo"></use></svg>
-              </span>
+              ${Utils.productPhoto(p)}
               <div>
                 <div style="font-weight:600;color:var(--text-primary)">${Utils.escapeHtml(p.nome)}</div>
                 ${p.sku ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.sku)}</div>` : (p.codigo ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo)}</div>` : '')}
