@@ -51,6 +51,7 @@ docker compose up -d
 | PATCH | `/api/v1/users/:id/status` | `users.manage` |
 | POST | `/api/v1/migration/local-storage` | `migration.run` |
 | GET | `/api/v1/public/catalog` | Pública, somente produtos disponíveis |
+| POST | `/api/v1/public/coupons/validate` | Pública, valida cupom, telefone e carrinho |
 | POST | `/api/v1/public/orders` | Pública, limitada por tentativas e com preços recalculados no servidor |
 
 ## Cardápio público
@@ -58,6 +59,8 @@ docker compose up -d
 O endereço `/cardapio.html` oferece catálogo, carrinho, retirada ou entrega, identificação do cliente e formas de pagamento sem coletar dados de cartão. Defina `DEFAULT_DELIVERY_FEE` no `.env` antes de ativar entregas.
 
 Enquanto a API não estiver disponível, a página utiliza o catálogo provisório e finaliza o pedido pelo WhatsApp. Após a implantação, o mesmo link detecta a API e cria o pedido no PostgreSQL com origem `Cardápio Digital`.
+
+O cupom `PRIMEIROPEDIDO` concede 10% de desconto, limitado a R$ 10,00, somente no primeiro pedido de cada telefone. Ele aparece apenas quando a API estiver ativa. O servidor valida o telefone ao aplicar e valida novamente ao finalizar, registrando o uso no PostgreSQL para impedir reutilização.
 
 Antes de divulgar, configure o domínio, conclua a conexão da tela administrativa de Pedidos com a API e realize pedidos de homologação de ponta a ponta.
 

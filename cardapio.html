@@ -45,16 +45,21 @@
           </div>
         </div>
         <label>Forma de pagamento<select name="payment"><option>Pix</option><option>Dinheiro</option><option>Cartão na entrega</option></select></label>
+        <div id="coupon-section" class="coupon-section hidden">
+          <label for="coupon-code">Cupom de desconto</label>
+          <div class="coupon-row"><input id="coupon-code" name="couponCode" maxlength="40" autocomplete="off" placeholder="Digite seu cupom"><button id="coupon-apply" type="button">Aplicar</button></div>
+          <p id="coupon-status" class="coupon-status" role="status"></p>
+        </div>
         <label>Observações<textarea name="notes" rows="2" maxlength="500" placeholder="Ex.: sem gelo"></textarea></label>
         <label id="adult-field" class="adult-check hidden"><input type="checkbox" name="adultConfirmed"> Confirmo que tenho 18 anos ou mais.</label>
         <input name="website" class="honey" tabindex="-1" autocomplete="off">
-        <div class="cart-totals"><div><span>Subtotal</span><strong id="checkout-subtotal">R$ 0,00</strong></div><div id="delivery-row" class="hidden"><span>Entrega</span><strong id="checkout-delivery">A confirmar</strong></div><div class="grand-total"><span>Total</span><strong id="checkout-total">R$ 0,00</strong></div></div>
+        <div class="cart-totals"><div><span>Subtotal</span><strong id="checkout-subtotal">R$ 0,00</strong></div><div id="delivery-row" class="hidden"><span>Entrega</span><strong id="checkout-delivery">A confirmar</strong></div><div id="discount-row" class="hidden"><span>Desconto</span><strong id="checkout-discount">- R$ 0,00</strong></div><div class="grand-total"><span>Total</span><strong id="checkout-total">R$ 0,00</strong></div></div>
         <button id="checkout-button" class="checkout-button" type="submit">Enviar pedido pelo WhatsApp</button>
         <p id="checkout-help" class="checkout-help">O pedido só será confirmado depois que a mensagem for enviada.</p>
       </form>
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20260721-3"></script>
+  <script src="./js/cardapio.js?v=20260721-4"></script>
 </body>
 </html>
