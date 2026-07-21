@@ -1,4 +1,5 @@
 const Cardapio = {
+  storeWhatsApp: '5521975816050',
   apiActive: false, products: [], cart: new Map(), category: 'Todos', search: '', deliveryFee: 0,
   fallback: [
     ['p-drk001','Caipirinha Limão 500ml','Drinks','Cachaça 51, limão, açúcar e gelo',15.9,'caipirinha.jpg'],
@@ -74,7 +75,7 @@ const Cardapio = {
   message(payload){const lines=['*NOVO PEDIDO — PETISBAR TEODORO*','',...this.cartData().map(i=>`• ${i.quantity}x ${i.product.name} — ${this.money(Number(i.product.sale_price)*i.quantity)}`),'',`*Subtotal:* ${this.money(this.subtotal())}`,`*Recebimento:* ${payload.fulfillmentType==='entrega'?'Entrega':'Retirada'}`,`*Pagamento:* ${payload.paymentMethod}`,`*Cliente:* ${payload.customer.name}`,`*Telefone:* ${payload.customer.phone}`];if(payload.fulfillmentType==='entrega')lines.push(`*Endereço:* ${payload.address.street}, ${payload.address.number} — ${payload.address.district}${payload.address.complement?' — '+payload.address.complement:''}`);if(payload.notes)lines.push(`*Observações:* ${payload.notes}`);lines.push('','Aguardando confirmação do estabelecimento.');return lines.join('\n')},
   async submit(event){event.preventDefault();const form=event.currentTarget,payload=this.payload(form),error=this.validate(payload);if(error){this.toast(error);return}const button=document.getElementById('checkout-button');button.disabled=true;
     if(this.apiActive){try{const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const body=await response.json();if(!response.ok)throw new Error(body.error);this.cart.clear();this.renderCatalog();this.renderCart();this.openCart(false);this.toast(`Pedido #${body.data.orderNumber} recebido!`);form.reset();return}catch{this.toast('O servidor não respondeu. Vamos enviar pelo WhatsApp.')}}
-    window.location.href=`https://wa.me/?text=${encodeURIComponent(this.message(payload))}`;button.disabled=false;
+    window.location.href=`https://wa.me/${this.storeWhatsApp}?text=${encodeURIComponent(this.message(payload))}`;button.disabled=false;
   },
   toast(message){const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>el.classList.remove('show'),3500)},
 };
