@@ -512,7 +512,7 @@ const ComprasModule = {
     overlay.id = 'ocr-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff;font-family:var(--font-body)';
     overlay.innerHTML = `
-      <div style="font-size:18px;font-weight:600">Lendo cupom fiscal…</div>
+      <div id="ocr-status" style="font-size:18px;font-weight:600">Procurando QR Code…</div>
       <div style="width:260px;height:8px;background:rgba(255,255,255,.2);border-radius:4px;overflow:hidden">
         <div id="ocr-bar" style="height:100%;width:0%;background:var(--color-brand);transition:width .2s"></div>
       </div>
@@ -521,17 +521,23 @@ const ComprasModule = {
     document.body.appendChild(overlay);
 
     try {
+      const qr = await OcrService.lerQr(file).catch(() => null);
+      const statusEl = document.getElementById('ocr-status');
+      if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
       const texto = await OcrService.processar(file, pct => {
         const bar = document.getElementById('ocr-bar');
         const pctEl = document.getElementById('ocr-pct');
         if (bar) bar.style.width = pct + '%';
         if (pctEl) pctEl.textContent = pct + '%';
       });
-      const { itens, total } = OcrService.parsearCupom(texto);
+      const resultado = OcrService.parsearCupom(texto);
+      const { itens, total } = resultado;
+      const fiscal = { qr, cnpj: resultado.cnpj, chaveAcesso: qr?.chaveAcesso || resultado.chaveAcesso };
       document.body.removeChild(overlay);
 
       if (!itens.length) {
-        UI.toast('Não foi possível identificar itens no cupom. Tente uma foto mais nítida.', 'warning');
+        const dica = qr ? 'O QR foi encontrado, mas os itens precisam de uma foto mais nítida.' : 'Enquadre o cupom inteiro, inclusive o QR Code.';
+        UI.toast(`Não foi possível identificar os itens. ${dica}`, 'warning');
         return;
       }
 
@@ -542,16 +548,21 @@ const ComprasModule = {
         if (match) it.ingredienteId = match.id;
       });
 
-      this._mostrarRevisaoCupom(itens, total);
+      this._mostrarRevisaoCupom(itens, total, fiscal);
     } catch (err) {
       if (document.getElementById('ocr-overlay')) document.body.removeChild(overlay);
       UI.toast('Erro ao processar imagem: ' + (err.message || 'desconhecido'), 'error');
     }
   },
 
-  _mostrarRevisaoCupom(itens, total) {
+  _mostrarRevisaoCupom(itens, total, fiscal = {}) {
     const ings = Stores.ingredientes.get().filter(i => i.ativo);
     const fornecedores = Stores.fornecedores.get().filter(f => f.ativo);
+    const somenteNumeros = value => String(value || '').replace(/\D/g, '');
+    const cnpjFiscal = somenteNumeros(fiscal.cnpj);
+    const fornecedorFiscal = cnpjFiscal
+      ? fornecedores.find(f => somenteNumeros(f.cnpj) === cnpjFiscal)
+      : null;
 
     const optsIng = `<option value="">— Não vincular —</option>` +
       ings.map(i => `<option value="${i.id}">${Utils.escapeHtml(i.nome)}</option>`).join('');
@@ -585,6 +596,12 @@ const ComprasModule = {
       title: '📷 Revisão do Cupom Fiscal',
       size: 'wide',
       body: `
+        ${fiscal.qr ? `
+          <div style="padding:var(--sp-3);margin-bottom:var(--sp-3);border:1px solid var(--color-success);border-radius:var(--radius-md);background:var(--color-success-muted);font-size:var(--text-sm)">
+            <strong>✓ QR Code fiscal identificado</strong>
+            ${fiscal.chaveAcesso ? `<div style="margin-top:4px;color:var(--text-muted)">Chave: ${Utils.escapeHtml(fiscal.chaveAcesso)}</div>` : ''}
+            ${fiscal.qr.url ? `<a href="${Utils.escapeHtml(fiscal.qr.url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:4px;color:var(--color-gold);text-decoration:underline">Abrir consulta oficial</a>` : ''}
+          </div>` : ''}
         <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--sp-3)">
           Confira e corrija os itens detectados antes de importar. Vincule cada item a um ingrediente do estoque.
         </p>
@@ -606,7 +623,7 @@ const ComprasModule = {
             <label class="form-label">Fornecedor</label>
             <select class="form-input" id="ocr-forn">
               <option value="">Selecionar…</option>
-              ${fornecedores.map(f => `<option value="${f.id}">${Utils.escapeHtml(f.nome)}</option>`).join('')}
+              ${fornecedores.map(f => `<option value="${f.id}" ${f.id === fornecedorFiscal?.id ? 'selected' : ''}>${Utils.escapeHtml(f.nome)}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -650,10 +667,10 @@ const ComprasModule = {
           tipo: 'manual',
           itens: itensFinal,
           total: totalFinal,
-          observacoes: 'Importado via OCR (cupom fiscal)',
+          observacoes: fiscal.qr ? 'Importado via QR Code + leitura do cupom fiscal' : 'Importado via leitura do cupom fiscal',
           dataCompra: data,
           dataRecebimento: '',
-          notaFiscal: '',
+          notaFiscal: fiscal.chaveAcesso || '',
           formaPagamento: 'À vista',
         };
         compras.unshift(novaCompra);
