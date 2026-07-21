@@ -12,4 +12,5 @@
 
 .address-fields{padding:16px;border-color:rgba(212,173,79,.45);background:rgba(212,173,79,.05)}
 .address-title{color:var(--gold-light);font-size:15px}
+.product-option{display:flex;align-items:center;gap:7px;margin:2px 0 10px;color:var(--gold-light);font-size:11px;font-weight:700}.product-option input{width:18px;height:18px;margin:0;accent-color:var(--gold)}
 .coupon-section{padding:14px;border:1px solid rgba(212,173,79,.45);border-radius:12px;background:rgba(212,173,79,.05)}.coupon-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.coupon-row input{text-transform:uppercase}.coupon-row button{min-height:48px;padding:0 18px;border:0;border-radius:10px;background:var(--gold);color:#111;font-weight:800}.coupon-row button:disabled{opacity:.55}.coupon-status{min-height:18px;margin:7px 0 0;color:var(--gold-light);font-size:12px}.cart-totals #discount-row{color:var(--gold-light)}

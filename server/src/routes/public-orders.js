@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
 
-const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20) });
+const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), flavoredIce: z.boolean().default(false) });
 const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).min(1).max(30) });
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
@@ -26,7 +26,7 @@ async function pricedItems(db, requested, lock = false) {
   const { rows } = await db.query(`SELECT id,name,category,sale_price,current_stock FROM products WHERE id=ANY($1::text[]) AND active=true ${lock ? 'FOR SHARE' : ''}`, [ids]);
   if (rows.length !== ids.length) return null;
   const products = new Map(rows.map(product => [product.id, product]));
-  const items = requested.map(item => { const product=products.get(item.productId); const unitPrice=Number(product.sale_price); return {...item,name:product.name,category:product.category,currentStock:product.current_stock,unitPrice,subtotal:roundMoney(unitPrice*item.quantity)}; });
+  const items = requested.map(item => { const product=products.get(item.productId); const unitPrice=Number(product.sale_price); const canAddFlavoredIce=['p-drk010','p-drk011'].includes(product.id); return {...item,flavoredIce:canAddFlavoredIce&&item.flavoredIce,name:product.name,category:product.category,currentStock:product.current_stock,unitPrice,subtotal:roundMoney(unitPrice*item.quantity)}; });
   return { items, subtotal: roundMoney(items.reduce((sum,item)=>sum+item.subtotal,0)) };
 }
 
@@ -79,7 +79,7 @@ export default async function publicOrderRoutes(app) {
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
       await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address) VALUES ($1,$2,'Cardápio Digital',$3,$4,'Novo',$5,$6,$7,$8,$9,$10,$11,$12)",[id,orderNumber,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,input.notes,input.fulfillmentType,input.address]);
-      for(const item of priced.items)await client.query('INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal) VALUES ($1,$2,$3,$4,$5,$6)',[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal]);
+      for(const item of priced.items)await client.query('INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,{flavoredIce:item.flavoredIce}]);
       if(coupon)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,discount]);
       await client.query('COMMIT'); return reply.code(201).send({data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,total,couponCode:coupon?.code||null}});
     } catch(error){await client.query('ROLLBACK');if(error.code==='23505')return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
