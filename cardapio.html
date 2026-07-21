@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="description" content="Cardápio digital do Petisbar Teodoro. Faça seu pedido para retirada ou entrega.">
+  <title>Peça online — Petisbar Teodoro</title>
+  <link rel="stylesheet" href="./css/variables.css">
+  <link rel="stylesheet" href="./css/cardapio.css">
+</head>
+<body>
+  <header class="store-header">
+    <img src="./assets/petisbar-teodoro-logo.jpg" alt="Petisbar Teodoro" class="store-logo">
+    <div><span class="store-eyebrow">Cardápio digital</span><h1>Seu pedido, do seu jeito.</h1><p>Escolha seus favoritos para retirada ou entrega.</p></div>
+  </header>
+
+  <main class="store-main">
+    <div id="service-notice" class="service-notice hidden" role="status"></div>
+    <div class="catalog-tools">
+      <label class="search-box"><span>⌕</span><input id="catalog-search" type="search" placeholder="Buscar no cardápio" aria-label="Buscar no cardápio"></label>
+      <nav id="category-list" class="category-list" aria-label="Categorias"></nav>
+    </div>
+    <section id="catalog" class="catalog" aria-live="polite"><div class="catalog-loading">Preparando o cardápio…</div></section>
+  </main>
+
+  <button id="cart-fab" class="cart-fab hidden" type="button"><span>Ver pedido</span><strong id="cart-fab-total">R$ 0,00</strong><span id="cart-count" class="cart-count">0</span></button>
+  <div id="cart-overlay" class="cart-overlay" aria-hidden="true">
+    <section class="cart-sheet" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+      <header><div><span class="store-eyebrow">Seu carrinho</span><h2 id="cart-title">Finalizar pedido</h2></div><button id="cart-close" class="icon-button" type="button" aria-label="Fechar">×</button></header>
+      <div id="cart-items" class="cart-items"></div>
+      <form id="checkout-form" class="checkout-form">
+        <div class="checkout-grid"><label>Seu nome<input name="name" required minlength="2" autocomplete="name"></label><label>WhatsApp<input name="phone" required minlength="8" inputmode="tel" autocomplete="tel"></label></div>
+        <fieldset><legend>Como deseja receber?</legend><div class="choice-row"><label><input type="radio" name="fulfillment" value="retirada" checked> Retirada</label><label><input type="radio" name="fulfillment" value="entrega"> Entrega</label></div></fieldset>
+        <div id="address-fields" class="address-fields hidden"><div class="checkout-grid"><label class="wide">Rua<input name="street" autocomplete="street-address"></label><label>Número<input name="number" inputmode="numeric"></label><label>Bairro<input name="district"></label></div><label>Complemento ou referência<input name="complement"></label></div>
+        <label>Forma de pagamento<select name="payment"><option>Pix</option><option>Dinheiro</option><option>Cartão na entrega</option></select></label>
+        <label>Observações<textarea name="notes" rows="2" maxlength="500" placeholder="Ex.: sem gelo"></textarea></label>
+        <label id="adult-field" class="adult-check hidden"><input type="checkbox" name="adultConfirmed"> Confirmo que tenho 18 anos ou mais.</label>
+        <input name="website" class="honey" tabindex="-1" autocomplete="off">
+        <div class="cart-totals"><div><span>Subtotal</span><strong id="checkout-subtotal">R$ 0,00</strong></div><div id="delivery-row" class="hidden"><span>Entrega</span><strong id="checkout-delivery">A confirmar</strong></div><div class="grand-total"><span>Total</span><strong id="checkout-total">R$ 0,00</strong></div></div>
+        <button id="checkout-button" class="checkout-button" type="submit">Enviar pedido pelo WhatsApp</button>
+        <p id="checkout-help" class="checkout-help">O pedido só será confirmado depois que a mensagem for enviada.</p>
+      </form>
+    </section>
+  </div>
+  <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
+  <script src="./js/cardapio.js"></script>
+</body>
+</html>

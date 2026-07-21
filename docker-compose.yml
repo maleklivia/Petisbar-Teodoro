@@ -48,6 +48,7 @@ services:
     volumes:
       - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./index.html:/srv/index.html:ro
+      - ./cardapio.html:/srv/cardapio.html:ro
       - ./pages:/srv/pages:ro
       - ./components:/srv/components:ro
       - ./css:/srv/css:ro

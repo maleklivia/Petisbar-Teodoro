@@ -12,6 +12,8 @@ Petisbar Teodoro é um sistema de gestão operacional desenvolvido para restaura
 
 A fundação do modo servidor está em [`server/`](server/) e [`database/`](database/). Consulte [docs/BACKEND.md](docs/BACKEND.md) para instalação, segurança e migração.
 
+O cardápio público está em [`cardapio.html`](cardapio.html). Antes da ativação do backend, ele finaliza pelo WhatsApp; com a API ativa, os pedidos entram automaticamente com origem **Cardápio Digital**.
+
 ---
 
 ## Tecnologias

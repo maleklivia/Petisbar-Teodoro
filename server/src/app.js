@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import catalogRoutes from './routes/catalog.js';
 import healthRoutes from './routes/health.js';
 import migrationRoutes from './routes/migration.js';
+import publicOrderRoutes from './routes/public-orders.js';
 import userRoutes from './routes/users.js';
 
 export async function buildApp() {
@@ -30,6 +31,7 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: '/api/v1' });
   await app.register(catalogRoutes, { prefix: '/api/v1' });
   await app.register(migrationRoutes, { prefix: '/api/v1' });
+  await app.register(publicOrderRoutes, { prefix: '/api/v1' });
   await app.register(userRoutes, { prefix: '/api/v1' });
 
   app.setErrorHandler((error, request, reply) => {

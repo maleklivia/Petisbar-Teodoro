@@ -9,6 +9,7 @@ const schema = z.object({
   APP_ORIGIN: z.string().url(),
   COOKIE_SECRET: z.string().min(32),
   SESSION_HOURS: z.coerce.number().int().min(1).max(168).default(12),
+  DEFAULT_DELIVERY_FEE: z.coerce.number().nonnegative().default(0),
 });
 
 export const config = schema.parse(process.env);
