@@ -91,7 +91,7 @@ const ProdutosModule = {
     if (!items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
+          <td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
             Nenhum produto encontrado.
           </td>
         </tr>`;
@@ -130,6 +130,7 @@ const ProdutosModule = {
           </td>
           <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
+          <td><strong>${Utils.currency(p.precoIfood ?? Math.ceil((p.precoVenda / 0.738) * 100) / 100)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
@@ -212,6 +213,16 @@ const ProdutosModule = {
             </div>
           </div>
 
+          <div style="padding:var(--sp-3);border:1px solid var(--border-color);border-radius:var(--radius-md);margin-bottom:var(--sp-3)">
+            <div class="form-group">
+              <label class="form-label">Preço no iFood — Plano Entrega (R$)</label>
+              <input class="form-input" name="precoIfood" type="number" step="0.01" min="0.01"
+                value="${item?.precoIfood ?? (item?.precoVenda ? Math.ceil((item.precoVenda / 0.738) * 100) / 100 : '')}">
+              <small style="color:var(--text-muted)">Sugestão para preservar o valor líquido após 23% + 3,2%. Mensalidade não incluída.</small>
+            </div>
+            <label style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer"><input type="checkbox" name="ativoIfood" value="true" ${item?.ativoIfood ? 'checked' : ''}><span class="form-label" style="margin:0">Disponível no iFood após ativar a integração</span></label>
+          </div>
+
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)">
             <div class="form-group">
               <label class="form-label">Preço de Venda (R$) *</label>
@@ -272,12 +283,15 @@ const ProdutosModule = {
     if (!precoVenda || precoVenda <= 0) { UI.toast('Preço deve ser maior que zero', 'danger'); return; }
 
     const data = {
+      ...original,
       id:           fd.get('id') || `p-${Utils.uid()}`,
       nome,
       categoria:    fd.get('categoria'),
       codigo:       fd.get('codigo').trim(),
       descricao:    fd.get('descricao').trim(),
       precoVenda,
+      precoIfood:   parseFloat(fd.get('precoIfood')) || Math.ceil((precoVenda / 0.738) * 100) / 100,
+      ativoIfood:   fd.get('ativoIfood') === 'true',
       tempoPreparo: parseFloat(fd.get('tempoPreparo')) || 0,
       peso:         parseFloat(fd.get('peso')) || 0,
       dataCadastro: fd.get('dataCadastro') || Utils.today(),

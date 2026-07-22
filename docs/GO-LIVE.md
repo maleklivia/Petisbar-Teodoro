@@ -10,14 +10,15 @@ O sistema está pronto para configurar e testar o cardápio, as fichas e o estoq
 2. Cadastrar ingredientes, estoque mínimo, consumo diário, prazo de reposição e quantidade por pacote.
 3. Preencher os dados reais do restaurante, horários, taxas e zonas de entrega.
 4. Fazer um teste completo: compra, entrada no estoque, pedido, produção, entrega, baixa de estoque e financeiro.
-5. Desenvolver o backend com API, autenticação e permissões.
-6. Criar o banco PostgreSQL e a migração dos dados do navegador.
+5. Homologar o backend já preparado com API, autenticação e permissões.
+6. Subir o PostgreSQL e executar a migração dos dados do navegador.
 7. Registrar um domínio próprio.
 8. Contratar a VPS somente quando o backend estiver pronto para implantação.
 9. Configurar servidor Linux, firewall, atualizações automáticas, Docker, proxy HTTPS e variáveis secretas.
 10. Configurar backups automáticos fora da VPS e testar uma restauração.
 11. Preparar política de privacidade, retenção e acesso aos dados conforme a LGPD.
 12. Fazer homologação por alguns dias e só então iniciar a operação real.
+13. Revisar preços do Plano Entrega e homologar a integração conforme `docs/IFOOD.md`.
 
 ## Critérios mínimos antes de operar
 
