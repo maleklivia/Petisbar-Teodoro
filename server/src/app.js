@@ -10,7 +10,9 @@ import catalogRoutes from './routes/catalog.js';
 import healthRoutes from './routes/health.js';
 import migrationRoutes from './routes/migration.js';
 import publicOrderRoutes from './routes/public-orders.js';
+import ifoodRoutes from './routes/ifood.js';
 import userRoutes from './routes/users.js';
+import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
@@ -32,7 +34,12 @@ export async function buildApp() {
   await app.register(catalogRoutes, { prefix: '/api/v1' });
   await app.register(migrationRoutes, { prefix: '/api/v1' });
   await app.register(publicOrderRoutes, { prefix: '/api/v1' });
+  await app.register(ifoodRoutes, { prefix: '/api/v1' });
   await app.register(userRoutes, { prefix: '/api/v1' });
+
+  let stopIfoodWorker = () => {};
+  app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); });
+  app.addHook('onClose', async () => { stopIfoodWorker(); });
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);

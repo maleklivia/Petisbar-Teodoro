@@ -53,6 +53,8 @@ docker compose up -d
 | GET | `/api/v1/public/catalog` | Pública, somente produtos disponíveis |
 | POST | `/api/v1/public/coupons/validate` | Pública, valida cupom, telefone e carrinho |
 | POST | `/api/v1/public/orders` | Pública, limitada por tentativas e com preços recalculados no servidor |
+| GET | `/api/v1/integrations/ifood/status` | `settings.manage` |
+| POST | `/api/v1/integrations/ifood/pricing-preview` | `catalog.write` |
 
 ## Cardápio público
 
@@ -63,6 +65,10 @@ Enquanto a API não estiver disponível, a página utiliza o catálogo provisór
 O cupom `PRIMEIROPEDIDO` concede 10% de desconto, limitado a R$ 10,00, somente no primeiro pedido de cada telefone. Ele aparece apenas quando a API estiver ativa. O servidor valida o telefone ao aplicar e valida novamente ao finalizar, registrando o uso no PostgreSQL para impedir reutilização.
 
 Antes de divulgar, configure o domínio, conclua a conexão da tela administrativa de Pedidos com a API e realize pedidos de homologação de ponta a ponta.
+
+## iFood
+
+A base do Plano Entrega mantém preço e disponibilidade separados por produto, recebe eventos por polling e registra pedidos com proteção contra duplicidade. Ela inicia desligada. Consulte `docs/IFOOD.md` antes de preencher as credenciais e ativar `IFOOD_ENABLED`.
 
 ## Backup
 

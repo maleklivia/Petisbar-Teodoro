@@ -197,6 +197,8 @@ function getDefaultProductPhoto(product) {
 
 SEED_PRODUTOS.forEach(product => {
   product.foto = getDefaultProductPhoto(product);
+  product.precoIfood = Math.ceil((product.precoVenda / 0.738) * 100) / 100;
+  product.ativoIfood = false;
   if (product.estoqueAtual !== null && product.estoqueAtual !== undefined) {
     product.estoqueAtual = 0;
   }
