@@ -68,7 +68,11 @@ const IngredientesModule = {
           <td style="font-weight:600">${Utils.escapeHtml(i.nome)}</td>
           <td style="color:var(--text-muted)">${Utils.escapeHtml(i.categoria)}</td>
           <td>${i.unidade}</td>
-          <td>${Utils.currency(i.custoUnitario)}/${i.unidade}</td>
+          <td>
+            <div>${Utils.currency(i.custoUnitario)}/${i.unidade}</div>
+            ${i.precoStatus ? `<div style="font-size:var(--text-xs);color:${i.precoStatus === 'provisório' ? 'var(--color-warning)' : 'var(--text-muted)'}">${Utils.escapeHtml(i.precoStatus)} · ${i.precoRevisadoEm ? Utils.formatDate(i.precoRevisadoEm) : ''}</div>` : ''}
+            ${i.fontePreco ? `<a href="${Utils.escapeHtml(i.fontePreco)}" target="_blank" rel="noopener" style="font-size:var(--text-xs)">ver fonte</a>` : ''}
+          </td>
           <td>
             <span class="badge ${estoqueBaixo ? 'badge-danger' : 'badge-success'}">
               ${i.estoqueAtual} ${i.unidade}

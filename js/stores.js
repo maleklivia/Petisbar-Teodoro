@@ -583,6 +583,82 @@ const SEED_CONFIG = {
   frete: { padrao: 0, zonas: [] },
 };
 
+/* Revisão de custos em 22/07/2026.
+   "verificado" = preço público encontrado na rede indicada;
+   "referência" = preço comparável/embalagem equivalente;
+   "provisório" = confirmar e substituir pela primeira nota fiscal da loja. */
+const PRICE_REVIEW_DATE = '2026-07-22';
+const PRICE_SOURCES = {
+  guanabaraBebidas: 'https://supermercadosguanabara.com.br/produtos/82',
+  guanabaraAcucar: 'https://www.supermercadosguanabara.com.br/produtos/12',
+  mundialCongelados: 'https://www.supermercadosmundial.com.br/departamentos/categoria/congelados',
+  mundialBebidas: 'https://www.supermercadosmundial.com.br/departamentos/categoria/bebidas-nao-alcoolicas',
+  mundialMercearia: 'https://www.supermercadosmundial.com.br/departamentos/categoria/mercearia',
+  mundialSnacks: 'https://www.supermercadosmundial.com.br/departamentos/categoria/biscoitos-doces-e-chocolates',
+  mundialEncarte: 'https://www.supermercadosmundial.com.br/encarte',
+};
+
+const INGREDIENT_PRICE_REVIEW = {
+  'i-001': { custoUnitario: 18.90 / 965, precoStatus: 'provisório', precoReferencia: 'R$ 18,90/965ml — confirmar marca e nota fiscal' },
+  'i-002': { custoUnitario: 19.90 / 600, precoStatus: 'verificado', precoReferencia: 'Smirnoff 600ml por R$ 19,90', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'i-004': { custoUnitario: 89.90 / 750, precoStatus: 'referência', precoReferencia: 'Red Label 750ml por R$ 89,90 — revisar na compra', fontePreco: PRICE_SOURCES.mundialEncarte },
+  'i-005': { custoUnitario: 19.90, precoStatus: 'referência', precoReferencia: 'Morango congelado 1,02kg; confirmar fruta fresca', fontePreco: PRICE_SOURCES.mundialCongelados },
+  'i-006': { custoUnitario: 8.00, precoStatus: 'provisório', precoReferencia: 'Confirmar preço/kg na primeira compra' },
+  'i-007': { custoUnitario: 18.00, precoStatus: 'provisório', precoReferencia: 'Confirmar marca e rendimento da polpa' },
+  'i-008': { custoUnitario: 3.49, precoStatus: 'verificado', precoReferencia: 'Açúcar União 1kg por R$ 3,49', fontePreco: PRICE_SOURCES.guanabaraAcucar },
+  'i-009': { custoUnitario: 4.00, precoStatus: 'provisório', precoReferencia: 'Gelo ensacado; confirmar fornecedor local' },
+  'i-010': { custoUnitario: 8.99, precoStatus: 'referência', precoReferencia: 'Referência de energético; definir marca usada nos drinks', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'i-011': { custoUnitario: 0.30, precoStatus: 'provisório', precoReferencia: 'Pacote de 100; confirmar espessura e fornecedor' },
+  'i-012': { custoUnitario: 0.10, precoStatus: 'provisório', precoReferencia: 'Confirmar pacote e fornecedor' },
+  'i-013': { custoUnitario: 3.50, precoStatus: 'referência', precoReferencia: 'Brahma 269ml por R$ 2,49; ajuste conservador para 350ml', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'i-014': { custoUnitario: 3.79, precoStatus: 'referência', precoReferencia: 'Referência conservadora para lata 350ml', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'i-015': { custoUnitario: 2.00, precoStatus: 'referência', precoReferencia: 'Proporção de água mineral em embalagem maior', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'i-016': { custoUnitario: 12.00, precoStatus: 'verificado', precoReferencia: 'R$ 24,00/2kg informado na loja; Mundial lista R$ 23,80/2kg', fontePreco: PRICE_SOURCES.mundialCongelados },
+  'i-017': { custoUnitario: 32.00, precoStatus: 'provisório', precoReferencia: 'Confirmar marca, embalagem e rendimento' },
+  'i-018': { custoUnitario: 34.80, precoStatus: 'referência', precoReferencia: 'Bacon por kg em encarte do Mundial', fontePreco: PRICE_SOURCES.mundialEncarte },
+  'i-019': { custoUnitario: 24.50, precoStatus: 'referência', precoReferencia: 'Calabresa por kg em oferta do Mundial', fontePreco: PRICE_SOURCES.mundialEncarte },
+  'i-020': { custoUnitario: 18.98, precoStatus: 'referência', precoReferencia: 'Referência de frango congelado; confirmar corte e marca', fontePreco: PRICE_SOURCES.mundialCongelados },
+  'i-021': { custoUnitario: 49.90, precoStatus: 'referência', precoReferencia: 'Referência conservadora de carne bovina por kg', fontePreco: PRICE_SOURCES.mundialEncarte },
+  'i-022': { custoUnitario: 9.50, precoStatus: 'provisório', precoReferencia: 'Confirmar marca e volume na primeira compra' },
+  'i-023': { custoUnitario: 3.00, precoStatus: 'provisório', precoReferencia: 'Confirmar marca na primeira compra' },
+  'i-024': { custoUnitario: 31.80, precoStatus: 'referência', precoReferencia: 'Referência de alho embalado por kg', fontePreco: PRICE_SOURCES.mundialMercearia },
+  'i-025': { custoUnitario: 6.00, precoStatus: 'provisório', precoReferencia: 'Confirmar preço/kg na primeira compra' },
+};
+
+const PRODUCT_PRICE_REVIEW = {
+  'p-bee001': { custoCompra: 3.50, precoStatus: 'referência', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'p-bee002': { custoCompra: 3.50, precoStatus: 'referência', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'p-bee003': { custoCompra: 6.99, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'p-bee004': { custoCompra: 6.49, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialEncarte },
+  'p-bee005': { custoCompra: 4.49, precoStatus: 'referência', fontePreco: PRICE_SOURCES.guanabaraBebidas },
+  'p-bee006': { custoCompra: 12.99, precoStatus: 'provisório' },
+  'p-ref001': { custoCompra: 3.79, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-ref002': { custoCompra: 3.49, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-ref003': { custoCompra: 3.29, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-ref004': { custoCompra: 3.79, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-agu001': { custoCompra: 2.00, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-agu002': { custoCompra: 2.50, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-ene001': { custoCompra: 8.99, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-ene002': { custoCompra: 9.85, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialBebidas },
+  'p-aca001': { custoCompra: 9.00, precoStatus: 'provisório' },
+  'p-pet001': { custoCompra: 6.78, precoStatus: 'calculado' },
+  'p-pet002': { custoCompra: 13.40, precoStatus: 'calculado' },
+  'p-pet003': { custoCompra: 10.59, precoStatus: 'calculado' },
+  'p-pet004': { custoCompra: 12.65, precoStatus: 'calculado' },
+  'p-pet005': { custoCompra: 26.24, precoStatus: 'calculado' },
+  'p-con001': { custoCompra: 5.74, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialSnacks },
+  'p-con002': { custoCompra: 15.00, precoStatus: 'provisório' },
+  'p-con003': { custoCompra: 7.15, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialSnacks },
+  'p-con004': { custoCompra: 5.79, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialMercearia },
+  'p-con005': { custoCompra: 8.00, precoStatus: 'provisório' },
+};
+
+SEED_INGREDIENTES.forEach(item => Object.assign(item, INGREDIENT_PRICE_REVIEW[item.id], { precoRevisadoEm: PRICE_REVIEW_DATE }));
+SEED_PRODUTOS.forEach(item => {
+  const review = PRODUCT_PRICE_REVIEW[item.id];
+  if (review) Object.assign(item, review, { precoRevisadoEm: PRICE_REVIEW_DATE });
+});
+
 /* ── Stores ──────────────────────────────────────────────────── */
 
 const Stores = {
@@ -598,6 +674,22 @@ const Stores = {
   documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     []),
   config:        makeStore(STORE_KEYS_V4.CONFIG,         SEED_CONFIG),
 };
+
+// Atualiza custos já salvos no navegador sem apagar estoque, fichas ou cadastros.
+const PRICE_REVIEW_MIGRATION_KEY = 'petisbar-price-review-2026-07-22-v1';
+if (!localStorage.getItem(PRICE_REVIEW_MIGRATION_KEY)) {
+  Stores.ingredientes.set(Stores.ingredientes.get().map(item => ({
+    ...item,
+    ...(INGREDIENT_PRICE_REVIEW[item.id] || {}),
+    ...(INGREDIENT_PRICE_REVIEW[item.id] ? { precoRevisadoEm: PRICE_REVIEW_DATE } : {}),
+  })));
+  Stores.produtos.set(Stores.produtos.get().map(item => ({
+    ...item,
+    ...(PRODUCT_PRICE_REVIEW[item.id] || {}),
+    ...(PRODUCT_PRICE_REVIEW[item.id] ? { precoRevisadoEm: PRICE_REVIEW_DATE } : {}),
+  })));
+  localStorage.setItem(PRICE_REVIEW_MIGRATION_KEY, 'concluido');
+}
 
 // Atualiza apenas o nome padrão antigo, preservando configurações personalizadas.
 // Limpeza única dos dados de demonstração já gravados em navegadores existentes.

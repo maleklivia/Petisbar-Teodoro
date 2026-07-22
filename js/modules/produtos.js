@@ -104,7 +104,9 @@ const ProdutosModule = {
         ? Math.round(((p.precoVenda - custo) / p.precoVenda) * 100)
         : null;
 
-      const custoStr    = custo  !== null ? Utils.currency(custo)  : '<span style="color:var(--text-muted)">—</span>';
+      const custoStr    = custo !== null
+        ? `<div>${Utils.currency(custo)}</div>${p.precoStatus ? `<div style="font-size:var(--text-xs);color:${p.precoStatus === 'provisório' ? 'var(--color-warning)' : 'var(--text-muted)'}">${Utils.escapeHtml(p.precoStatus)} · ${p.precoRevisadoEm ? Utils.formatDate(p.precoRevisadoEm) : ''}</div>` : ''}${p.fontePreco ? `<a href="${Utils.escapeHtml(p.fontePreco)}" target="_blank" rel="noopener" style="font-size:var(--text-xs)">ver fonte</a>` : ''}`
+        : '<span style="color:var(--text-muted)">—</span>';
       const margemColor = margem !== null && margem < 0 ? 'var(--color-danger)' : 'var(--color-success)';
       const margemStr   = margem !== null
         ? `<span style="color:${margemColor};font-weight:600">${margem}%</span>`
