@@ -6,7 +6,7 @@
    ============================================================ */
 
 const STORE_KEYS = {
-  PRODUTOS:     'distrito-produtos-v2',
+  PRODUTOS:     'distrito-produtos-v3',
   INGREDIENTES: 'distrito-ingredientes-v2',
   FICHAS:       'distrito-fichas-v2',
 };
@@ -14,7 +14,7 @@ const STORE_KEYS = {
 /* ── Domínio: Categorias e Unidades ──────────────────────────── */
 
 const CATEGORIAS_PRODUTO = [
-  'Drinks', 'Cervejas', 'Refrigerantes', 'Águas', 'Energéticos', 'Açaí', 'Conveniência', 'Outros',
+  'Drinks', 'Cervejas', 'Refrigerantes', 'Águas', 'Energéticos', 'Açaí', 'Petiscos', 'Conveniência', 'Outros',
 ];
 
 const CATEGORIAS_INGREDIENTE = [
@@ -145,6 +145,12 @@ const SEED_PRODUTOS = [
   { id: 'p-ene002', sku: 'ENE002', nome: 'Monster Energy 473ml',       categoria: 'Energéticos',   descricao: 'Monster Energy lata 473ml',                              precoVenda: 12.00, custoCompra: 6.00, ativo: true, tempoPreparo: 1, estoqueAtual: 24, estoqueMinimo: 12, dataCadastro: '2026-07-01' },
   /* ── Açaí (5) ──────────────────────────────────────────────── */
   { id: 'p-aca001', sku: 'ACA001', nome: 'Batidinha de Açaí 300ml',    categoria: 'Açaí',          descricao: 'Açaí batido e servido em garrafinha de 300ml',           precoVenda: 15.00, custoCompra: 8.00,  ativo: true,  tempoPreparo: 5, estoqueAtual: 20, estoqueMinimo: 5, dataCadastro: '2026-07-01' },
+  /* ── Petiscos (5) ───────────────────────────────────────────── */
+  { id: 'p-pet001', sku: 'PET001', nome: 'Batata Frita',                         categoria: 'Petiscos',      descricao: 'Porção de batata frita sequinha e crocante',                 precoVenda: 24.90, custoCompra: 7.40,  ativo: true, tempoPreparo: 12, estoqueAtual: 0, estoqueMinimo: 0, dataCadastro: '2026-07-22' },
+  { id: 'p-pet002', sku: 'PET002', nome: 'Batata Frita com Cheddar e Bacon',      categoria: 'Petiscos',      descricao: 'Batata frita com cheddar cremoso e bacon crocante',           precoVenda: 39.90, custoCompra: 13.20, ativo: true, tempoPreparo: 14, estoqueAtual: 0, estoqueMinimo: 0, dataCadastro: '2026-07-22' },
+  { id: 'p-pet003', sku: 'PET003', nome: 'Calabresa Frita',                       categoria: 'Petiscos',      descricao: 'Porção de calabresa frita acebolada',                         precoVenda: 36.90, custoCompra: 14.60, ativo: true, tempoPreparo: 12, estoqueAtual: 0, estoqueMinimo: 0, dataCadastro: '2026-07-22' },
+  { id: 'p-pet004', sku: 'PET004', nome: 'Frango a Passarinho',                   categoria: 'Petiscos',      descricao: 'Frango a passarinho temperado e frito na hora',               precoVenda: 44.90, custoCompra: 17.80, ativo: true, tempoPreparo: 18, estoqueAtual: 0, estoqueMinimo: 0, dataCadastro: '2026-07-22' },
+  { id: 'p-pet005', sku: 'PET005', nome: 'Isca de Carne',                         categoria: 'Petiscos',      descricao: 'Iscas de carne fritas para compartilhar',                     precoVenda: 49.90, custoCompra: 21.40, ativo: true, tempoPreparo: 16, estoqueAtual: 0, estoqueMinimo: 0, dataCadastro: '2026-07-22' },
   /* ── Conveniência (5) ──────────────────────────────────────── */
   { id: 'p-con001', sku: 'CON001', nome: 'Amendoim Temperado 100g',    categoria: 'Conveniência',  descricao: 'Amendoim crocante temperado 100g',                       precoVenda: 8.00,  custoCompra: 3.00, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
   { id: 'p-con002', sku: 'CON002', nome: 'Mix de Nuts 100g',           categoria: 'Conveniência',  descricao: 'Mix de castanhas e nozes premium 100g',                  precoVenda: 12.00, custoCompra: 5.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
@@ -168,6 +174,7 @@ const PRODUCT_PHOTOS_BY_CATEGORY = {
   'Águas': '../assets/products/water.jpg',
   'Energéticos': '../assets/products/energy-drink.jpg',
   'Açaí': '../assets/products/acai.jpg',
+  Petiscos: '../assets/products/snacks.jpg',
   'Conveniência': '../assets/products/snacks.jpg',
 };
 
