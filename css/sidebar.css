@@ -118,6 +118,22 @@
   border: 1px solid var(--color-gold-border);
 }
 
+.nav-item--ai {
+  position: relative;
+}
+
+.nav-ai-badge {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid var(--color-gold-border);
+  border-radius: var(--radius-full);
+  color: var(--color-gold);
+  background: var(--color-gold-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
 .nav-item.active .nav-icon {
   color: var(--color-gold);
 }

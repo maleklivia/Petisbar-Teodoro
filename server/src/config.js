@@ -16,9 +16,15 @@ const schema = z.object({
   IFOOD_MERCHANT_ID: z.string().default(''),
   IFOOD_POLL_SECONDS: z.coerce.number().int().min(15).max(300).default(30),
   IFOOD_TOTAL_FEE_PERCENT: z.coerce.number().min(0).max(99).default(26.2),
+  AI_ENABLED: z.string().default('false').transform(value => value === 'true'),
+  OPENAI_API_KEY: z.string().default(''),
+  OPENAI_MODEL: z.string().min(1).default('gpt-5.6-luna'),
 }).superRefine((value, context) => {
   if (value.IFOOD_ENABLED && (!value.IFOOD_CLIENT_ID || !value.IFOOD_CLIENT_SECRET || !value.IFOOD_MERCHANT_ID)) {
     context.addIssue({ code: 'custom', message: 'Credenciais do iFood são obrigatórias quando IFOOD_ENABLED=true' });
+  }
+  if (value.AI_ENABLED && !value.OPENAI_API_KEY) {
+    context.addIssue({ code: 'custom', message: 'OPENAI_API_KEY é obrigatória quando AI_ENABLED=true' });
   }
 });
 
