@@ -7,6 +7,7 @@
 
 const PAGE_TITLES = {
   dashboard:    'Dashboard',
+  'central-ia': 'Central de IA',
   financeiro:   'Financeiro',
   pedidos:      'Pedidos',
   producao:     'Produção',
@@ -345,6 +346,7 @@ const Modules = {
     },
   },
 
+  'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') CentralIAModule.init(); } },
   financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') FinanceiroModule.init();   } },
   pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') PedidosModule.init();      } },
   producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') ProducaoModule.init();     } },

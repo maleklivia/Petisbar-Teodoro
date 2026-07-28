@@ -12,6 +12,7 @@ import migrationRoutes from './routes/migration.js';
 import publicOrderRoutes from './routes/public-orders.js';
 import ifoodRoutes from './routes/ifood.js';
 import userRoutes from './routes/users.js';
+import aiRoutes from './routes/ai.js';
 import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
@@ -36,6 +37,7 @@ export async function buildApp() {
   await app.register(publicOrderRoutes, { prefix: '/api/v1' });
   await app.register(ifoodRoutes, { prefix: '/api/v1' });
   await app.register(userRoutes, { prefix: '/api/v1' });
+  await app.register(aiRoutes, { prefix: '/api/v1' });
 
   let stopIfoodWorker = () => {};
   app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); });

@@ -14,6 +14,8 @@ A fundação do modo servidor está em [`server/`](server/) e [`database/`](data
 
 O cardápio público está em [`cardapio.html`](cardapio.html). Antes da ativação do backend, ele finaliza pelo WhatsApp; com a API ativa, os pedidos entram automaticamente com origem **Cardápio Digital**.
 
+A Central de IA está em [`pages/central-ia.html`](pages/central-ia.html). Ela já oferece diagnóstico local e está preparada para usar a API da OpenAI exclusivamente pelo backend no VPS. Consulte [`docs/IA.md`](docs/IA.md).
+
 ---
 
 ## Tecnologias
