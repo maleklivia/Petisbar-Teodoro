@@ -49,6 +49,19 @@ const EstoqueService = {
           });
         }
       }
+
+      if (item.flavoredIce || item.options?.flavoredIce) {
+        const geloSaborizado = ingredientes.find(i => i.id === 'i-029');
+        const necessario = item.qty;
+        if (geloSaborizado && geloSaborizado.estoqueAtual < necessario) {
+          erros.push({
+            ingrediente: geloSaborizado.nome,
+            necessario,
+            disponivel: geloSaborizado.estoqueAtual,
+            unidade: geloSaborizado.unidade,
+          });
+        }
+      }
     }
 
     return { disponivel: erros.length === 0, erros };
@@ -99,6 +112,13 @@ const EstoqueService = {
 
           ing.estoqueAtual = Math.max(0, ing.estoqueAtual - baixa);
         }
+
+        if (item.flavoredIce || item.options?.flavoredIce) {
+          const geloSaborizado = ingredientes.find(i => i.id === 'i-029');
+          if (geloSaborizado) {
+            geloSaborizado.estoqueAtual = Math.max(0, geloSaborizado.estoqueAtual - item.qty);
+          }
+        }
       } else {
         const produto = produtos.find(p => p.id === item.produtoId);
         if (produto && produto.estoqueAtual !== null && produto.estoqueAtual !== undefined) {
@@ -145,6 +165,11 @@ const EstoqueService = {
         const estorno    = fator !== null ? necessario * fator : necessario;
 
         ing.estoqueAtual += estorno;
+      }
+
+      if (item.flavoredIce || item.options?.flavoredIce) {
+        const geloSaborizado = ingredientes.find(i => i.id === 'i-029');
+        if (geloSaborizado) geloSaborizado.estoqueAtual += item.qty;
       }
     }
 

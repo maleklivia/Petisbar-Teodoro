@@ -108,9 +108,6 @@ const SEED_INGREDIENTES = [
   { id: 'i-010', sku: 'INS010', nome: 'Energético 250ml',     categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 24,   estoqueMinimo: 12,   custoUnitario: 4.50,       fornecedor: 'Bebidas & Cia',     ativo: true },
   { id: 'i-011', sku: 'INS011', nome: 'Copo Plástico 500ml',  categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 200,  estoqueMinimo: 50,   consumoMedioDiario: 10, prazoReposicaoDias: 5, quantidadePacote: 100, custoUnitario: 0.30, fornecedor: 'Embalagem Pro', ativo: true },
   { id: 'i-012', sku: 'INS012', nome: 'Canudo Descartável',   categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 500,  estoqueMinimo: 200,  custoUnitario: 0.10,       fornecedor: 'Embalagem Pro',     ativo: true },
-  { id: 'i-013', sku: 'INS013', nome: 'Cerveja Brahma 350ml', categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 48,   estoqueMinimo: 24,   custoUnitario: 3.00,       fornecedor: 'Bebidas & Cia',     ativo: true },
-  { id: 'i-014', sku: 'INS014', nome: 'Coca-Cola 350ml',      categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 36,   estoqueMinimo: 12,   custoUnitario: 2.80,       fornecedor: 'Bebidas & Cia',     ativo: true },
-  { id: 'i-015', sku: 'INS015', nome: 'Água Mineral 500ml',   categoria: 'Bebidas',            unidade: 'un', estoqueAtual: 48,   estoqueMinimo: 24,   custoUnitario: 1.20,       fornecedor: 'Bebidas & Cia',     ativo: true },
   { id: 'i-016', sku: 'INS016', nome: 'Batata Palito',        categoria: 'Hortifruti',         unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 5,    custoUnitario: 7.40,       fornecedor: '',                  ativo: true },
   { id: 'i-017', sku: 'INS017', nome: 'Cheddar Cremoso',      categoria: 'Laticínios',         unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 2,    custoUnitario: 28.00,      fornecedor: '',                  ativo: true },
   { id: 'i-018', sku: 'INS018', nome: 'Bacon em Cubos',       categoria: 'Carnes',             unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 2,    custoUnitario: 34.00,      fornecedor: '',                  ativo: true },
@@ -121,6 +118,13 @@ const SEED_INGREDIENTES = [
   { id: 'i-023', sku: 'INS023', nome: 'Sal',                  categoria: 'Temperos',           unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 1,    custoUnitario: 3.00,       fornecedor: '',                  ativo: true },
   { id: 'i-024', sku: 'INS024', nome: 'Alho',                 categoria: 'Temperos',           unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 1,    custoUnitario: 18.00,      fornecedor: '',                  ativo: true },
   { id: 'i-025', sku: 'INS025', nome: 'Cebola',               categoria: 'Hortifruti',         unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 2,    custoUnitario: 6.00,       fornecedor: '',                  ativo: true },
+  { id: 'i-026', sku: 'INS026', nome: 'Açaí Pronto para Bater', categoria: 'Insumos',          unidade: 'kg', estoqueAtual: 0,    estoqueMinimo: 5,    custoUnitario: 20.00,      fornecedor: '',                  ativo: true },
+  { id: 'i-027', sku: 'INS027', nome: 'Garrafinha PET 300ml com Tampa', categoria: 'Embalagens', unidade: 'un', estoqueAtual: 0, estoqueMinimo: 100, custoUnitario: 0.70, fornecedor: '', ativo: true, consumoMedioDiario: 5, prazoReposicaoDias: 7, quantidadePacote: 100 },
+  { id: 'i-028', sku: 'INS028', nome: 'Lacre de Segurança 300ml', categoria: 'Embalagens',      unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 100,  custoUnitario: 0.10,       fornecedor: '',                  ativo: true, consumoMedioDiario: 5, prazoReposicaoDias: 7, quantidadePacote: 100 },
+  { id: 'i-029', sku: 'INS029', nome: 'Gelo Saborizado',       categoria: 'Insumos',            unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 20,   custoUnitario: 1.50,       fornecedor: '',                  ativo: true },
+  { id: 'i-030', sku: 'INS030', nome: 'Embalagem para Petisco P', categoria: 'Embalagens',     unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 50,   custoUnitario: 1.20,       fornecedor: '',                  ativo: true, consumoMedioDiario: 5, prazoReposicaoDias: 7, quantidadePacote: 50 },
+  { id: 'i-031', sku: 'INS031', nome: 'Embalagem para Petisco G', categoria: 'Embalagens',     unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 50,   custoUnitario: 1.80,       fornecedor: '',                  ativo: true, consumoMedioDiario: 3, prazoReposicaoDias: 7, quantidadePacote: 50 },
+  { id: 'i-032', sku: 'INS032', nome: 'Guardanapo',            categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 200,  custoUnitario: 0.05,       fornecedor: '',                  ativo: true, consumoMedioDiario: 20, prazoReposicaoDias: 7, quantidadePacote: 500 },
 ];
 
 /* ── Seed Data: Produtos (35 itens de bar) ───────────────────── */
@@ -306,11 +310,21 @@ const SEED_FICHAS = [
     ],
   },
   {
+    id: 'f-aca001', produtoId: 'p-aca001', rendimento: 1,
+    itens: [
+      { ingredienteId: 'i-026', quantidade: 300, unidade: 'g'  },
+      { ingredienteId: 'i-027', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-028', quantidade: 1,   unidade: 'un' },
+    ],
+  },
+  {
     id: 'f-pet001', produtoId: 'p-pet001', rendimento: 1,
     itens: [
       { ingredienteId: 'i-016', quantidade: 300, unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 50,  unidade: 'ml' },
       { ingredienteId: 'i-023', quantidade: 3,   unidade: 'g'  },
+      { ingredienteId: 'i-030', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 2,   unidade: 'un' },
     ],
   },
   {
@@ -319,6 +333,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-016', quantidade: 500, unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 80,  unidade: 'ml' },
       { ingredienteId: 'i-023', quantidade: 5,   unidade: 'g'  },
+      { ingredienteId: 'i-031', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
   {
@@ -329,6 +345,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-018', quantidade: 40,  unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 50,  unidade: 'ml' },
       { ingredienteId: 'i-023', quantidade: 3,   unidade: 'g'  },
+      { ingredienteId: 'i-030', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 2,   unidade: 'un' },
     ],
   },
   {
@@ -339,6 +357,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-018', quantidade: 80,  unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 80,  unidade: 'ml' },
       { ingredienteId: 'i-023', quantidade: 5,   unidade: 'g'  },
+      { ingredienteId: 'i-031', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
   {
@@ -347,6 +367,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-019', quantidade: 400, unidade: 'g'  },
       { ingredienteId: 'i-025', quantidade: 100, unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 20,  unidade: 'ml' },
+      { ingredienteId: 'i-031', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
   {
@@ -356,6 +378,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-024', quantidade: 15,  unidade: 'g'  },
       { ingredienteId: 'i-023', quantidade: 8,   unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 80,  unidade: 'ml' },
+      { ingredienteId: 'i-031', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
   {
@@ -366,6 +390,8 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-024', quantidade: 10,  unidade: 'g'  },
       { ingredienteId: 'i-023', quantidade: 6,   unidade: 'g'  },
       { ingredienteId: 'i-022', quantidade: 50,  unidade: 'ml' },
+      { ingredienteId: 'i-031', quantidade: 1,   unidade: 'un' },
+      { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
 ];
@@ -643,6 +669,13 @@ const INGREDIENT_PRICE_REVIEW = {
   'i-023': { custoUnitario: 3.00, precoStatus: 'provisório', precoReferencia: 'Confirmar marca na primeira compra' },
   'i-024': { custoUnitario: 31.80, precoStatus: 'referência', precoReferencia: 'Referência de alho embalado por kg', fontePreco: PRICE_SOURCES.mundialMercearia },
   'i-025': { custoUnitario: 6.00, precoStatus: 'provisório', precoReferencia: 'Confirmar preço/kg na primeira compra' },
+  'i-026': { custoUnitario: 20.00, precoStatus: 'provisório', precoReferencia: 'Açaí pronto para bater; confirmar marca, teor de fruta e embalagem' },
+  'i-027': { custoUnitario: 0.70, precoStatus: 'provisório', precoReferencia: 'Garrafinha PET 300ml com tampa; confirmar pacote e fornecedor' },
+  'i-028': { custoUnitario: 0.10, precoStatus: 'provisório', precoReferencia: 'Lacre para garrafinha 300ml; confirmar pacote e fornecedor' },
+  'i-029': { custoUnitario: 1.50, precoStatus: 'provisório', precoReferencia: 'Unidade de gelo saborizado; confirmar sabor, tamanho e fornecedor' },
+  'i-030': { custoUnitario: 1.20, precoStatus: 'provisório', precoReferencia: 'Embalagem para porção P; confirmar material e capacidade' },
+  'i-031': { custoUnitario: 1.80, precoStatus: 'provisório', precoReferencia: 'Embalagem para porção G; confirmar material e capacidade' },
+  'i-032': { custoUnitario: 0.05, precoStatus: 'provisório', precoReferencia: 'Guardanapo unitário; confirmar pacote e fornecedor' },
 };
 
 const PRODUCT_PRICE_REVIEW = {
@@ -660,7 +693,7 @@ const PRODUCT_PRICE_REVIEW = {
   'p-agu002': { custoCompra: 2.50, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
   'p-ene001': { custoCompra: 8.99, precoStatus: 'referência', fontePreco: PRICE_SOURCES.mundialBebidas },
   'p-ene002': { custoCompra: 9.85, precoStatus: 'verificado', fontePreco: PRICE_SOURCES.mundialBebidas },
-  'p-aca001': { custoCompra: 9.00, precoStatus: 'provisório' },
+  'p-aca001': { custoCompra: 6.80, precoStatus: 'calculado' },
   'p-pet001': { custoCompra: 4.08, precoStatus: 'calculado' },
   'p-pet006': { custoCompra: 6.78, precoStatus: 'calculado' },
   'p-pet002': { custoCompra: 7.40, precoStatus: 'calculado' },
@@ -892,3 +925,56 @@ storedFichas.forEach(ficha => {
 });
 
 if (fichasChanged) Stores.fichas.set(storedFichas);
+
+// Completa os insumos e fichas do cardápio sem apagar estoques ou receitas já ajustadas.
+const CARDAPIO_INGREDIENTES_MIGRATION_KEY = 'petisbar-cardapio-ingredientes-v1';
+if (!localStorage.getItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY)) {
+  const ingredientesAtuais = Stores.ingredientes.get()
+    .filter(ingrediente => !['i-013', 'i-014', 'i-015'].includes(ingrediente.id));
+  const ingredientesPorId = new Map(ingredientesAtuais.map(ingrediente => [ingrediente.id, ingrediente]));
+
+  SEED_INGREDIENTES
+    .filter(ingrediente => ['i-026', 'i-027', 'i-028', 'i-029', 'i-030', 'i-031', 'i-032'].includes(ingrediente.id))
+    .forEach(defaults => {
+      if (!ingredientesPorId.has(defaults.id)) ingredientesAtuais.push(structuredClone(defaults));
+    });
+
+  const batata = ingredientesAtuais.find(ingrediente => ingrediente.id === 'i-016');
+  if (batata) {
+    Object.assign(batata, INGREDIENT_PRICE_REVIEW['i-016'], { precoRevisadoEm: PRICE_REVIEW_DATE });
+  }
+  Stores.ingredientes.set(ingredientesAtuais);
+
+  const fichasAtuais = Stores.fichas.get();
+  const fichaAcaiDefault = SEED_FICHAS.find(ficha => ficha.produtoId === 'p-aca001');
+  if (!fichasAtuais.some(ficha => ficha.produtoId === 'p-aca001')) {
+    fichasAtuais.push(structuredClone(fichaAcaiDefault));
+  }
+
+  const embalagemPorProduto = new Map([
+    ['p-pet001', [['i-030', 1], ['i-032', 2]]],
+    ['p-pet002', [['i-030', 1], ['i-032', 2]]],
+    ['p-pet006', [['i-031', 1], ['i-032', 4]]],
+    ['p-pet007', [['i-031', 1], ['i-032', 4]]],
+    ['p-pet003', [['i-031', 1], ['i-032', 4]]],
+    ['p-pet004', [['i-031', 1], ['i-032', 4]]],
+    ['p-pet005', [['i-031', 1], ['i-032', 4]]],
+  ]);
+  fichasAtuais.forEach(ficha => {
+    const embalagens = embalagemPorProduto.get(ficha.produtoId);
+    if (!embalagens) return;
+    embalagens.forEach(([ingredienteId, quantidade]) => {
+      if (!ficha.itens.some(item => item.ingredienteId === ingredienteId)) {
+        ficha.itens.push({ ingredienteId, quantidade, unidade: 'un' });
+      }
+    });
+  });
+  Stores.fichas.set(fichasAtuais);
+
+  const produtosAtuais = Stores.produtos.get();
+  const acai = produtosAtuais.find(produto => produto.id === 'p-aca001');
+  if (acai) Object.assign(acai, PRODUCT_PRICE_REVIEW['p-aca001'], { precoRevisadoEm: PRICE_REVIEW_DATE });
+  Stores.produtos.set(produtosAtuais);
+
+  localStorage.setItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY, 'concluido');
+}
