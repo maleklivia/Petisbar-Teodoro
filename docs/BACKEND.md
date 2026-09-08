@@ -87,6 +87,10 @@ Antes de divulgar, configure o domínio, conclua a conexão da tela administrati
 
 Ao mudar um pedido para `Entregue` ou `Concluído`, a API executa na mesma transação a baixa dos ingredientes da ficha técnica (ou do estoque direto do produto), a movimentação de estoque, a receita e o CMV. Um cancelamento posterior gera movimentos e lançamentos de estorno. As marcações no pedido e as chaves financeiras tornam esses efeitos idempotentes.
 
+### Contábil e fiscal (base MEI)
+
+A migração `009_accounting_fiscal_mei.sql` cria plano de contas, documentos fiscais e obrigações. Para 2026, o DAS-MEI deve ser conferido no Portal do Empreendedor: a parcela depende da atividade (comércio, serviço ou ambas) e do salário mínimo vigente. O ERP deve registrar a guia e o comprovante, mas não substitui a emissão oficial nem a validação do contador.
+
 No domínio da VPS, todas as telas administrativas exigem uma sessão válida. As telas de Pedidos, Produção, Produtos, Ingredientes, Fichas Técnicas, Clientes, Estoque, Compras, Fornecedores, Financeiro e Relatórios já usam a API. As telas ainda não migradas exibem um aviso explícito de que seus dados continuam locais. O modo local permanece disponível no GitHub Pages para demonstração e pode ser ativado deliberadamente com `?local=1` durante desenvolvimento.
 
 ## iFood
