@@ -20,6 +20,7 @@ const PAGE_TITLES = {
   documentos:   'Documentos',
   relatorios:   'Relatórios',
   configuracoes:'Configurações',
+  'contabil-fiscal': 'Contábil e Fiscal',
 };
 
 /* ── App Controller ──────────────────────────────────────────── */
@@ -362,6 +363,7 @@ const Modules = {
   documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') DocumentosModule.init();   } },
   relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') return RelatoriosModule.init();   } },
   configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') ConfiguracoesModule.init();} },
+  'contabil-fiscal':{ async init() { if (typeof ContabilFiscalModule!== 'undefined') ContabilFiscalModule.init();} },
 };
 
 /* ── Auto-init via data-page attribute ───────────────────────── */
