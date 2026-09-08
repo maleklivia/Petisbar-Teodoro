@@ -133,12 +133,18 @@
 }
 
 .ai-recommendation {
+  display: flex;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--sp-3);
   padding: var(--sp-4) 0;
   border-bottom: 1px solid var(--border-subtle);
 }
+
+.ai-recommendation:hover { border-color: var(--color-gold); background: var(--bg-surface-hover, var(--bg-surface)); }
 
 .ai-recommendation:last-child {
   border-bottom: 0;

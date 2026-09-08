@@ -109,15 +109,21 @@ const CentralIAModule = {
     document.getElementById('ai-order-count').textContent = this.snapshot.pendingOrders;
     document.getElementById('ai-month-result').textContent = Utils.currency(this.snapshot.finance.result);
     const target = document.getElementById('ai-recommendations');
+    const destinations = {
+      'Comprar antes de faltar': 'estoque.html',
+      'Completar fichas técnicas': 'produtos.html?tab=fichas',
+      'Confirmar custos provisórios': 'produtos.html',
+      'Operação ainda sem movimento financeiro': 'financeiro.html',
+    };
     target.innerHTML = this.recommendations.length ? this.recommendations.map(item => `
-      <article class="ai-recommendation ai-recommendation--${item.level}">
+      <a class="ai-recommendation ai-recommendation--${item.level}" href="${destinations[item.title] || '#'}" ${destinations[item.title] ? '' : 'aria-disabled="true"'}>
         <span class="ai-recommendation__icon" aria-hidden="true">${Utils.escapeHtml(item.icon)}</span>
         <div>
           <h3>${Utils.escapeHtml(item.title)}</h3>
           <p>${Utils.escapeHtml(item.description)}</p>
           <span class="ai-evidence">${Utils.escapeHtml(item.evidence)}</span>
         </div>
-      </article>
+      </a>
     `).join('') : '<div class="ai-empty">Nenhuma prioridade crítica encontrada agora.</div>';
   },
 
