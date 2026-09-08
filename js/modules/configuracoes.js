@@ -6,7 +6,10 @@
 const ConfiguracoesModule = {
   _tab: 'restaurante',
 
-  init() {
+  async init() {
+    if (window.Api?.serverMode) {
+      try { const remote = await Api.getServerSettings(); if (remote && Object.keys(remote).length) Stores.config.set({ ...Stores.config.get(), ...remote }); } catch (error) { console.warn('Configurações remotas indisponíveis', error); }
+    }
     this._render();
     this._bindEvents();
   },
@@ -29,6 +32,11 @@ const ConfiguracoesModule = {
         ${this._renderTab(cfg)}
       </div>
     `;
+  },
+
+  _persist(cfg) {
+    this._persist(cfg);
+    if (window.Api?.serverMode) Api.saveServerSettings(cfg).catch(error => { console.error(error); UI.toast('Não foi possível salvar no servidor.', 'error'); });
   },
 
   _renderTab(cfg) {
@@ -184,7 +192,7 @@ const ConfiguracoesModule = {
       if (prefixo) zonas.push({ nome, prefixo, valor: isNaN(valor) ? 0 : valor });
     });
     cfg.frete = { padrao: parseFloat(document.getElementById('cfg-frete-padrao')?.value || 8), zonas };
-    Stores.config.set(cfg);
+    this._persist(cfg);
     UI.toast('Configurações de entrega salvas.', 'success');
   },
 
@@ -332,7 +340,7 @@ const ConfiguracoesModule = {
         const cfg = Stores.config.get();
         if (!cfg.integracoes) cfg.integracoes = {};
         cfg.integracoes[toggle.dataset.cfgInt] = e.target.checked;
-        Stores.config.set(cfg);
+        this._persist(cfg);
         UI.toast(`Integração ${e.target.checked ? 'ativada' : 'desativada'}.`, 'success');
         this._render();
         this._bindEvents();
@@ -352,7 +360,7 @@ const ConfiguracoesModule = {
       estado:   document.getElementById('cfg-estado')?.value?.trim() || '',
       cep:      document.getElementById('cfg-cep')?.value?.trim()    || '',
     };
-    Stores.config.set(cfg);
+    this._persist(cfg);
     UI.toast('Dados do restaurante salvos.', 'success');
   },
 
@@ -369,7 +377,7 @@ const ConfiguracoesModule = {
       taxaIfood:         parseFloat(document.getElementById('cfg-taxa-ifood')?.value || 15),
       comissaoEntregador: 0,
     };
-    Stores.config.set(cfg);
+    this._persist(cfg);
     UI.toast('Metas e taxas salvas.', 'success');
   },
 
@@ -380,7 +388,7 @@ const ConfiguracoesModule = {
     for (const d of dias) {
       cfg.horario[d] = document.getElementById(`cfg-hr-${d}`)?.value?.trim() || 'Fechado';
     }
-    Stores.config.set(cfg);
+    this._persist(cfg);
     UI.toast('Horário salvo.', 'success');
   },
 };

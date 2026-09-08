@@ -401,9 +401,9 @@ const SEED_FICHAS = [
 const ORIGENS = ['WhatsApp', 'iFood', 'Site', 'Instagram', 'Balcão', 'Telefone'];
 
 const STATUS_PEDIDO = [
-  'Novo', 'Aguardando Pagamento', 'Pago',
+  'Novo', 'Aguardando Pagamento', 'Pago', 'Confirmado',
   'Em Produção', 'Pronto', 'Saiu para Entrega',
-  'Entregue', 'Cancelado',
+  'Entregue', 'Concluído', 'Cancelado',
 ];
 
 const FORMAS_PAGAMENTO = [
@@ -414,10 +414,12 @@ const STATUS_TRANSITIONS = {
   'Novo':                ['Aguardando Pagamento', 'Em Produção', 'Cancelado'],
   'Aguardando Pagamento':['Pago', 'Cancelado'],
   'Pago':                ['Em Produção', 'Cancelado'],
+  'Confirmado':          ['Em Produção', 'Cancelado'],
   'Em Produção':         ['Pronto', 'Cancelado'],
   'Pronto':              ['Saiu para Entrega', 'Entregue', 'Cancelado'],
   'Saiu para Entrega':   ['Entregue', 'Cancelado'],
   'Entregue':            [],
+  'Concluído':           [],
   'Cancelado':           [],
 };
 
@@ -427,6 +429,7 @@ function nextStatus(status) {
     'Novo':                'Aguardando Pagamento',
     'Aguardando Pagamento':'Pago',
     'Pago':                'Em Produção',
+    'Confirmado':          'Em Produção',
     'Em Produção':         'Pronto',
     'Pronto':              'Saiu para Entrega',
     'Saiu para Entrega':   'Entregue',

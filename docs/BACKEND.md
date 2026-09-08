@@ -33,9 +33,10 @@ docker compose up -d
 
 6. Remova `ADMIN_PASSWORD` do `.env` depois que o administrador for criado.
 7. Verifique `https://SEU-DOMINIO/api/v1/health`.
-8. Acesse `https://SEU-DOMINIO/pages/migracao.html` no navegador que contém os dados locais.
-9. Confira as quantidades e execute a importação uma única vez.
-10. Compare os registros no banco antes de desativar o modo local.
+8. Entre em `https://SEU-DOMINIO/pages/login.html` com o administrador criado.
+9. Acesse `https://SEU-DOMINIO/pages/migracao.html` no navegador que contém os dados locais.
+10. Confira as quantidades e execute a importação uma única vez.
+11. Compare os registros no banco antes de desativar o modo local.
 
 ## Rotas iniciais
 
@@ -46,13 +47,31 @@ docker compose up -d
 | POST | `/api/v1/auth/logout` | Autenticado |
 | GET | `/api/v1/auth/me` | Autenticado |
 | GET/POST | `/api/v1/products` | `catalog.read` / `catalog.write` |
-| GET | `/api/v1/ingredients` | `stock.read` |
+| DELETE | `/api/v1/products/:id` | `catalog.write`, inativa o produto |
+| GET/POST | `/api/v1/ingredients` | `stock.read` / `stock.write` |
+| DELETE | `/api/v1/ingredients/:id` | `stock.write`, inativa o ingrediente |
+| GET | `/api/v1/technical-sheets` | `catalog.read` |
+| PUT | `/api/v1/technical-sheets/:productId` | `catalog.write` |
+| GET/POST | `/api/v1/clients` | `clients.read` / `clients.write` |
+| PUT/DELETE | `/api/v1/clients/:id` | `clients.write`, exclusão inativa o cliente |
+| GET/POST | `/api/v1/stock/movements` | `stock.read` / `stock.write` |
+| GET/POST | `/api/v1/finance/entries` | `finance.read` / `finance.write` |
+| DELETE | `/api/v1/finance/entries/:id` | `finance.write`, bloqueia lançamentos automáticos |
+| GET/POST | `/api/v1/suppliers` | `purchases.manage` |
+| PUT/DELETE | `/api/v1/suppliers/:id` | `purchases.manage`, exclusão inativa o fornecedor |
+| GET/POST | `/api/v1/purchases` | `purchases.manage` |
+| PATCH | `/api/v1/purchases/:id/status` | `purchases.manage`, recebimento atualiza estoque e financeiro |
+| GET | `/api/v1/reports/overview` | `reports.read` |
 | GET/POST | `/api/v1/users` | `users.manage` |
 | PATCH | `/api/v1/users/:id/status` | `users.manage` |
 | POST | `/api/v1/migration/local-storage` | `migration.run` |
 | GET | `/api/v1/public/catalog` | Pública, somente produtos disponíveis |
 | POST | `/api/v1/public/coupons/validate` | Pública, valida cupom, telefone e carrinho |
 | POST | `/api/v1/public/orders` | Pública, limitada por tentativas e com preços recalculados no servidor |
+| GET | `/api/v1/orders` | `orders.read` |
+| GET | `/api/v1/orders/:id` | `orders.read` |
+| POST | `/api/v1/orders` | `orders.write` |
+| PATCH | `/api/v1/orders/:id/status` | `orders.write` |
 | GET | `/api/v1/integrations/ifood/status` | `settings.manage` |
 | POST | `/api/v1/integrations/ifood/pricing-preview` | `catalog.write` |
 
@@ -66,6 +85,10 @@ O cupom `PRIMEIROPEDIDO` concede 10% de desconto, limitado a R$ 10,00, somente n
 
 Antes de divulgar, configure o domínio, conclua a conexão da tela administrativa de Pedidos com a API e realize pedidos de homologação de ponta a ponta.
 
+Ao mudar um pedido para `Entregue` ou `Concluído`, a API executa na mesma transação a baixa dos ingredientes da ficha técnica (ou do estoque direto do produto), a movimentação de estoque, a receita e o CMV. Um cancelamento posterior gera movimentos e lançamentos de estorno. As marcações no pedido e as chaves financeiras tornam esses efeitos idempotentes.
+
+No domínio da VPS, todas as telas administrativas exigem uma sessão válida. As telas de Pedidos, Produção, Produtos, Ingredientes, Fichas Técnicas, Clientes, Estoque, Compras, Fornecedores, Financeiro e Relatórios já usam a API. As telas ainda não migradas exibem um aviso explícito de que seus dados continuam locais. O modo local permanece disponível no GitHub Pages para demonstração e pode ser ativado deliberadamente com `?local=1` durante desenvolvimento.
+
 ## iFood
 
 A base do Plano Entrega mantém preço e disponibilidade separados por produto, recebe eventos por polling e registra pedidos com proteção contra duplicidade. Ela inicia desligada. Consulte `docs/IFOOD.md` antes de preencher as credenciais e ativar `IFOOD_ENABLED`.
@@ -76,8 +99,8 @@ O script `ops/backup/backup-postgres.sh` gera um dump em formato próprio do Pos
 
 ## Antes do uso real
 
-- Conectar todas as telas ao backend; atualmente a interface ainda mantém compatibilidade com `localStorage`.
-- Criar testes automatizados de pedidos, baixa de estoque e financeiro.
+- Conectar as telas restantes ao backend: marketing, documentos e configurações.
+- Criar testes automatizados ampliados para CRUD de catálogo/clientes quando houver PostgreSQL local ou pipeline CI disponível.
 - Configurar backup externo e monitoramento.
 - Revisar domínio, e-mail, política de privacidade e perfis dos funcionários.
 - Fazer homologação com dados de teste antes da migração definitiva.

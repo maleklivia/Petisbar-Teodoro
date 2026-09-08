@@ -12,13 +12,34 @@ const ProdutosModule = {
   _sortField: 'nome',
   _sortDir: 'asc',
   _activeTab: 'cardapio',
+  _serverMode: false,
+  _canWrite: true,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
-  init() {
-    this._items = Stores.produtos.get();
-    // Pré-carrega fichas para exibir custo na aba Cardápio
-    FichasModule.preload();
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('catalog.write');
+    if (this._serverMode) {
+      const tbody = document.getElementById('tbody-cardapio');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">Carregando catálogo…</td></tr>';
+      try {
+        const [produtos, ingredientes, fichas] = await Promise.all([
+          API.getServerProducts(),
+          API.getServerIngredients(),
+          API.getServerTechnicalSheets(),
+        ]);
+        this._items = produtos;
+        IngredientesModule.setItems(ingredientes);
+        FichasModule.setData({ ingredientes, fichas });
+      } catch (error) {
+        UI.toast('Falha ao carregar catálogo do servidor.', 'danger');
+        this._items = [];
+      }
+    } else {
+      this._items = Stores.produtos.get();
+      FichasModule.preload();
+    }
     this._bindTabs();
     this._switchTab('cardapio');
   },
@@ -45,7 +66,7 @@ const ProdutosModule = {
       this._render();
       this._bindCardapioToolbar();
     } else if (tab === 'ingredientes') {
-      IngredientesModule.init();
+      IngredientesModule.init(this._serverMode ? IngredientesModule._items : null);
     } else if (tab === 'fichas') {
       // Passa apenas produtos ativos para o editor
       FichasModule.init(this._items.filter(p => p.ativo));
@@ -142,7 +163,8 @@ const ProdutosModule = {
             <span style="font-size:var(--text-sm);color:var(--text-muted)">${p.ativo ? 'Ativo' : 'Inativo'}</span>
           </td>
           <td>
-            <div class="row-actions">
+      <div class="row-actions">
+        ${this._canWrite ? `
               <button class="btn-icon" data-action="edit-produto" data-id="${p.id}" title="Editar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -162,6 +184,7 @@ const ProdutosModule = {
                   <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
                 </svg>
               </button>
+        ` : '<span style="color:var(--text-muted);font-size:var(--text-sm)">Somente leitura</span>'}
             </div>
           </td>
         </tr>
@@ -272,7 +295,7 @@ const ProdutosModule = {
     });
   },
 
-  _submitForm(editing, original) {
+  async _submitForm(editing, original) {
     const form = document.getElementById('form-produto');
     if (!form) return;
     if (!form.checkValidity()) { form.reportValidity(); return; }
@@ -301,6 +324,21 @@ const ProdutosModule = {
       foto:         original?.foto || '',
     };
 
+    if (this._serverMode) {
+      try {
+        const saved = await API.saveServerProduct(data);
+        const idx = this._items.findIndex(p => p.id === saved.id);
+        if (idx >= 0) this._items[idx] = saved;
+        else this._items.push(saved);
+        UI.toast(editing ? 'Produto atualizado' : 'Produto cadastrado', 'success');
+        UI.closeModal();
+        this._render();
+      } catch (error) {
+        UI.toast(error.code === 'validation_error' ? 'Revise os campos do produto.' : 'Não foi possível salvar o produto.', 'danger');
+      }
+      return;
+    }
+
     const idx = this._items.findIndex(p => p.id === data.id);
     if (idx >= 0) {
       this._items[idx] = data;
@@ -317,7 +355,7 @@ const ProdutosModule = {
 
   /* ── Duplicar ──────────────────────────────────────────────── */
 
-  _duplicate(id) {
+  async _duplicate(id) {
     const item = this._items.find(p => p.id === id);
     if (!item) return;
 
@@ -328,6 +366,18 @@ const ProdutosModule = {
       codigo:       item.codigo ? `${item.codigo}-C` : '',
       dataCadastro: Utils.today(),
     };
+    if (this._serverMode) {
+      try {
+        const saved = await API.saveServerProduct(copy);
+        this._items.push(saved);
+        UI.toast('Produto duplicado', 'success');
+        this._render();
+      } catch {
+        UI.toast('Não foi possível duplicar o produto.', 'danger');
+      }
+      return;
+    }
+
     this._items.push(copy);
     Stores.produtos.set(this._items);
     UI.toast('Produto duplicado', 'success');
@@ -350,7 +400,20 @@ const ProdutosModule = {
       `,
       confirmLabel: 'Excluir',
       confirmClass: 'btn-danger',
-      onConfirm: () => {
+      onConfirm: async () => {
+        if (this._serverMode) {
+          try {
+            const saved = await API.deactivateServerProduct(id);
+            const idx = this._items.findIndex(p => p.id === id);
+            if (idx >= 0) this._items[idx] = saved;
+            UI.closeModal();
+            UI.toast('Produto inativado', 'info');
+            this._render();
+          } catch {
+            UI.toast('Não foi possível inativar o produto.', 'danger');
+          }
+          return;
+        }
         this._items = this._items.filter(p => p.id !== id);
         FichasModule.deleteByProduto(id);
         Stores.produtos.set(this._items);
@@ -388,6 +451,8 @@ const ProdutosModule = {
       });
     }
     if (newBtn) {
+      newBtn.hidden = !this._canWrite;
+      if (!this._canWrite) return;
       newBtn.addEventListener('click', () => this._openForm());
     }
   },

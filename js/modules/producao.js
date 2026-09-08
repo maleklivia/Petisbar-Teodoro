@@ -7,15 +7,48 @@
    ============================================================ */
 
 const ProducaoModule = {
+  _serverMode: false,
+  _orders: [],
+  _canWrite: true,
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('orders.write');
+    if (this._serverMode) {
+      const board = document.getElementById('producao-board');
+      if (board) board.innerHTML = '<div class="empty-state"><p>Carregando produção…</p></div>';
+      try {
+        const orders = await API.getServerOrders();
+        this._orders = orders.map(order => this._mapServerOrder(order));
+      } catch {
+        UI.toast('Falha ao carregar a produção do servidor.', 'danger');
+        this._orders = [];
+      }
+    }
     this._render();
     this._bindRefresh();
   },
 
+  _mapServerOrder(order) {
+    return {
+      id: order.id,
+      numeroPedido: order.orderNumber,
+      clienteNome: order.clientName,
+      status: order.status,
+      itens: (order.items || []).map(item => ({
+        qty: Number(item.quantity),
+        nome: item.name,
+      })),
+      total: Number(order.total),
+      observacoes: order.notes,
+      dataCriacao: order.createdAt,
+      dataAtualizacao: order.updatedAt,
+    };
+  },
+
   /* ── Dados ────────────────────────────────────────────────── */
 
-  _pedidos() { return Stores.pedidos.get(); },
+  _pedidos() { return this._serverMode ? this._orders : Stores.pedidos.get(); },
 
   /* ── Renderização ─────────────────────────────────────────── */
 
@@ -68,7 +101,7 @@ const ProducaoModule = {
         ${p.observacoes ? `<div class="kanban-card__obs">⚑ ${Utils.escapeHtml(p.observacoes)}</div>` : ''}
         <div class="kanban-card__footer">
           <span class="kanban-card__total">${Utils.currency(p.total)}</span>
-          ${next
+          ${this._canWrite && next
             ? `<button type="button" class="btn btn-sm btn-primary" data-action="avancar" data-id="${p.id}">→ ${Utils.escapeHtml(next)}</button>`
             : `<span class="kanban-card__done">✓ Concluído</span>`}
         </div>
@@ -96,13 +129,26 @@ const ProducaoModule = {
     });
   },
 
-  _avancar(pedidoId) {
+  async _avancar(pedidoId) {
     const pedidos = this._pedidos();
     const pedido  = pedidos.find(p => p.id === pedidoId);
     if (!pedido) return;
 
     const novo = nextStatus(pedido.status);
     if (!novo) return;
+
+    if (this._serverMode) {
+      try {
+        const updated = await API.updateServerOrderStatus(pedidoId, novo);
+        const idx = this._orders.findIndex(order => order.id === pedidoId);
+        if (idx >= 0) this._orders[idx] = this._mapServerOrder(updated);
+        UI.toast(`#${pedido.numeroPedido} → ${novo}`, 'success');
+        this._render();
+      } catch (error) {
+        UI.toast(error.code === 'insufficient_stock' ? 'Estoque insuficiente para concluir o pedido.' : 'Não foi possível avançar o pedido.', 'danger');
+      }
+      return;
+    }
 
     pedido.status          = novo;
     pedido.dataAtualizacao = new Date().toISOString();
@@ -130,6 +176,12 @@ const ProducaoModule = {
 
   _bindRefresh() {
     const btn = document.getElementById('btn-refresh-board');
-    if (btn) btn.addEventListener('click', () => this._render());
+    if (btn) btn.addEventListener('click', async () => {
+      if (this._serverMode) {
+        const orders = await API.getServerOrders();
+        this._orders = orders.map(order => this._mapServerOrder(order));
+      }
+      this._render();
+    });
   },
 };

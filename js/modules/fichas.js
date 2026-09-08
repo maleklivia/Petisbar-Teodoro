@@ -11,13 +11,20 @@ const FichasModule = {
   _activeProduto: null,
   _cmvGoal: 35,
   _allProdutos: [],
+  _serverMode: false,
+  _canWrite: true,
+  _saveTimers: new Map(),
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
   init(produtos) {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('catalog.write');
     this._allProdutos = produtos;
-    this._ingredientes = Stores.ingredientes.get();
-    this._fichas = Stores.fichas.get();
+    if (!this._serverMode) {
+      this._ingredientes = Stores.ingredientes.get();
+      this._fichas = Stores.fichas.get();
+    }
     this._cmvGoal = (Storage.getState().settings || {}).cmvGoal || 35;
     this._renderProdutoList(produtos);
     this._bindSearch(produtos);
@@ -32,8 +39,14 @@ const FichasModule = {
   /* ── API pública usada por ProdutosModule ──────────────────── */
 
   preload() {
+    this._serverMode = API.isServerMode();
     this._ingredientes = Stores.ingredientes.get();
     this._fichas       = Stores.fichas.get();
+  },
+
+  setData({ ingredientes, fichas } = {}) {
+    if (ingredientes) this._ingredientes = ingredientes;
+    if (fichas) this._fichas = fichas;
   },
 
   getByProduto(produtoId) {
@@ -53,6 +66,30 @@ const FichasModule = {
   deleteByProduto(produtoId) {
     this._fichas = this._fichas.filter(f => f.produtoId !== produtoId);
     Stores.fichas.set(this._fichas);
+  },
+
+  _persist(ficha, { debounce = false } = {}) {
+    if (!this._serverMode) {
+      Stores.fichas.set(this._fichas);
+      return;
+    }
+    if (!this._canWrite || !ficha?.produtoId) return;
+    const save = async () => {
+      try {
+        const saved = await API.saveServerTechnicalSheet(ficha);
+        const idx = this._fichas.findIndex(f => f.produtoId === saved.produtoId);
+        if (idx >= 0) this._fichas[idx] = saved;
+        else this._fichas.push(saved);
+      } catch {
+        UI.toast('Não foi possível salvar a ficha técnica.', 'danger');
+      }
+    };
+    if (!debounce) {
+      save();
+      return;
+    }
+    clearTimeout(this._saveTimers.get(ficha.produtoId));
+    this._saveTimers.set(ficha.produtoId, setTimeout(save, 500));
   },
 
   /* ── Seleção de produto ────────────────────────────────────── */
@@ -114,7 +151,7 @@ const FichasModule = {
     if (!ficha) {
       ficha = { id: `f-${Utils.uid()}`, produtoId, rendimento: 1, itens: [] };
       this._fichas.push(ficha);
-      Stores.fichas.set(this._fichas);
+      this._persist(ficha, { debounce: true });
     }
     return ficha;
   },
@@ -161,7 +198,7 @@ const FichasModule = {
             ${ficha.itens.map((item, idx) => this._renderRow(item, idx)).join('')}
           </tbody>
         </table>
-        <button class="ficha-table__add" id="ficha-add-item">+ Adicionar ingrediente</button>
+        <button class="ficha-table__add" id="ficha-add-item" ${this._canWrite ? '' : 'disabled'}>+ Adicionar ingrediente</button>
       </div>
 
       <div class="ficha-summary">
@@ -236,7 +273,7 @@ const FichasModule = {
           ${custo !== null ? Utils.currency(custo) : '—'}
         </td>
         <td>
-          <button class="btn-icon btn-icon--danger" data-action="remove-item" data-idx="${idx}" title="Remover">
+          <button class="btn-icon btn-icon--danger" data-action="remove-item" data-idx="${idx}" title="Remover" ${this._canWrite ? '' : 'disabled'}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -251,16 +288,18 @@ const FichasModule = {
     if (!container) return;
 
     document.getElementById('ficha-add-item')?.addEventListener('click', () => {
+      if (!this._canWrite) return;
       ficha.itens.push({ ingredienteId: '', quantidade: 0, unidade: 'g' });
-      Stores.fichas.set(this._fichas);
+      this._persist(ficha, { debounce: true });
       this._renderEditor(produto);
     });
 
     container.querySelectorAll('[data-action="remove-item"]').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (!this._canWrite) return;
         const idx = parseInt(btn.dataset.idx, 10);
         ficha.itens.splice(idx, 1);
-        Stores.fichas.set(this._fichas);
+        this._persist(ficha, { debounce: true });
         this._renderEditor(produto);
       });
     });
@@ -276,20 +315,21 @@ const FichasModule = {
         const idx   = parseInt(row.dataset.idx, 10);
         const field = el.dataset.field;
         const val   = e.target.value;
+        if (!this._canWrite) return;
 
         if (field === 'quantidade') {
           ficha.itens[idx].quantidade = parseFloat(val) || 0;
-          Stores.fichas.set(this._fichas);
+          this._persist(ficha, { debounce: true });
           this._refreshSummary(ficha, produto);
         } else if (field === 'unidade') {
           ficha.itens[idx].unidade = val;
-          Stores.fichas.set(this._fichas);
+          this._persist(ficha, { debounce: true });
           this._refreshSummary(ficha, produto);
         } else if (field === 'ingredienteId') {
           ficha.itens[idx].ingredienteId = val;
           const ing = this._ingredientes.find(i => i.id === val);
           if (ing) ficha.itens[idx].unidade = ing.unidade;
-          Stores.fichas.set(this._fichas);
+          this._persist(ficha, { debounce: true });
           this._renderEditor(produto);
         }
       });

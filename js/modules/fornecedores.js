@@ -6,14 +6,29 @@
 const FornecedoresModule = {
   _busca: '',
   _filtroCategoria: 'todos',
+  _serverMode: false,
+  _canWrite: true,
+  _items: [],
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('purchases.manage');
+    if (this._serverMode) {
+      const el = document.getElementById('fornecedores-content');
+      if (el) el.innerHTML = '<div class="empty-state"><p>Carregando fornecedores…</p></div>';
+      try {
+        this._items = await API.getServerSuppliers();
+      } catch {
+        UI.toast('Falha ao carregar fornecedores do servidor.', 'danger');
+        this._items = [];
+      }
+    }
     this._render();
     this._bindEvents();
   },
 
   _filtered() {
-    let data = Stores.fornecedores.get();
+    let data = this._serverMode ? this._items : Stores.fornecedores.get();
     if (this._busca) {
       const b = this._busca.toLowerCase();
       data = data.filter(f => f.nome.toLowerCase().includes(b) || f.categoria.toLowerCase().includes(b) || (f.contato || '').toLowerCase().includes(b));
@@ -25,7 +40,7 @@ const FornecedoresModule = {
   _render() {
     const el = document.getElementById('fornecedores-content');
     if (!el) return;
-    const todos = Stores.fornecedores.get();
+    const todos = this._serverMode ? this._items : Stores.fornecedores.get();
     const ativos = todos.filter(f => f.ativo).length;
     const data   = this._filtered();
 
@@ -49,7 +64,7 @@ const FornecedoresModule = {
           <option value="todos">Todas as categorias</option>
           ${CATS_FORNECEDOR.map(c => `<option value="${c}" ${this._filtroCategoria === c ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
-        <button class="btn btn-primary" id="btn-novo-forn">+ Novo Fornecedor</button>
+        ${this._canWrite ? '<button class="btn btn-primary" id="btn-novo-forn">+ Novo Fornecedor</button>' : ''}
       </div>
 
       <div class="table-wrap">
@@ -91,12 +106,14 @@ const FornecedoresModule = {
         </td>
         <td>
           <div class="row-actions">
+            ${this._canWrite ? `
             <button class="btn-icon" data-forn-edit="${f.id}" title="Editar">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
             <button class="btn-icon btn-icon--danger" data-forn-del="${f.id}" title="Excluir">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             </button>
+            ` : '<span style="color:var(--text-muted);font-size:var(--text-sm)">Somente leitura</span>'}
           </div>
         </td>
       </tr>
@@ -108,7 +125,7 @@ const FornecedoresModule = {
     if (!el) return;
 
     el.addEventListener('click', e => {
-      if (e.target.closest('#btn-novo-forn')) { this._openForm(); return; }
+      if (e.target.closest('#btn-novo-forn')) { if (this._canWrite) this._openForm(); return; }
 
       const edit = e.target.closest('[data-forn-edit]');
       if (edit) { this._openForm(edit.dataset.fornEdit); return; }
@@ -125,7 +142,7 @@ const FornecedoresModule = {
   },
 
   _openForm(id) {
-    const fornecedores = Stores.fornecedores.get();
+    const fornecedores = this._serverMode ? this._items : Stores.fornecedores.get();
     const f = id ? fornecedores.find(x => x.id === id) : null;
 
     UI.openModal({
@@ -188,7 +205,7 @@ const FornecedoresModule = {
     });
   },
 
-  _submitForm(id) {
+  async _submitForm(id) {
     const nome       = document.getElementById('forn-nome')?.value?.trim();
     const categoria  = document.getElementById('forn-categoria')?.value;
     const cnpj       = document.getElementById('forn-cnpj')?.value?.trim();
@@ -201,6 +218,37 @@ const FornecedoresModule = {
     const ativo      = document.getElementById('forn-ativo')?.checked ?? true;
 
     if (!nome) { UI.toast('Informe o nome do fornecedor.', 'error'); return; }
+
+    if (this._serverMode) {
+      try {
+        const saved = await API.saveServerSupplier({
+          id,
+          nome,
+          categoria,
+          cnpj,
+          telefone,
+          email,
+          contato,
+          prazoEntrega: prazo,
+          condicoesPagamento: condicoes,
+          observacoes: obs,
+          ativo,
+        });
+        if (id) {
+          const idx = this._items.findIndex(f => f.id === id);
+          if (idx >= 0) this._items[idx] = saved;
+        } else {
+          this._items.unshift(saved);
+        }
+        UI.toast(id ? 'Fornecedor atualizado.' : 'Fornecedor criado.', 'success');
+        UI.closeModal();
+        this._render();
+        this._bindEvents();
+      } catch (error) {
+        UI.toast(error.code === 'validation_error' ? 'Revise os campos do fornecedor.' : 'Não foi possível salvar o fornecedor.', 'danger');
+      }
+      return;
+    }
 
     const fornecedores = Stores.fornecedores.get();
     if (id) {
@@ -219,7 +267,19 @@ const FornecedoresModule = {
   },
 
   _excluir(id) {
-    if (!confirm('Excluir este fornecedor?')) return;
+    if (!confirm(`${this._serverMode ? 'Inativar' : 'Excluir'} este fornecedor?`)) return;
+    if (this._serverMode) {
+      API.deactivateServerSupplier(id)
+        .then(saved => {
+          const idx = this._items.findIndex(f => f.id === id);
+          if (idx >= 0) this._items[idx] = saved;
+          UI.toast('Fornecedor inativado.', 'success');
+          this._render();
+          this._bindEvents();
+        })
+        .catch(() => UI.toast('Não foi possível inativar o fornecedor.', 'danger'));
+      return;
+    }
     const fornecedores = Stores.fornecedores.get().filter(f => f.id !== id);
     Stores.fornecedores.set(fornecedores);
     UI.toast('Fornecedor excluído.', 'success');

@@ -8,19 +8,34 @@ const FinanceiroModule = {
   _tab: 'extrato',
   _filtroTipo: 'todos',
   _filtroCategoria: 'todos',
+  _serverMode: false,
+  _canWrite: true,
+  _entries: [],
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('finance.write');
+    if (this._serverMode) {
+      const el = document.getElementById('financeiro-content');
+      if (el) el.innerHTML = '<div class="empty-state"><p>Carregando financeiro…</p></div>';
+      try {
+        this._entries = await API.getServerFinanceEntries();
+      } catch {
+        UI.toast('Falha ao carregar financeiro do servidor.', 'danger');
+        this._entries = [];
+      }
+    }
     this._render();
     this._bindEvents();
   },
 
   _getFinance() {
-    return Storage.getState().finance || [];
+    return this._serverMode ? this._entries : (Storage.getState().finance || []);
   },
 
   _kpis(finance) {
     const mes = Utils.currentMonth();
-    const d   = finance.filter(f => (f.date || '').startsWith(mes));
+    const d   = finance.filter(f => String(f.date || '').startsWith(mes));
     const rec = d.filter(f => f.type === 'Entrada').reduce((s, f) => s + (f.value || 0), 0);
     const des = d.filter(f => f.type === 'Saída').reduce((s, f) => s + Math.abs(f.value || 0), 0);
     const cmv = d.filter(f => f.category === 'CMV').reduce((s, f) => s + Math.abs(f.value || 0), 0);
@@ -60,7 +75,7 @@ const FinanceiroModule = {
       <div class="module-tabs">
         <button class="tab-btn ${this._tab === 'extrato' ? 'active' : ''}" data-fin-tab="extrato">Extrato</button>
         <button class="tab-btn ${this._tab === 'dre' ? 'active' : ''}" data-fin-tab="dre">DRE</button>
-        <button class="tab-btn ${this._tab === 'lancamento' ? 'active' : ''}" data-fin-tab="lancamento">+ Lançamento</button>
+        ${this._canWrite ? `<button class="tab-btn ${this._tab === 'lancamento' ? 'active' : ''}" data-fin-tab="lancamento">+ Lançamento</button>` : ''}
       </div>
 
       <div id="fin-tab-body">
@@ -76,7 +91,7 @@ const FinanceiroModule = {
   },
 
   _renderExtrato(finance) {
-    let data = [...finance].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    let data = [...finance].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     if (this._filtroTipo !== 'todos')      data = data.filter(f => f.type === this._filtroTipo);
     if (this._filtroCategoria !== 'todos') data = data.filter(f => f.category === this._filtroCategoria);
     const cats = [...new Set(finance.map(f => f.category))].sort();
@@ -93,7 +108,7 @@ const FinanceiroModule = {
           ${cats.map(c => `<option value="${c}" ${this._filtroCategoria === c ? 'selected' : ''}>${Utils.escapeHtml(c)}</option>`).join('')}
         </select>
         <span style="flex:1"></span>
-        <button class="btn btn-primary" data-fin-tab="lancamento">+ Lançamento</button>
+        ${this._canWrite ? '<button class="btn btn-primary" data-fin-tab="lancamento">+ Lançamento</button>' : ''}
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -128,9 +143,9 @@ const FinanceiroModule = {
         <td style="text-align:right;font-weight:700;color:${color}">${pos ? '+' : ''}${Utils.currency(Math.abs(f.value || 0))}</td>
         <td>
           <div class="row-actions">
-            <button class="btn-icon btn-icon--danger" data-fin-del="${f.id}" title="Excluir">
+            ${this._canWrite && !f.effectKey ? `<button class="btn-icon btn-icon--danger" data-fin-del="${f.id}" title="Excluir">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-            </button>
+            </button>` : ''}
           </div>
         </td>
       </tr>
@@ -139,7 +154,7 @@ const FinanceiroModule = {
 
   _renderDRE(finance) {
     const mes  = Utils.currentMonth();
-    const data = finance.filter(f => (f.date || '').startsWith(mes));
+    const data = finance.filter(f => String(f.date || '').startsWith(mes));
     const groups = {};
     for (const f of data) {
       if (!groups[f.category]) groups[f.category] = { e: 0, s: 0 };
@@ -252,7 +267,7 @@ const FinanceiroModule = {
       if (e.target.closest('#btn-salvar-lan')) { this._salvar(); return; }
 
       const del = e.target.closest('[data-fin-del]');
-      if (del) { this._excluir(Number(del.dataset.finDel)); return; }
+      if (del) { this._excluir(del.dataset.finDel); return; }
     });
 
     el.addEventListener('change', e => {
@@ -261,7 +276,7 @@ const FinanceiroModule = {
     });
   },
 
-  _salvar() {
+  async _salvar() {
     const tipo = document.getElementById('lan-tipo')?.value;
     const data = document.getElementById('lan-data')?.value;
     const desc = document.getElementById('lan-desc')?.value?.trim();
@@ -269,6 +284,20 @@ const FinanceiroModule = {
     const val  = parseFloat(document.getElementById('lan-valor')?.value || 0);
 
     if (!data || !desc || !val || val <= 0) { UI.toast('Preencha todos os campos.', 'error'); return; }
+
+    if (this._serverMode) {
+      try {
+        const saved = await API.createServerFinanceEntry({ date: data, description: desc, category: cat, type: tipo, value: val });
+        this._entries.unshift(saved);
+        UI.toast('Lançamento salvo.', 'success');
+        this._tab = 'extrato';
+        this._render();
+        this._bindEvents();
+      } catch {
+        UI.toast('Não foi possível salvar o lançamento.', 'danger');
+      }
+      return;
+    }
 
     const state = Storage.getState();
     const maxId = state.finance.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
@@ -280,10 +309,21 @@ const FinanceiroModule = {
     this._bindEvents();
   },
 
-  _excluir(id) {
+  async _excluir(id) {
     if (!confirm('Excluir este lançamento?')) return;
+    if (this._serverMode) {
+      try {
+        await API.deleteServerFinanceEntry(id);
+        this._entries = this._entries.filter(f => f.id !== id);
+        this._render();
+        this._bindEvents();
+      } catch (error) {
+        UI.toast(error.code === 'system_entry_locked' ? 'Lançamentos automáticos não podem ser excluídos.' : 'Não foi possível excluir o lançamento.', 'danger');
+      }
+      return;
+    }
     const state = Storage.getState();
-    state.finance = state.finance.filter(f => f.id !== id);
+    state.finance = state.finance.filter(f => String(f.id) !== String(id));
     Storage.setState(state);
     this._render();
     this._bindEvents();

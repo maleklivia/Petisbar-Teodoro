@@ -7,10 +7,33 @@
 const RelatoriosModule = {
   _tab: 'vendas',
   _periodo: 'mes',
+  _serverMode: false,
+  _data: null,
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    if (this._serverMode) {
+      const el = document.getElementById('relatorios-content');
+      if (el) el.innerHTML = '<div class="empty-state"><p>Carregando relatórios…</p></div>';
+      try {
+        this._data = await API.getServerReportsOverview();
+      } catch {
+        UI.toast('Falha ao carregar relatórios do servidor.', 'danger');
+        this._data = { finance: [], deliveredOrders: 0, productCmv: [], stock: [], clients: [] };
+      }
+    }
     this._render();
     this._bindEvents();
+  },
+
+  _finance() {
+    return this._serverMode ? (this._data?.finance || []) : (Storage.getState().finance || []);
+  },
+
+  _deliveredOrdersCount() {
+    return this._serverMode
+      ? (this._data?.deliveredOrders || 0)
+      : Stores.pedidos.get().filter(p => p.status === 'Entregue' || p.status === 'Concluído').length;
   },
 
   _render() {
@@ -38,8 +61,7 @@ const RelatoriosModule = {
   },
 
   _renderVendas() {
-    const state   = Storage.getState();
-    const finance = state.finance || [];
+    const finance = this._finance();
     const mes     = Utils.currentMonth();
 
     const filtrar = (f) => {
@@ -94,7 +116,7 @@ const RelatoriosModule = {
         </article>
         <article class="kpi-card">
           <span class="kpi-card__label">Pedidos (v0.3)</span>
-          <strong class="kpi-card__value">${Stores.pedidos.get().filter(p => p.status === 'Entregue').length}</strong>
+          <strong class="kpi-card__value">${this._deliveredOrdersCount()}</strong>
           <small class="kpi-card__sub">entregues</small>
         </article>
       </div>
@@ -126,26 +148,28 @@ const RelatoriosModule = {
   },
 
   _renderCMV() {
-    const fichas     = Stores.fichas.get();
-    const produtos   = Stores.produtos.get();
-    const ings       = Stores.ingredientes.get();
     const config     = Stores.config.get();
     const meta       = config.metas?.cmvMeta || 35;
 
-    const rows = produtos.filter(p => p.ativo).map(p => {
-      const ficha = fichas.find(f => f.produtoId === p.id);
-      let custo = 0;
-      if (ficha) {
-        for (const it of ficha.itens) {
-          const ing = ings.find(i => i.id === it.ingredienteId);
-          if (!ing) continue;
-          const c = calcIngredienteCost(ing, it.quantidade, it.unidade);
-          if (c !== null) custo += c;
+    const rows = this._serverMode ? (this._data?.productCmv || []) : (() => {
+      const fichas     = Stores.fichas.get();
+      const produtos   = Stores.produtos.get();
+      const ings       = Stores.ingredientes.get();
+      return produtos.filter(p => p.ativo).map(p => {
+        const ficha = fichas.find(f => f.produtoId === p.id);
+        let custo = 0;
+        if (ficha) {
+          for (const it of ficha.itens) {
+            const ing = ings.find(i => i.id === it.ingredienteId);
+            if (!ing) continue;
+            const c = calcIngredienteCost(ing, it.quantidade, it.unidade);
+            if (c !== null) custo += c;
+          }
         }
-      }
-      const cmvPct = p.precoVenda > 0 ? (custo / p.precoVenda) * 100 : 0;
-      return { ...p, custo, cmvPct };
-    }).sort((a, b) => b.cmvPct - a.cmvPct);
+        const cmvPct = p.precoVenda > 0 ? (custo / p.precoVenda) * 100 : 0;
+        return { ...p, custo, cmvPct };
+      }).sort((a, b) => b.cmvPct - a.cmvPct);
+    })();
 
     const acimaMeta = rows.filter(r => r.cmvPct > meta).length;
 
@@ -191,7 +215,7 @@ const RelatoriosModule = {
   },
 
   _renderEstoque() {
-    const ings = Stores.ingredientes.get().filter(i => i.ativo);
+    const ings = this._serverMode ? (this._data?.stock || []) : Stores.ingredientes.get().filter(i => i.ativo);
     const valorTotal = ings.reduce((s, i) => s + (i.estoqueAtual * i.custoUnitario), 0);
     const criticos   = ings.filter(i => i.estoqueAtual <= i.estoqueMinimo).length;
 
@@ -245,19 +269,27 @@ const RelatoriosModule = {
   },
 
   _renderClientes() {
-    const clientes = Stores.clientes.get();
-    const pedidos  = Stores.pedidos.get();
-
-    const rows = clientes.map(c => {
-      const ped = pedidos.filter(p => p.clienteId === c.id && p.status === 'Entregue');
-      const total = ped.reduce((s, p) => s + (p.total || 0), 0);
-      const datas = ped.map(p => p.dataCriacao).sort().reverse();
-      return { ...c, _pedidos: ped.length, _total: total, _ticket: ped.length > 0 ? total / ped.length : 0, _ultimo: datas[0]?.slice(0, 10) || null };
-    }).sort((a, b) => b._total - a._total);
+    const rows = this._serverMode ? (this._data?.clients || []).map(c => ({
+      ...c,
+      _pedidos: c.pedidos,
+      _total: c.total,
+      _ticket: c.ticketMedio,
+      _ultimo: c.ultimo,
+    })) : (() => {
+      const clientes = Stores.clientes.get();
+      const pedidos  = Stores.pedidos.get();
+      return clientes.map(c => {
+        const ped = pedidos.filter(p => p.clienteId === c.id && (p.status === 'Entregue' || p.status === 'Concluído'));
+        const total = ped.reduce((s, p) => s + (p.total || 0), 0);
+        const datas = ped.map(p => p.dataCriacao).sort().reverse();
+        return { ...c, _pedidos: ped.length, _total: total, _ticket: ped.length > 0 ? total / ped.length : 0, _ultimo: datas[0]?.slice(0, 10) || null };
+      }).sort((a, b) => b._total - a._total);
+    })();
+    const totalClientes = this._serverMode ? rows.length : Stores.clientes.get().length;
 
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-4)">
-        <div>Total de clientes: <strong>${clientes.length}</strong></div>
+        <div>Total de clientes: <strong>${totalClientes}</strong></div>
         <button class="btn btn-ghost" onclick="window.print()" style="font-size:var(--text-sm)">↓ Imprimir</button>
       </div>
       <div class="table-wrap">

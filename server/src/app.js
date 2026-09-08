@@ -13,6 +13,14 @@ import publicOrderRoutes from './routes/public-orders.js';
 import ifoodRoutes from './routes/ifood.js';
 import userRoutes from './routes/users.js';
 import aiRoutes from './routes/ai.js';
+import orderRoutes from './routes/orders.js';
+import clientsRoutes from './routes/clients.js';
+import stockRoutes from './routes/stock.js';
+import financeRoutes from './routes/finance.js';
+import suppliersRoutes from './routes/suppliers.js';
+import purchasesRoutes from './routes/purchases.js';
+import reportsRoutes from './routes/reports.js';
+import settingsRoutes from './routes/settings.js';
 import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
@@ -38,6 +46,14 @@ export async function buildApp() {
   await app.register(ifoodRoutes, { prefix: '/api/v1' });
   await app.register(userRoutes, { prefix: '/api/v1' });
   await app.register(aiRoutes, { prefix: '/api/v1' });
+  await app.register(orderRoutes, { prefix: '/api/v1' });
+  await app.register(clientsRoutes, { prefix: '/api/v1' });
+  await app.register(stockRoutes, { prefix: '/api/v1' });
+  await app.register(financeRoutes, { prefix: '/api/v1' });
+  await app.register(suppliersRoutes, { prefix: '/api/v1' });
+  await app.register(purchasesRoutes, { prefix: '/api/v1' });
+  await app.register(reportsRoutes, { prefix: '/api/v1' });
+  await app.register(settingsRoutes, { prefix: '/api/v1' });
 
   let stopIfoodWorker = () => {};
   app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); });
@@ -46,7 +62,10 @@ export async function buildApp() {
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
     const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
-    reply.code(status).send({ error: status === 500 ? 'internal_error' : error.code || 'request_error' });
+    reply.code(status).send({
+      error: status === 500 ? 'internal_error' : error.code || 'request_error',
+      ...(status < 500 && error.details ? { details: error.details } : {}),
+    });
   });
   return app;
 }

@@ -7,15 +7,72 @@
 
 const PedidosModule = {
   _filtroStatus: 'Todos',
+  _serverMode: false,
+  _serverOrders: [],
+  _serverProducts: [],
+  _serverClients: [],
+  _canWrite: true,
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = API.hasPermission('orders.write');
+    if (this._serverMode) {
+      const container = document.getElementById('pedidos-content');
+      if (container) container.innerHTML = '<div class="empty-state"><p>Carregando pedidos…</p></div>';
+      try {
+        const [orders, products, clients] = await Promise.all([
+          API.getServerOrders(),
+          API.getServerProducts(),
+          API.hasPermission('clients.read') ? API.getServerClients() : Promise.resolve([]),
+        ]);
+        this._serverOrders = orders.map(order => this._mapServerOrder(order));
+        this._serverProducts = products.filter(product => product.ativo);
+        this._serverClients = clients;
+      } catch (error) {
+        if (container) container.innerHTML = '<div class="empty-state"><p>Não foi possível carregar os pedidos.</p></div>';
+        UI.toast('Falha ao carregar os pedidos do servidor.', 'danger');
+        return;
+      }
+    }
     this._render();
     this._bindToolbar();
   },
 
+  _mapServerOrder(order) {
+    return {
+      id: order.id,
+      numeroPedido: order.orderNumber,
+      origem: order.source,
+      clienteId: order.clientId,
+      clienteNome: order.clientName,
+      status: order.status,
+      itens: (order.items || []).map(item => ({
+        id: item.id,
+        produtoId: item.productId,
+        nome: item.name,
+        qty: Number(item.quantity),
+        precoUnitario: Number(item.unitPrice),
+        subtotal: Number(item.subtotal),
+        options: item.options || {},
+      })),
+      subtotal: Number(order.subtotal),
+      taxaEntrega: Number(order.deliveryFee),
+      desconto: Number(order.discount),
+      total: Number(order.total),
+      formaPagamento: order.paymentMethod,
+      observacoes: order.notes,
+      dataCriacao: order.createdAt,
+      dataAtualizacao: order.updatedAt,
+    };
+  },
+
   /* ── Dados ────────────────────────────────────────────────── */
 
-  _pedidos() { return Stores.pedidos.get(); },
+  _pedidos() { return this._serverMode ? this._serverOrders : Stores.pedidos.get(); },
+
+  _produtos() { return this._serverMode ? this._serverProducts : Stores.produtos.get().filter(p => p.ativo); },
+
+  _clientes() { return this._serverMode ? this._serverClients : Stores.clientes.get(); },
 
   _filtered() {
     const all = this._pedidos();
@@ -79,7 +136,7 @@ const PedidosModule = {
     const next = nextStatus(p.status);
     const resumo = p.itens.map(i => `${i.nome} ×${i.qty}`).join(', ');
     const resumoCurt = resumo.length > 35 ? resumo.slice(0, 35) + '…' : resumo;
-    const canCancel  = p.status !== 'Cancelado' && p.status !== 'Entregue';
+    const canCancel = !['Cancelado', 'Entregue', 'Concluído'].includes(p.status);
 
     return `
       <tr data-id="${p.id}">
@@ -90,8 +147,8 @@ const PedidosModule = {
         <td><strong>${Utils.currency(p.total)}</strong><br><small style="color:var(--color-text-muted)">${Utils.escapeHtml(p.formaPagamento)}</small></td>
         <td><span class="status-pill status-pill--${slug}">${Utils.escapeHtml(p.status)}</span></td>
         <td class="row-actions">
-          ${next ? `<button class="btn btn-sm btn-primary" data-action="avancar" data-id="${p.id}" title="→ ${Utils.escapeHtml(next)}">→ ${Utils.escapeHtml(next)}</button>` : ''}
-          ${canCancel ? `<button class="btn-icon btn-icon--danger" data-action="cancelar" data-id="${p.id}" title="Cancelar pedido">✕</button>` : ''}
+          ${this._canWrite && next ? `<button class="btn btn-sm btn-primary" data-action="avancar" data-id="${p.id}" title="→ ${Utils.escapeHtml(next)}">→ ${Utils.escapeHtml(next)}</button>` : ''}
+          ${this._canWrite && canCancel ? `<button class="btn-icon btn-icon--danger" data-action="cancelar" data-id="${p.id}" title="Cancelar pedido">✕</button>` : ''}
         </td>
       </tr>`;
   },
@@ -126,8 +183,13 @@ const PedidosModule = {
   },
 
   _bindToolbar() {
-    document.getElementById('btn-novo-pedido')
-      ?.addEventListener('click', () => this._abrirModalNovoPedido());
+    const button = document.getElementById('btn-novo-pedido');
+    if (!button) return;
+    if (!this._canWrite) {
+      button.hidden = true;
+      return;
+    }
+    button.addEventListener('click', () => this._abrirModalNovoPedido());
   },
 
   /* ── Mudança de Status ────────────────────────────────────── */
@@ -139,10 +201,28 @@ const PedidosModule = {
     if (novo) this._mudarStatus(pedidoId, novo);
   },
 
-  _mudarStatus(pedidoId, novoStatus) {
+  async _mudarStatus(pedidoId, novoStatus) {
     const pedidos  = this._pedidos();
     const pedido   = pedidos.find(p => p.id === pedidoId);
     if (!pedido) return;
+
+    if (this._serverMode) {
+      try {
+        const updated = await API.updateServerOrderStatus(pedidoId, novoStatus);
+        const index = this._serverOrders.findIndex(order => order.id === pedidoId);
+        if (index >= 0) this._serverOrders[index] = this._mapServerOrder(updated);
+        UI.toast(`Pedido #${pedido.numeroPedido} → ${novoStatus}`, 'success');
+        this._render();
+      } catch (error) {
+        const message = error.code === 'insufficient_stock'
+          ? `Estoque insuficiente: ${error.details?.item || 'revise os insumos'}.`
+          : error.code === 'invalid_status_transition'
+            ? 'Essa mudança de status não é permitida.'
+            : 'Não foi possível atualizar o pedido.';
+        UI.toast(message, 'danger');
+      }
+      return;
+    }
 
     const statusAntigo = pedido.status;
     pedido.status          = novoStatus;
@@ -179,8 +259,8 @@ const PedidosModule = {
 
   _abrirModalNovoPedido() {
     Carrinho.limpar();
-    const clientes = Stores.clientes.get();
-    const produtos  = Stores.produtos.get().filter(p => p.ativo);
+    const clientes = this._clientes();
+    const produtos = this._produtos();
 
     UI.openModal({
       title:        'Novo Pedido',
@@ -300,7 +380,7 @@ const PedidosModule = {
 
   async _calcularFreteCliente(clienteId) {
     if (!clienteId || typeof FreteService === 'undefined') return;
-    const clientes = Stores.clientes?.get() || [];
+    const clientes = this._clientes();
     const cliente  = clientes.find(c => c.id === clienteId);
     const cep      = cliente?.enderecos?.[0]?.cep;
     const infoEl   = document.getElementById('frete-info');
@@ -385,7 +465,7 @@ const PedidosModule = {
     });
   },
 
-  _criarPedido() {
+  async _criarPedido() {
     if (Carrinho.isEmpty()) {
       UI.toast('Adicione pelo menos um item ao pedido.', 'warning');
       return;
@@ -404,6 +484,38 @@ const PedidosModule = {
     const taxa   = parseFloat(document.getElementById('pedido-taxa')?.value || 0);
     const desc   = parseFloat(document.getElementById('pedido-desconto')?.value || 0);
     Carrinho.setTaxaEntrega(taxa).setDesconto(desc);
+
+    if (this._serverMode) {
+      try {
+        const created = await API.createServerOrder({
+          clientId: clienteId || null,
+          clientName: clienteNome,
+          source: origem,
+          paymentMethod: forma,
+          notes: obs,
+          deliveryFee: taxa,
+          discount: desc,
+          items: Carrinho.getItens().map(item => ({
+            productId: item.produtoId,
+            quantity: item.qty,
+            options: item.options || {},
+          })),
+        });
+        this._serverOrders.unshift(this._mapServerOrder(created));
+        Carrinho.limpar();
+        UI.closeModal();
+        UI.toast(`Pedido #${created.orderNumber} criado!`, 'success');
+        this._render();
+      } catch (error) {
+        const message = error.code === 'invalid_discount'
+          ? 'O desconto não pode superar o valor do pedido.'
+          : error.code === 'product_unavailable' || error.code === 'insufficient_stock'
+            ? 'Um produto está indisponível ou sem estoque.'
+            : 'Não foi possível criar o pedido.';
+        UI.toast(message, 'danger');
+      }
+      return;
+    }
 
     const pedidos   = this._pedidos();
     const num       = nextNumeroPedido(pedidos);

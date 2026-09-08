@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { IfoodClient } from './ifood-client.js';
+import { transitionOrderStatus } from './order-effects.js';
 
 const money = value => {
   if (Array.isArray(value)) return value.reduce((sum, item) => sum + money(item?.value ?? item?.amount ?? 0), 0);
@@ -21,7 +22,7 @@ async function importOrder(client, order) {
 
 async function processEvent(app, event) {
   const client=await app.db.connect();
-  try {await client.query('BEGIN');const inserted=await client.query('INSERT INTO ifood_events (id,code,order_id,payload) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING RETURNING id',[event.id,event.code||event.fullCode||'UNKNOWN',event.orderId||null,event]);if(inserted.rowCount){if(['PLACED','ORDER_PLACED'].includes(event.code)||event.fullCode==='ORDER_PLACED')await importOrder(client,await IfoodClient.getOrder(event.orderId));const status=statuses[event.code]||statuses[event.fullCode?.replace('ORDER_','')];if(status&&event.orderId)await client.query('UPDATE orders SET status=$1,updated_at=now() WHERE external_order_id=$2',[status,event.orderId]);await client.query('UPDATE ifood_events SET processed_at=now() WHERE id=$1',[event.id]);}await client.query('COMMIT');return true;}catch(error){await client.query('ROLLBACK');app.log.error({error,eventId:event.id},'falha ao processar evento iFood');return false;}finally{client.release();}
+  try {await client.query('BEGIN');const inserted=await client.query('INSERT INTO ifood_events (id,code,order_id,payload) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING RETURNING id',[event.id,event.code||event.fullCode||'UNKNOWN',event.orderId||null,event]);if(inserted.rowCount){if(['PLACED','ORDER_PLACED'].includes(event.code)||event.fullCode==='ORDER_PLACED')await importOrder(client,await IfoodClient.getOrder(event.orderId));const status=statuses[event.code]||statuses[event.fullCode?.replace('ORDER_','')];if(status&&event.orderId){const order=await client.query('SELECT id FROM orders WHERE external_order_id=$1',[event.orderId]);if(order.rowCount)await transitionOrderStatus(client,{orderId:order.rows[0].id,nextStatus:status,external:true});}await client.query('UPDATE ifood_events SET processed_at=now() WHERE id=$1',[event.id]);}await client.query('COMMIT');return true;}catch(error){await client.query('ROLLBACK');app.log.error({error,eventId:event.id},'falha ao processar evento iFood');return false;}finally{client.release();}
 }
 
 export function startIfoodWorker(app) {

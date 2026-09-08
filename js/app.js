@@ -27,6 +27,8 @@ const App = {
   state: null,
 
   async init(page) {
+    const user = await API.requireSession();
+    if (!user) return;
     this.state = Storage.getState();
 
     // Load shared components
@@ -36,8 +38,9 @@ const App = {
     UI.setActiveNav(page);
     UI.setHeaderTitle(PAGE_TITLES[page] || page);
     UI.setHeaderDate();
-    UI.setUserInfo('Administrador');
+    API.bindSessionControls(user);
     UI.initResponsiveNavigation();
+    if (API.isServerMode() && !['pedidos', 'producao', 'produtos', 'clientes', 'estoque', 'compras', 'fornecedores', 'financeiro', 'relatorios', 'central-ia'].includes(page)) UI.showTransitionNotice();
 
     // Run page-specific module
     if (Modules[page]) {
@@ -347,17 +350,17 @@ const Modules = {
   },
 
   'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') CentralIAModule.init(); } },
-  financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') FinanceiroModule.init();   } },
-  pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') PedidosModule.init();      } },
-  producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') ProducaoModule.init();     } },
-  produtos:     { async init() { if (typeof ProdutosModule     !== 'undefined') ProdutosModule.init();     } },
-  clientes:     { async init() { if (typeof ClientesModule     !== 'undefined') ClientesModule.init();     } },
-  estoque:      { async init() { if (typeof EstoqueModule      !== 'undefined') EstoqueModule.init();      } },
-  compras:      { async init() { if (typeof ComprasModule      !== 'undefined') ComprasModule.init();      } },
-  fornecedores: { async init() { if (typeof FornecedoresModule !== 'undefined') FornecedoresModule.init(); } },
+  financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') return FinanceiroModule.init();   } },
+  pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') return PedidosModule.init(); } },
+  producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') return ProducaoModule.init();     } },
+  produtos:     { async init() { if (typeof ProdutosModule     !== 'undefined') return ProdutosModule.init();     } },
+  clientes:     { async init() { if (typeof ClientesModule     !== 'undefined') return ClientesModule.init();     } },
+  estoque:      { async init() { if (typeof EstoqueModule      !== 'undefined') return EstoqueModule.init();      } },
+  compras:      { async init() { if (typeof ComprasModule      !== 'undefined') return ComprasModule.init();      } },
+  fornecedores: { async init() { if (typeof FornecedoresModule !== 'undefined') return FornecedoresModule.init(); } },
   marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') MarketingModule.init();    } },
   documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') DocumentosModule.init();   } },
-  relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') RelatoriosModule.init();   } },
+  relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') return RelatoriosModule.init();   } },
   configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') ConfiguracoesModule.init();} },
 };
 

@@ -143,13 +143,15 @@ export default async function migrationRoutes(app) {
       for (const purchase of collections.compras) {
         await client.query(`
           INSERT INTO purchases (id,purchase_number,supplier_id,supplier_name,status,total,notes,purchased_at,
-            received_at,invoice_number,payment_method,created_by)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            received_at,invoice_number,payment_method,created_by,purchase_type)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
           ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,total=EXCLUDED.total,notes=EXCLUDED.notes,
-            received_at=EXCLUDED.received_at,invoice_number=EXCLUDED.invoice_number,payment_method=EXCLUDED.payment_method
+            received_at=EXCLUDED.received_at,invoice_number=EXCLUDED.invoice_number,payment_method=EXCLUDED.payment_method,
+            purchase_type=EXCLUDED.purchase_type
         `, [text(purchase.id),number(purchase.numeroPedidoCompra),supplierIds.has(text(purchase.fornecedorId)) ? text(purchase.fornecedorId) : null,
           text(purchase.fornecedorNome),text(purchase.status),number(purchase.total),text(purchase.observacoes),
-          purchase.dataCompra || null,purchase.dataRecebimento || null,text(purchase.notaFiscal),text(purchase.formaPagamento),request.user.id]);
+          purchase.dataCompra || null,purchase.dataRecebimento || null,text(purchase.notaFiscal),text(purchase.formaPagamento),request.user.id,
+          text(purchase.tipo || 'manual')]);
         await client.query('DELETE FROM purchase_items WHERE purchase_id=$1', [text(purchase.id)]);
         for (const item of array(purchase.itens)) {
           await client.query(`INSERT INTO purchase_items

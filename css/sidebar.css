@@ -203,6 +203,23 @@
   color: var(--text-muted);
 }
 
+.sidebar-logout {
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2);
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--text-lg);
+}
+
+.sidebar-logout:hover,
+.sidebar-logout:focus-visible {
+  color: var(--color-danger);
+  background: var(--bg-raised);
+}
+
 .mobile-menu-toggle,
 .sidebar-backdrop { display: none; }
 

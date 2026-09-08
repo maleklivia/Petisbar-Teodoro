@@ -5,15 +5,30 @@
 
 const ClientesModule = {
   _search: '',
+  _items: [],
+  _serverMode: false,
+  _canWrite: true,
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('clients.write');
+    if (this._serverMode) {
+      const container = document.getElementById('clientes-table');
+      if (container) container.innerHTML = '<div class="empty-state"><p>Carregando clientes…</p></div>';
+      try {
+        this._items = await API.getServerClients();
+      } catch {
+        UI.toast('Falha ao carregar clientes do servidor.', 'danger');
+        this._items = [];
+      }
+    }
     this._render();
     this._bindToolbar();
   },
 
   /* ── Dados ────────────────────────────────────────────────── */
 
-  _clientes() { return Stores.clientes.get(); },
+  _clientes() { return this._serverMode ? this._items : Stores.clientes.get(); },
 
   _filtered() {
     const q = this._search.toLowerCase();
@@ -69,8 +84,10 @@ const ClientesModule = {
         <td>${nEnd} endereço${nEnd !== 1 ? 's' : ''}</td>
         <td>${Utils.formatShortDate(c.dataCadastro)}</td>
         <td class="row-actions">
+          ${this._canWrite ? `
           <button class="btn-icon" data-action="edit"   data-id="${c.id}" title="Editar">✎</button>
           <button class="btn-icon btn-icon--danger" data-action="delete" data-id="${c.id}" title="Excluir">✕</button>
+          ` : '<span style="color:var(--text-muted);font-size:var(--text-sm)">Somente leitura</span>'}
         </td>
       </tr>`;
   },
@@ -78,8 +95,11 @@ const ClientesModule = {
   /* ── Toolbar ──────────────────────────────────────────────── */
 
   _bindToolbar() {
-    document.getElementById('btn-novo-cliente')
-      ?.addEventListener('click', () => this._openForm());
+    const newButton = document.getElementById('btn-novo-cliente');
+    if (newButton) {
+      newButton.hidden = !this._canWrite;
+      if (this._canWrite) newButton.addEventListener('click', () => this._openForm());
+    }
     document.getElementById('cliente-search')
       ?.addEventListener('input', e => { this._search = e.target.value; this._render(); });
   },
@@ -214,7 +234,7 @@ const ClientesModule = {
 
   /* ── Submit ───────────────────────────────────────────────── */
 
-  _submitForm(id) {
+  async _submitForm(id) {
     const nome = document.getElementById('cli-nome')?.value?.trim();
     if (!nome) { UI.toast('Nome é obrigatório.', 'warning'); return; }
 
@@ -228,6 +248,25 @@ const ClientesModule = {
       observacoes: document.getElementById('cli-obs')?.value?.trim()      || '',
       enderecos,
     };
+
+    if (this._serverMode) {
+      try {
+        const saved = await API.saveServerClient({ id, ...campos });
+        if (id) {
+          const idx = this._items.findIndex(c => c.id === id);
+          if (idx >= 0) this._items[idx] = saved;
+        } else {
+          this._items.unshift(saved);
+        }
+        EventBus.emit(id ? EVENTS.CLIENTE_ATUALIZADO : EVENTS.CLIENTE_CRIADO, { clienteId: saved.id });
+        UI.toast(id ? 'Cliente atualizado.' : 'Cliente cadastrado.', 'success');
+        UI.closeModal();
+        this._render();
+      } catch (error) {
+        UI.toast(error.code === 'validation_error' ? 'Revise os campos do cliente.' : 'Não foi possível salvar o cliente.', 'danger');
+      }
+      return;
+    }
 
     if (id) {
       const idx = clientes.findIndex(c => c.id === id);
@@ -252,7 +291,18 @@ const ClientesModule = {
   _confirmDelete(id) {
     const cliente = this._clientes().find(c => c.id === id);
     if (!cliente) return;
-    if (!confirm(`Excluir cliente "${cliente.nome}"?\nSeus pedidos NÃO serão afetados.`)) return;
+    const action = this._serverMode ? 'Inativar' : 'Excluir';
+    if (!confirm(`${action} cliente "${cliente.nome}"?\nSeus pedidos NÃO serão afetados.`)) return;
+    if (this._serverMode) {
+      API.deactivateServerClient(id)
+        .then(() => {
+          this._items = this._items.filter(c => c.id !== id);
+          UI.toast('Cliente inativado.', 'success');
+          this._render();
+        })
+        .catch(() => UI.toast('Não foi possível inativar o cliente.', 'danger'));
+      return;
+    }
     Stores.clientes.set(this._clientes().filter(c => c.id !== id));
     UI.toast('Cliente excluído.', 'success');
     this._render();

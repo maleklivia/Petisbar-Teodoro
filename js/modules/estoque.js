@@ -8,11 +8,41 @@ const EstoqueModule = {
   _tab: 'ingredientes',
   _busca: '',
   _filtroStatus: 'todos',
+  _serverMode: false,
+  _canWrite: true,
+  _ingredientes: [],
+  _movimentacoes: [],
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('stock.write');
+    if (this._serverMode) {
+      const el = document.getElementById('estoque-content');
+      if (el) el.innerHTML = '<div class="empty-state"><p>Carregando estoque…</p></div>';
+      try {
+        const [ingredientes, movimentacoes] = await Promise.all([
+          API.getServerIngredients(),
+          API.getServerStockMovements(),
+        ]);
+        this._ingredientes = ingredientes;
+        this._movimentacoes = movimentacoes;
+      } catch {
+        UI.toast('Falha ao carregar estoque do servidor.', 'danger');
+        this._ingredientes = [];
+        this._movimentacoes = [];
+      }
+    }
     this._render();
     this._bindEvents();
     this._verificarAlertasAutomaticos();
+  },
+
+  _getIngredientes() {
+    return this._serverMode ? this._ingredientes : Stores.ingredientes.get();
+  },
+
+  _getMovimentacoes() {
+    return this._serverMode ? this._movimentacoes : Stores.movimentacoes.get();
   },
 
   _pontoPedido(item) {
@@ -28,7 +58,7 @@ const EstoqueModule = {
   _render() {
     const el = document.getElementById('estoque-content');
     if (!el) return;
-    const ings = Stores.ingredientes.get();
+    const ings = this._getIngredientes();
     const criticos = ings.filter(i => i.ativo && this._precisaComprar(i)).length;
     const valorTotal = ings.filter(i => i.ativo).reduce((s, i) => s + (i.estoqueAtual * i.custoUnitario), 0);
 
@@ -51,7 +81,7 @@ const EstoqueModule = {
         </article>
         <article class="kpi-card">
           <span class="kpi-card__label">Movimentações</span>
-          <strong class="kpi-card__value">${Stores.movimentacoes.get().length}</strong>
+          <strong class="kpi-card__value">${this._getMovimentacoes().length}</strong>
           <small class="kpi-card__sub">registradas</small>
         </article>
       </div>
@@ -94,7 +124,7 @@ const EstoqueModule = {
           <option value="ok" ${this._filtroStatus === 'ok' ? 'selected' : ''}>OK</option>
         </select>
         <button class="btn btn-secondary" id="btn-lista-compras">Baixar lista de compras (.txt)</button>
-        <button class="btn btn-primary" id="btn-movimentacao">+ Movimentação</button>
+        ${this._canWrite ? '<button class="btn btn-primary" id="btn-movimentacao">+ Movimentação</button>' : ''}
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -149,13 +179,13 @@ const EstoqueModule = {
   },
 
   _renderMovimentacoes() {
-    const movs = [...Stores.movimentacoes.get()].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    const movs = [...this._getMovimentacoes()].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
     const tipoColor = { entrada: 'var(--color-success)', saída: 'var(--color-danger)', ajuste: 'var(--color-warning)', perda: 'var(--color-danger)' };
 
     return `
       <div class="module-toolbar">
         <span style="flex:1"></span>
-        <button class="btn btn-primary" id="btn-movimentacao">+ Movimentação</button>
+        ${this._canWrite ? '<button class="btn btn-primary" id="btn-movimentacao">+ Movimentação</button>' : ''}
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -225,7 +255,7 @@ const EstoqueModule = {
       const tab = e.target.closest('[data-est-tab]');
       if (tab) { this._tab = tab.dataset.estTab; this._render(); this._bindEvents(); return; }
 
-      if (e.target.closest('#btn-movimentacao')) { this._abrirModalMovimentacao(); return; }
+      if (e.target.closest('#btn-movimentacao')) { if (this._canWrite) this._abrirModalMovimentacao(); return; }
 
       if (e.target.closest('#btn-lista-compras')) { this._baixarListaCompras(); return; }
 
@@ -244,7 +274,7 @@ const EstoqueModule = {
   },
 
   _baixarListaCompras() {
-    const itens = Stores.ingredientes.get()
+    const itens = this._getIngredientes()
       .filter(i => i.ativo && this._precisaComprar(i))
       .map(i => {
         const deficit = Math.max(0, this._pontoPedido(i) - i.estoqueAtual);
@@ -283,7 +313,7 @@ const EstoqueModule = {
   },
 
   _abrirModalMovimentacao(ingredienteId = '') {
-    const ings = Stores.ingredientes.get().filter(i => i.ativo);
+    const ings = this._getIngredientes().filter(i => i.ativo);
     const ing  = ingredienteId ? ings.find(i => i.id === ingredienteId) : null;
 
     UI.openModal({
@@ -338,7 +368,7 @@ const EstoqueModule = {
     });
   },
 
-  _registrarMovimentacao() {
+  async _registrarMovimentacao() {
     const tipo   = document.getElementById('mov-tipo')?.value;
     const ingId  = document.getElementById('mov-ing')?.value;
     const qty    = parseFloat(document.getElementById('mov-qty')?.value || 0);
@@ -347,6 +377,32 @@ const EstoqueModule = {
     const data   = document.getElementById('mov-data')?.value;
 
     if (!ingId || !qty || qty <= 0 || !data) { UI.toast('Preencha todos os campos.', 'error'); return; }
+
+    if (this._serverMode) {
+      try {
+        const movement = await API.createServerStockMovement({
+          tipo,
+          ingredienteId: ingId,
+          quantidade: qty,
+          unidade: un,
+          motivo,
+          data,
+        });
+        const [ingredientes, movimentacoes] = await Promise.all([
+          API.getServerIngredients(),
+          API.getServerStockMovements(),
+        ]);
+        this._ingredientes = ingredientes;
+        this._movimentacoes = movimentacoes.length ? movimentacoes : [movement, ...this._movimentacoes];
+        UI.closeModal();
+        UI.toast(`Movimentação registrada: ${tipo} de ${qty} ${un || movement.unidade}.`, 'success');
+        this._render();
+        this._bindEvents();
+      } catch (error) {
+        UI.toast(error.code === 'ingredient_not_found' ? 'Ingrediente não encontrado.' : 'Não foi possível registrar a movimentação.', 'danger');
+      }
+      return;
+    }
 
     const ings   = Stores.ingredientes.get();
     const ing    = ings.find(i => i.id === ingId);
@@ -370,7 +426,7 @@ const EstoqueModule = {
   },
 
   _verificarAlertasAutomaticos() {
-    const ings = Stores.ingredientes.get();
+    const ings = this._getIngredientes();
     const criticos = ings.filter(i => i.ativo && this._precisaComprar(i));
     if (criticos.length > 0 && typeof EventBus !== 'undefined') {
       EventBus.emit('estoque.alertas', { ingredientes: criticos.map(i => i.nome) });

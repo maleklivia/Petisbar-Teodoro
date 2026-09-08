@@ -249,6 +249,17 @@ input, select, textarea { font-family: inherit; }
   text-align: center;
 }
 
+.data-source-notice {
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .empty-state svg {
   width: 40px;
   height: 40px;

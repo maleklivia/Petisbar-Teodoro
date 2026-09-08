@@ -86,11 +86,23 @@ const UI = {
     if (el) el.textContent = Utils.fullDate();
   },
 
-  setUserInfo(name = 'Administrador') {
+  setUserInfo(name = 'Administrador', role = '') {
     const initEl = document.getElementById('user-initials');
     const nameEl = document.getElementById('user-name');
+    const roleEl = document.getElementById('user-role');
     if (initEl) initEl.textContent = Utils.initials(name);
     if (nameEl) nameEl.textContent = name;
+    if (roleEl) roleEl.textContent = role || 'Usuário';
+  },
+
+  showTransitionNotice() {
+    const main = document.getElementById('page-content');
+    if (!main || document.getElementById('data-source-notice')) return;
+    const notice = document.createElement('aside');
+    notice.id = 'data-source-notice';
+    notice.className = 'data-source-notice';
+    notice.textContent = 'Tela em migração: os dados exibidos aqui ainda são locais e não representam a base oficial do servidor.';
+    main.prepend(notice);
   },
 
   /* ── Toast Notifications ─────────────────────────────────────── */

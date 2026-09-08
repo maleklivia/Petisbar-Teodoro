@@ -8,17 +8,48 @@
 const ComprasModule = {
   _tab: 'compras',
   _filtroStatus: 'todos',
+  _serverMode: false,
+  _canWrite: true,
+  _compras: [],
+  _ingredientes: [],
+  _fornecedores: [],
 
-  init() {
-    this._gerarSolicitacoesAutomaticas();
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('purchases.manage');
+    if (this._serverMode) {
+      const el = document.getElementById('compras-content');
+      if (el) el.innerHTML = '<div class="empty-state"><p>Carregando compras…</p></div>';
+      try {
+        const [compras, ingredientes, fornecedores] = await Promise.all([
+          API.getServerPurchases(),
+          API.getServerIngredients(),
+          API.getServerSuppliers(),
+        ]);
+        this._compras = compras;
+        this._ingredientes = ingredientes;
+        this._fornecedores = fornecedores;
+      } catch {
+        UI.toast('Falha ao carregar compras do servidor.', 'danger');
+        this._compras = [];
+        this._ingredientes = [];
+        this._fornecedores = [];
+      }
+    } else {
+      this._gerarSolicitacoesAutomaticas();
+    }
     this._render();
     this._bindEvents();
   },
 
+  _getCompras() { return this._serverMode ? this._compras : Stores.compras.get(); },
+  _getIngredientes() { return this._serverMode ? this._ingredientes : Stores.ingredientes.get(); },
+  _getFornecedores() { return this._serverMode ? this._fornecedores : Stores.fornecedores.get(); },
+
   _render() {
     const el = document.getElementById('compras-content');
     if (!el) return;
-    const compras = Stores.compras.get();
+    const compras = this._getCompras();
     const pendentes = compras.filter(c => ['Rascunho', 'Aprovado'].includes(c.status)).length;
     const totalMes  = compras.filter(c => c.status === 'Recebido' && (c.dataRecebimento || '').startsWith(Utils.currentMonth())).reduce((s, c) => s + (c.total || 0), 0);
 
@@ -75,9 +106,9 @@ const ComprasModule = {
           ${STATUS_COMPRA.slice(0,-1).map(s => `<option value="${s}" ${this._filtroStatus === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
         <span style="flex:1"></span>
-        <button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Cupom</button>
-        <button class="btn btn-ghost" id="btn-gerar-automatico">⚡ Gerar Automático</button>
-        <button class="btn btn-primary" id="btn-nova-compra">+ Nova Compra</button>
+        ${this._canWrite && !this._serverMode ? '<button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Cupom</button>' : ''}
+        ${this._canWrite ? '<button class="btn btn-ghost" id="btn-gerar-automatico">⚡ Gerar Automático</button>' : ''}
+        ${this._canWrite ? '<button class="btn btn-primary" id="btn-nova-compra">+ Nova Compra</button>' : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
         ${data.length ? data.map(c => this._cardCompra(c)).join('') :
@@ -154,9 +185,9 @@ const ComprasModule = {
       const tab = e.target.closest('[data-cmp-tab]');
       if (tab) { this._tab = tab.dataset.cmpTab; this._render(); this._bindEvents(); return; }
 
-      if (e.target.closest('#btn-nova-compra'))      { this._abrirModalNovaCompra(); return; }
-      if (e.target.closest('#btn-importar-cupom'))  { this._importarCupom(); return; }
-      if (e.target.closest('#btn-gerar-automatico')) { this._gerarSolicitacoesAutomaticas(true); this._render(); this._bindEvents(); return; }
+      if (e.target.closest('#btn-nova-compra'))      { if (this._canWrite) this._abrirModalNovaCompra(); return; }
+      if (e.target.closest('#btn-importar-cupom'))  { if (this._canWrite) this._importarCupom(); return; }
+      if (e.target.closest('#btn-gerar-automatico')) { this._gerarSolicitacoesAutomaticas(true); return; }
 
       const action = e.target.closest('[data-cmp-action]');
       if (action) { this._executarAcao(action.dataset.cmpId, action.dataset.cmpAction); return; }
@@ -167,7 +198,37 @@ const ComprasModule = {
     });
   },
 
-  _executarAcao(id, action) {
+  async _executarAcao(id, action) {
+    if (this._serverMode) {
+      const compra = this._compras.find(c => c.id === id);
+      if (!compra) return;
+      const nextStatus = action === 'aprovar' ? 'Aprovado'
+        : action === 'pedido' ? 'Pedido'
+          : action === 'cancelar' ? 'Cancelado'
+            : action === 'receber' ? 'Recebido'
+              : compra.status;
+      if (action === 'cancelar' && !confirm('Cancelar este pedido?')) return;
+      try {
+        const updated = await API.updateServerPurchaseStatus(id, nextStatus);
+        const idx = this._compras.findIndex(c => c.id === id);
+        if (idx >= 0) this._compras[idx] = updated;
+        if (nextStatus === 'Recebido') {
+          const [ingredientes, finance] = await Promise.all([
+            API.getServerIngredients(),
+            API.getServerFinanceEntries().catch(() => null),
+          ]);
+          this._ingredientes = ingredientes;
+          void finance;
+        }
+        UI.toast(nextStatus === 'Recebido' ? 'Compra recebida. Estoque e financeiro atualizados.' : `Compra marcada como ${nextStatus}.`, 'success');
+        this._render();
+        this._bindEvents();
+      } catch (error) {
+        UI.toast(error.code === 'received_purchase_locked' ? 'Compra recebida não pode voltar status.' : 'Não foi possível atualizar a compra.', 'danger');
+      }
+      return;
+    }
+
     const compras = Stores.compras.get();
     const compra  = compras.find(c => c.id === id);
     if (!compra) return;
@@ -186,7 +247,7 @@ const ComprasModule = {
     compra.status = 'Recebido';
     compra.dataRecebimento = new Date().toISOString().slice(0, 10);
 
-    const ings    = Stores.ingredientes.get();
+    const ings    = this._getIngredientes();
     const movs    = Stores.movimentacoes.get();
     const alertas = []; // itens com alta ≥ 20%
 
@@ -347,28 +408,29 @@ const ComprasModule = {
     if (typeof EventBus !== 'undefined') EventBus.emit('estoque.custoAtualizado', { ingredientes: ings.length });
   },
 
-  _gerarSolicitacoesAutomaticas(mostrarFeedback = false) {
-    const ings    = Stores.ingredientes.get();
+  async _gerarSolicitacoesAutomaticas(mostrarFeedback = false) {
+    const ings    = this._getIngredientes();
     const criticos = ings.filter(i => i.ativo && i.estoqueAtual <= i.estoqueMinimo);
     if (!criticos.length) {
       if (mostrarFeedback) UI.toast('Nenhum ingrediente abaixo do mínimo.', 'success');
       return;
     }
 
-    const compras = Stores.compras.get();
+    const compras = this._getCompras();
     const pendentes = compras.filter(c => c.status !== 'Recebido' && c.status !== 'Cancelado');
     let gerados = 0;
+    const novas = [];
 
     for (const ing of criticos) {
       const jaExiste = pendentes.some(p => p.itens.some(i => i.ingredienteId === ing.id));
       if (jaExiste) continue;
 
-      const fornecedores = Stores.fornecedores.get();
+      const fornecedores = this._getFornecedores();
       const forn = fornecedores.find(f => f.nome === ing.fornecedor) || fornecedores[0];
       const maxNum = compras.reduce((m, c) => Math.max(m, c.numeroPedidoCompra || 0), 0);
       const qtdSugerida = Math.max(ing.estoqueMinimo * 2 - ing.estoqueAtual, ing.estoqueMinimo);
 
-      compras.unshift({
+      const nova = {
         id: `cmp-auto-${Date.now()}-${ing.id}`,
         numeroPedidoCompra: maxNum + 1 + gerados,
         fornecedorId: forn?.id || '',
@@ -382,21 +444,35 @@ const ComprasModule = {
         dataRecebimento: '',
         notaFiscal: '',
         formaPagamento: forn?.condicoesPagamento || 'À vista',
-      });
+      };
+      novas.unshift(nova);
+      if (!this._serverMode) compras.unshift(nova);
       gerados++;
     }
 
     if (gerados > 0) {
-      Stores.compras.set(compras);
-      if (mostrarFeedback) UI.toast(`${gerados} solicitação(ões) gerada(s) automaticamente.`, 'success');
+      if (this._serverMode) {
+        try {
+          const saved = await Promise.all(novas.map(purchase => API.createServerPurchase(purchase)));
+          this._compras.unshift(...saved);
+          if (mostrarFeedback) UI.toast(`${saved.length} solicitação(ões) gerada(s) automaticamente.`, 'success');
+        } catch {
+          UI.toast('Não foi possível gerar as solicitações automáticas.', 'danger');
+        }
+      } else {
+        Stores.compras.set(compras);
+        if (mostrarFeedback) UI.toast(`${gerados} solicitação(ões) gerada(s) automaticamente.`, 'success');
+      }
+      this._render();
+      this._bindEvents();
     } else if (mostrarFeedback) {
       UI.toast('Todas as solicitações já foram criadas.', 'success');
     }
   },
 
   _abrirModalNovaCompra() {
-    const fornecedores = Stores.fornecedores.get().filter(f => f.ativo);
-    const ings = Stores.ingredientes.get().filter(i => i.ativo);
+    const fornecedores = this._getFornecedores().filter(f => f.ativo);
+    const ings = this._getIngredientes().filter(i => i.ativo);
     let itens  = [];
 
     const renderItens = () => {
@@ -459,7 +535,7 @@ const ComprasModule = {
         </div>
       `,
       confirmLabel: 'Criar Pedido',
-      onConfirm: () => {
+      onConfirm: async () => {
         const fornId   = document.getElementById('cmp-forn')?.value;
         const data     = document.getElementById('cmp-data')?.value;
         const pgto     = document.getElementById('cmp-pgto')?.value?.trim();
@@ -475,6 +551,30 @@ const ComprasModule = {
           return { ...it, nome: ing?.nome || '?', subtotal: sub };
         });
         const total = itensFinal.reduce((s, i) => s + i.subtotal, 0);
+
+        if (this._serverMode) {
+          try {
+            const saved = await API.createServerPurchase({
+              fornecedorId: fornId,
+              fornecedorNome: forn?.nome || 'Desconhecido',
+              status: 'Aprovado',
+              tipo: 'manual',
+              itens: itensFinal,
+              observacoes: obs,
+              dataCompra: data,
+              notaFiscal: '',
+              formaPagamento: pgto,
+            });
+            this._compras.unshift(saved);
+            UI.closeModal();
+            UI.toast('Pedido de compra criado!', 'success');
+            this._render();
+            this._bindEvents();
+          } catch {
+            UI.toast('Não foi possível criar a compra.', 'danger');
+          }
+          return;
+        }
 
         const compras = Stores.compras.get();
         const maxNum  = compras.reduce((m, c) => Math.max(m, c.numeroPedidoCompra || 0), 0);
@@ -492,6 +592,10 @@ const ComprasModule = {
   },
 
   _importarCupom() {
+    if (this._serverMode) {
+      UI.toast('Importação de cupom por OCR ainda está disponível apenas no modo local.', 'info');
+      return;
+    }
     if (typeof OcrService === 'undefined') {
       UI.toast('OCR não disponível nesta página.', 'error');
       return;

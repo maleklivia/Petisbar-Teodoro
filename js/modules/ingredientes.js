@@ -11,13 +11,34 @@ const IngredientesModule = {
   _filterAtivo: 'todos',
   _sortField: 'nome',
   _sortDir: 'asc',
+  _serverMode: false,
+  _canWrite: true,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
-  init() {
-    this._items = Stores.ingredientes.get();
+  async init(items = null) {
+    this._serverMode = API.isServerMode();
+    this._canWrite = !this._serverMode || API.hasPermission('stock.write');
+    if (items) {
+      this._items = items;
+    } else if (this._serverMode) {
+      const tbody = document.getElementById('tbody-ingredientes');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Carregando ingredientes…</td></tr>';
+      try {
+        this._items = await API.getServerIngredients();
+      } catch {
+        UI.toast('Falha ao carregar ingredientes do servidor.', 'danger');
+        this._items = [];
+      }
+    } else {
+      this._items = Stores.ingredientes.get();
+    }
     this._render();
     this._bindToolbar();
+  },
+
+  setItems(items) {
+    this._items = items || [];
   },
 
   /* ── Filtragem e ordenação ─────────────────────────────────── */
@@ -85,6 +106,7 @@ const IngredientesModule = {
           </td>
           <td>
             <div class="row-actions">
+              ${this._canWrite ? `
               <button class="btn-icon" data-action="edit-ing" data-id="${i.id}" title="Editar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -98,6 +120,7 @@ const IngredientesModule = {
                   <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
                 </svg>
               </button>
+              ` : '<span style="color:var(--text-muted);font-size:var(--text-sm)">Somente leitura</span>'}
             </div>
           </td>
         </tr>
@@ -211,7 +234,7 @@ const IngredientesModule = {
     });
   },
 
-  _submitForm(editing) {
+  async _submitForm(editing) {
     const form = document.getElementById('form-ing');
     if (!form) return;
     if (!form.checkValidity()) { form.reportValidity(); return; }
@@ -245,6 +268,22 @@ const IngredientesModule = {
 
     if (!data.nome) { UI.toast('Nome é obrigatório', 'danger'); return; }
 
+    if (this._serverMode) {
+      try {
+        const saved = await API.saveServerIngredient(data);
+        const idx = this._items.findIndex(i => i.id === saved.id);
+        if (idx >= 0) this._items[idx] = saved;
+        else this._items.push(saved);
+        FichasModule.setData({ ingredientes: this._items });
+        UI.toast(editing ? 'Ingrediente atualizado' : 'Ingrediente cadastrado', 'success');
+        UI.closeModal();
+        this._render();
+      } catch (error) {
+        UI.toast(error.code === 'validation_error' ? 'Revise os campos do ingrediente.' : 'Não foi possível salvar o ingrediente.', 'danger');
+      }
+      return;
+    }
+
     const idx = this._items.findIndex(i => i.id === data.id);
     if (idx >= 0) {
       this._items[idx] = data;
@@ -275,7 +314,21 @@ const IngredientesModule = {
       `,
       confirmLabel: 'Excluir',
       confirmClass: 'btn-danger',
-      onConfirm: () => {
+      onConfirm: async () => {
+        if (this._serverMode) {
+          try {
+            const saved = await API.deactivateServerIngredient(id);
+            const idx = this._items.findIndex(i => i.id === id);
+            if (idx >= 0) this._items[idx] = saved;
+            FichasModule.setData({ ingredientes: this._items });
+            UI.closeModal();
+            UI.toast('Ingrediente inativado', 'info');
+            this._render();
+          } catch {
+            UI.toast('Não foi possível inativar o ingrediente.', 'danger');
+          }
+          return;
+        }
         this._items = this._items.filter(i => i.id !== id);
         Stores.ingredientes.set(this._items);
         UI.closeModal();
@@ -312,6 +365,8 @@ const IngredientesModule = {
       });
     }
     if (newBtn) {
+      newBtn.hidden = !this._canWrite;
+      if (!this._canWrite) return;
       newBtn.addEventListener('click', () => this._openForm());
     }
   },
