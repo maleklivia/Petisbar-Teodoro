@@ -116,14 +116,14 @@ async function applyFinancialEntries(client, order, cmv) {
     INSERT INTO financial_entries
       (id,entry_date,description,category,entry_type,amount,reference_type,reference_id,created_by,effect_key)
     VALUES ($1,current_date,$2,'Vendas','Entrada',$3,'order',$4,$5,$6)
-    ON CONFLICT (effect_key) DO NOTHING
+    ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO NOTHING
   `, [randomUUID(), `Pedido #${order.order_number} · ${order.source}`, order.total, order.id, order.created_by, `order:${order.id}:sale`]);
   if (cmv > 0) {
     await client.query(`
       INSERT INTO financial_entries
         (id,entry_date,description,category,entry_type,amount,reference_type,reference_id,created_by,effect_key)
       VALUES ($1,current_date,$2,'CMV','Saída',$3,'order',$4,$5,$6)
-      ON CONFLICT (effect_key) DO NOTHING
+      ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO NOTHING
     `, [randomUUID(), `CMV do pedido #${order.order_number}`, -Math.abs(cmv), order.id, order.created_by, `order:${order.id}:cmv`]);
   }
 }
@@ -165,14 +165,14 @@ async function reverseEffects(client, order) {
     INSERT INTO financial_entries
       (id,entry_date,description,category,entry_type,amount,reference_type,reference_id,created_by,effect_key)
     VALUES ($1,current_date,$2,'Estorno de vendas','Saída',$3,'order',$4,$5,$6)
-    ON CONFLICT (effect_key) DO NOTHING
+    ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO NOTHING
   `, [randomUUID(), `Estorno do pedido #${order.order_number}`, -Math.abs(Number(order.total)), order.id, order.created_by, `order:${order.id}:sale-reversal`]);
   if (cmv.rowCount) {
     await client.query(`
       INSERT INTO financial_entries
         (id,entry_date,description,category,entry_type,amount,reference_type,reference_id,created_by,effect_key)
       VALUES ($1,current_date,$2,'Estorno de CMV','Entrada',$3,'order',$4,$5,$6)
-      ON CONFLICT (effect_key) DO NOTHING
+      ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO NOTHING
     `, [randomUUID(), `Estorno de CMV do pedido #${order.order_number}`, Number(cmv.rows[0].amount), order.id, order.created_by, `order:${order.id}:cmv-reversal`]);
   }
   await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1', [order.id]);

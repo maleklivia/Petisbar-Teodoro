@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS fiscal_documents (
   xml_url text NOT NULL DEFAULT '',
   status text NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','validado','cancelado')),
   notes text NOT NULL DEFAULT '',
-  created_by text REFERENCES users(id),
+  created_by uuid REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
