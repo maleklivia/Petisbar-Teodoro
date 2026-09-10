@@ -546,6 +546,13 @@ const STORE_KEYS_V4 = {
   CONFIG:        'distrito-config-v1',
 };
 
+const STORE_KEYS_OPERACAO = {
+  CAIXA:        'petisbar-caixa-v1',
+  MESAS:        'petisbar-mesas-v1',
+  ENTREGADORES: 'petisbar-entregadores-v1',
+  FIDELIDADE:   'petisbar-fidelidade-v1',
+};
+
 /* ── Seed Data: Fornecedores ─────────────────────────────────── */
 
 const SEED_FORNECEDORES = [
@@ -731,6 +738,10 @@ const Stores = {
   cupons:        makeStore(STORE_KEYS_V4.CUPONS,         []),
   documentos:    makeStore(STORE_KEYS_V4.DOCUMENTOS,     []),
   config:        makeStore(STORE_KEYS_V4.CONFIG,         SEED_CONFIG),
+  caixa:         makeStore(STORE_KEYS_OPERACAO.CAIXA,        []),
+  mesas:         makeStore(STORE_KEYS_OPERACAO.MESAS,        []),
+  entregadores:  makeStore(STORE_KEYS_OPERACAO.ENTREGADORES, []),
+  fidelidade:    makeStore(STORE_KEYS_OPERACAO.FIDELIDADE,   { ativo: false, percentualCashback: 5, validadeDias: 30 }),
 };
 
 // Atualiza custos já salvos no navegador sem apagar estoque, fichas ou cadastros.

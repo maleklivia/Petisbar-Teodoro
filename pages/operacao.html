@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operação — Petisbar Teodoro</title>
+  <link rel="stylesheet" href="../css/variables.css">
+  <link rel="stylesheet" href="../css/global.css">
+  <link rel="stylesheet" href="../css/sidebar.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <link rel="stylesheet" href="../css/modules.css">
+  <link rel="stylesheet" href="../css/operacao.css">
+</head>
+<body class="app-body" data-page="operacao">
+  <div class="app-layout">
+    <aside id="sidebar-slot"></aside>
+    <div id="header-slot"></div>
+    <main class="app-main" id="page-content">
+      <div class="page-header">
+        <div class="page-header__left">
+          <h2 class="page-title-main">Operação</h2>
+          <span class="badge badge-gold">salão, caixa e entrega</span>
+        </div>
+      </div>
+      <section class="operation-summary" id="operation-summary"></section>
+      <div class="module-tabs tabs" role="tablist" aria-label="Áreas da operação">
+        <button class="tab-btn active" data-operation-tab="caixa">Frente de Caixa</button>
+        <button class="tab-btn" data-operation-tab="mesas">Mesas e QR Code</button>
+        <button class="tab-btn" data-operation-tab="agendados">Agendados</button>
+        <button class="tab-btn" data-operation-tab="entregadores">Entregadores</button>
+        <button class="tab-btn" data-operation-tab="fidelidade">Fidelidade</button>
+      </div>
+      <section class="operation-panel" id="operation-content" aria-live="polite"></section>
+    </main>
+  </div>
+  <script src="../js/storage.js"></script>
+  <script src="../js/stores.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/modules/operacao.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
