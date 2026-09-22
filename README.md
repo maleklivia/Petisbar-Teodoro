@@ -16,6 +16,8 @@ O cardápio público está em [`cardapio.html`](cardapio.html). Antes da ativaç
 
 A Central de IA está em [`pages/central-ia.html`](pages/central-ia.html). Ela já oferece diagnóstico local e está preparada para usar a API da OpenAI exclusivamente pelo backend no VPS. Consulte [`docs/IA.md`](docs/IA.md).
 
+A área de Operação está em [`pages/operacao.html`](pages/operacao.html), com frente de caixa, mesas e QR Code, pedidos agendados, entregadores e configuração de fidelidade. Consulte [`docs/RECURSOS-OPERACAO.md`](docs/RECURSOS-OPERACAO.md).
+
 ---
 
 ## Tecnologias
@@ -58,6 +60,7 @@ Distrito-OS/
 │   ├── financeiro.html Entradas, saídas, lucro
 │   ├── pedidos.html    Gestão de pedidos
 │   ├── producao.html   Kitchen display
+│   ├── operacao.html   Caixa, mesas, agendamentos e entregadores
 │   ├── produtos.html   Cardápio e fichas técnicas
 │   ├── estoque.html    Controle de insumos
 │   ├── compras.html    Lista de compras automática
@@ -80,7 +83,7 @@ Distrito-OS/
 ## Como Executar
 
 ### GitHub Pages (produção)
-Acesse: `https://maleklivia.github.io/Distrito-OS`
+Acesse: `https://maleklivia.github.io/Petisbar-Teodoro/`
 
 ### Desenvolvimento local
 O sistema usa `fetch()` para carregar componentes HTML, o que requer um servidor HTTP local (não funciona via `file://`).
@@ -109,6 +112,7 @@ Instale a extensão **Live Server** e clique em "Go Live".
 | v0.3   | Clientes, Fornecedores, Compras       | ⏳ Planejado |
 | v0.4   | Relatórios, Marketing, Configurações  | ⏳ Planejado |
 | v0.5   | Integração iFood API                  | ⏳ Planejado |
+| v0.6   | Caixa, mesas, QR, agendamento e fidelidade | ✅ Entregue |
 | v1.0   | Backend multi-tenant, SaaS launch     | 🎯 Objetivo  |
 
 ---

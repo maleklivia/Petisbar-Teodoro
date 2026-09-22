@@ -140,7 +140,7 @@ const PedidosModule = {
 
     return `
       <tr data-id="${p.id}">
-        <td><strong>#${p.numeroPedido}</strong><br><small style="color:var(--color-text-muted)">${p.origem}</small></td>
+        <td><strong>#${p.numeroPedido}</strong><br><small style="color:var(--color-text-muted)">${p.origem}</small>${p.agendadoPara ? `<br><span class="badge badge-gold">${new Date(p.agendadoPara).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</td>
         <td>${Utils.escapeHtml(p.clienteNome || '—')}</td>
         <td><span class="origem-badge">${Utils.escapeHtml(p.origem)}</span></td>
         <td class="itens-cell" title="${Utils.escapeHtml(resumo)}">${Utils.escapeHtml(resumoCurt)}</td>
@@ -320,6 +320,19 @@ const PedidosModule = {
             <label class="form-label">Forma de Pagamento</label>
             <select id="pedido-forma" class="form-input">${optsFormas}</select>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Quando preparar</label>
+              <select id="pedido-tipo-horario" class="form-input">
+                <option value="agora">O quanto antes</option>
+                <option value="agendado">Agendar data e horário</option>
+              </select>
+            </div>
+            <div class="form-group hidden" id="pedido-agendamento-group">
+              <label class="form-label">Data e horário</label>
+              <input type="datetime-local" id="pedido-agendado-para" class="form-input">
+            </div>
+          </div>
           <div id="carrinho-itens" class="carrinho-itens"></div>
           <div class="form-row">
             <div class="form-group">
@@ -375,6 +388,21 @@ const PedidosModule = {
     // Frete automático ao selecionar cliente
     document.getElementById('pedido-cliente')?.addEventListener('change', e => {
       this._calcularFreteCliente(e.target.value);
+    });
+
+    document.getElementById('pedido-tipo-horario')?.addEventListener('change', e => {
+      const group = document.getElementById('pedido-agendamento-group');
+      const input = document.getElementById('pedido-agendado-para');
+      const scheduled = e.target.value === 'agendado';
+      group?.classList.toggle('hidden', !scheduled);
+      if (input) {
+        input.required = scheduled;
+        if (scheduled && !input.value) {
+          const soon = new Date(Date.now() + 60 * 60 * 1000);
+          soon.setMinutes(Math.ceil(soon.getMinutes() / 15) * 15, 0, 0);
+          input.value = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        }
+      }
     });
   },
 
@@ -480,6 +508,14 @@ const PedidosModule = {
     const origem = document.getElementById('pedido-origem')?.value || 'Balcão';
     const forma  = document.getElementById('pedido-forma')?.value  || 'Dinheiro';
     const obs    = document.getElementById('pedido-obs')?.value?.trim() || '';
+    const isScheduled = document.getElementById('pedido-tipo-horario')?.value === 'agendado';
+    const scheduledValue = document.getElementById('pedido-agendado-para')?.value || '';
+    const scheduledDate = scheduledValue ? new Date(scheduledValue) : null;
+    const agendadoPara = isScheduled && scheduledDate && !Number.isNaN(scheduledDate.getTime()) ? scheduledDate.toISOString() : null;
+    if (isScheduled && (!agendadoPara || scheduledDate <= new Date())) {
+      UI.toast('Escolha um horário futuro para o pedido.', 'warning');
+      return;
+    }
 
     const taxa   = parseFloat(document.getElementById('pedido-taxa')?.value || 0);
     const desc   = parseFloat(document.getElementById('pedido-desconto')?.value || 0);
@@ -535,6 +571,7 @@ const PedidosModule = {
       total:           orderData.total,
       formaPagamento:  forma,
       observacoes:     obs,
+      agendadoPara,
       dataCriacao:     new Date().toISOString(),
       dataAtualizacao: new Date().toISOString(),
     };

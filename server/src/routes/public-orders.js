@@ -8,6 +8,7 @@ const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
   fulfillmentType: z.enum(['retirada', 'entrega']),
+  tableNumber: z.string().trim().max(20).default(''),
   address: z.object({ postalCode:z.string().trim().max(12).default(''), city:z.string().trim().max(100).default(''), street:z.string().trim().max(160).default(''), number:z.string().trim().max(30).default(''), district:z.string().trim().max(100).default(''), complement:z.string().trim().max(120).default(''), reference:z.string().trim().max(180).default('') }).default({}),
   paymentMethod: z.enum(['Pix', 'Dinheiro', 'Cartão na entrega']), notes: z.string().trim().max(500).default(''),
   couponCode: z.string().trim().max(40).default(''), adultConfirmed: z.boolean().default(false), website: z.string().max(0).optional(),
@@ -69,7 +70,8 @@ export default async function publicOrderRoutes(app) {
       const deliveryFee=input.fulfillmentType==='entrega'?config.DEFAULT_DELIVERY_FEE:0;
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
-      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address) VALUES ($1,$2,'Cardápio Digital',$3,$4,'Novo',$5,$6,$7,$8,$9,$10,$11,$12)",[id,orderNumber,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,input.notes,input.fulfillmentType,input.address]);
+      const source=input.tableNumber?'Mesa QR':'Cardápio Digital';const notes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
+      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address]);
       for(const item of priced.items)await client.query('INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,item.options]);
       if(coupon)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,discount]);
       await client.query('COMMIT'); return reply.code(201).send({data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,total,couponCode:coupon?.code||null}});
