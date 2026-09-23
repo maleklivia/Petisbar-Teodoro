@@ -1028,7 +1028,7 @@ if (!localStorage.getItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY)) {
 
 // Adiciona a linha de Batatas Recheadas sem duplicar cadastros ou sobrescrever ajustes locais.
 const BATATAS_RECHEADAS_MIGRATION_KEY = 'petisbar-batatas-recheadas-v1';
-if (!localStorage.getItem(BATATAS_RECHEADAS_MIGRATION_KEY)) {
+{
   const produtosAtuais = Stores.produtos.get();
   const ingredientesAtuais = Stores.ingredientes.get();
   const fichasAtuais = Stores.fichas.get();
