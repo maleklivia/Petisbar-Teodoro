@@ -14,7 +14,7 @@ const STORE_KEYS = {
 /* ── Domínio: Categorias e Unidades ──────────────────────────── */
 
 const CATEGORIAS_PRODUTO = [
-  'Drinks', 'Cervejas', 'Refrigerantes', 'Águas', 'Energéticos', 'Açaí', 'Petiscos', 'Conveniência', 'Outros',
+  'Drinks', 'Cervejas', 'Refrigerantes', 'Águas', 'Energéticos', 'Açaí', 'Petiscos', 'BATATAS RECHEADAS', 'Conveniência', 'Outros',
 ];
 
 const CATEGORIAS_INGREDIENTE = [
@@ -125,6 +125,18 @@ const SEED_INGREDIENTES = [
   { id: 'i-030', sku: 'INS030', nome: 'Embalagem para Petisco P', categoria: 'Embalagens',     unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 50,   custoUnitario: 1.20,       fornecedor: '',                  ativo: true, consumoMedioDiario: 5, prazoReposicaoDias: 7, quantidadePacote: 50 },
   { id: 'i-031', sku: 'INS031', nome: 'Embalagem para Petisco G', categoria: 'Embalagens',     unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 50,   custoUnitario: 1.80,       fornecedor: '',                  ativo: true, consumoMedioDiario: 3, prazoReposicaoDias: 7, quantidadePacote: 50 },
   { id: 'i-032', sku: 'INS032', nome: 'Guardanapo',            categoria: 'Embalagens',         unidade: 'un', estoqueAtual: 0,    estoqueMinimo: 200,  custoUnitario: 0.05,       fornecedor: '',                  ativo: true, consumoMedioDiario: 20, prazoReposicaoDias: 7, quantidadePacote: 500 },
+  { id: 'i-033', sku: 'INS033', nome: 'Batata Inglesa', unidade: 'kg', categoria: 'Hortifruti', estoqueAtual: 0, estoqueMinimo: 5, custoUnitario: 5.00, fornecedor: '', ativo: true },
+  { id: 'i-034', sku: 'INS034', nome: 'Leite Integral', unidade: 'L', categoria: 'Laticínios', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 5.50, fornecedor: '', ativo: true },
+  { id: 'i-035', sku: 'INS035', nome: 'Manteiga', unidade: 'kg', categoria: 'Laticínios', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 45.00, fornecedor: '', ativo: true },
+  { id: 'i-036', sku: 'INS036', nome: 'Muçarela', unidade: 'kg', categoria: 'Laticínios', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 40.00, fornecedor: '', ativo: true },
+  { id: 'i-037', sku: 'INS037', nome: 'Requeijão Cremoso', unidade: 'kg', categoria: 'Laticínios', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 28.00, fornecedor: '', ativo: true },
+  { id: 'i-038', sku: 'INS038', nome: 'Peito de Frango', unidade: 'kg', categoria: 'Carnes', estoqueAtual: 0, estoqueMinimo: 5, custoUnitario: 21.00, fornecedor: '', ativo: true },
+  { id: 'i-039', sku: 'INS039', nome: 'Creme de Leite', unidade: 'kg', categoria: 'Laticínios', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 15.00, fornecedor: '', ativo: true },
+  { id: 'i-040', sku: 'INS040', nome: 'Ketchup', unidade: 'kg', categoria: 'Insumos', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 12.00, fornecedor: '', ativo: true },
+  { id: 'i-041', sku: 'INS041', nome: 'Mostarda', unidade: 'kg', categoria: 'Insumos', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 14.00, fornecedor: '', ativo: true },
+  { id: 'i-042', sku: 'INS042', nome: 'Embalagem Batata Recheada 400/500 ml', unidade: 'un', categoria: 'Embalagens', estoqueAtual: 0, estoqueMinimo: 50, custoUnitario: 1.20, fornecedor: '', ativo: true },
+  { id: 'i-043', sku: 'INS043', nome: 'Batata Palha', unidade: 'kg', categoria: 'Insumos', estoqueAtual: 0, estoqueMinimo: 2, custoUnitario: 28.00, fornecedor: '', ativo: true },
+  { id: 'i-044', sku: 'INS044', nome: 'Carne Seca', unidade: 'kg', categoria: 'Carnes', estoqueAtual: 0, estoqueMinimo: 5, custoUnitario: 55.00, fornecedor: '', ativo: true },
 ];
 
 /* ── Seed Data: Produtos (35 itens de bar) ───────────────────── */
@@ -173,6 +185,11 @@ const SEED_PRODUTOS = [
   { id: 'p-con003', sku: 'CON003', nome: 'Batata Chips 60g',           categoria: 'Conveniência',  descricao: 'Batata chips crocante sabor original 60g',               precoVenda: 8.00,  custoCompra: 3.50, ativo: true, tempoPreparo: 1, estoqueAtual: 30, estoqueMinimo: 10, dataCadastro: '2026-07-01' },
   { id: 'p-con004', sku: 'CON004', nome: 'Azeitona Temperada 100g',    categoria: 'Conveniência',  descricao: 'Azeitona verde temperada com ervas 100g',                precoVenda: 10.00, custoCompra: 4.00, ativo: true, tempoPreparo: 1, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
   { id: 'p-con005', sku: 'CON005', nome: 'Torresmo 150g',              categoria: 'Conveniência',  descricao: 'Torresmo artesanal crocante 150g',                       precoVenda: 15.00, custoCompra: 5.50, ativo: true, tempoPreparo: 3, estoqueAtual: 20, estoqueMinimo: 8,  dataCadastro: '2026-07-01' },
+  { id: 'p-br001', sku: 'BATREC001', nome: 'Batata de Frango Cremoso — 400g', categoria: 'BATATAS RECHEADAS', descricao: 'Purê de batata cremoso, frango temperado, requeijão e muçarela gratinada.', precoVenda: 27.90, custoCompra: null, ativo: true, tempoPreparo: 15, peso: 400, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-09-22' },
+  { id: 'p-br002', sku: 'BATREC002', nome: 'Batata de Calabresa Acebolada — 400g', categoria: 'BATATAS RECHEADAS', descricao: 'Purê de batata cremoso, calabresa acebolada, requeijão e muçarela gratinada.', precoVenda: 27.90, custoCompra: null, ativo: true, tempoPreparo: 15, peso: 400, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-09-22' },
+  { id: 'p-br003', sku: 'BATREC003', nome: 'Batata Bacon & Cheddar — 400g', categoria: 'BATATAS RECHEADAS', descricao: 'Purê de batata cremoso, bacon crocante, cheddar cremoso e muçarela gratinada.', precoVenda: 29.90, custoCompra: null, ativo: true, tempoPreparo: 15, peso: 400, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-09-22' },
+  { id: 'p-br004', sku: 'BATREC004', nome: 'Batata Strogonoff de Frango — 400g', categoria: 'BATATAS RECHEADAS', descricao: 'Purê de batata cremoso com strogonoff de frango, muçarela gratinada e batata palha.', precoVenda: 29.90, custoCompra: null, ativo: true, tempoPreparo: 15, peso: 400, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-09-22' },
+  { id: 'p-br005', sku: 'BATREC005', nome: 'Batata de Carne Seca Cremosa — 400g', categoria: 'BATATAS RECHEADAS', descricao: 'Purê de batata cremoso, carne seca desfiada, requeijão e muçarela gratinada.', precoVenda: 34.90, custoCompra: null, ativo: true, tempoPreparo: 15, peso: 400, estoqueAtual: null, estoqueMinimo: null, dataCadastro: '2026-09-22' },
 ];
 
 // A operação começa sem compras realizadas.
@@ -192,6 +209,7 @@ const PRODUCT_PHOTOS_BY_CATEGORY = {
   'Açaí': '../assets/products/acai.jpg',
   Petiscos: '../assets/products/snacks.jpg',
   'Conveniência': '../assets/products/snacks.jpg',
+  'BATATAS RECHEADAS': '../assets/products/snacks.jpg',
 };
 
 function getDefaultProductPhoto(product) {
@@ -394,6 +412,21 @@ const SEED_FICHAS = [
       { ingredienteId: 'i-032', quantidade: 4,   unidade: 'un' },
     ],
   },
+  { id: 'f-br001', produtoId: 'p-br001', rendimento: 1, itens: [
+    { ingredienteId: 'i-033', quantidade: 250, unidade: 'g' }, { ingredienteId: 'i-034', quantidade: 40, unidade: 'ml' }, { ingredienteId: 'i-035', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-038', quantidade: 80, unidade: 'g' }, { ingredienteId: 'i-037', quantidade: 25, unidade: 'g' }, { ingredienteId: 'i-036', quantidade: 35, unidade: 'g' }, { ingredienteId: 'i-023', quantidade: 2, unidade: 'g' }, { ingredienteId: 'i-042', quantidade: 1, unidade: 'un' }, { ingredienteId: 'i-032', quantidade: 2, unidade: 'un' },
+  ]},
+  { id: 'f-br002', produtoId: 'p-br002', rendimento: 1, itens: [
+    { ingredienteId: 'i-033', quantidade: 250, unidade: 'g' }, { ingredienteId: 'i-034', quantidade: 40, unidade: 'ml' }, { ingredienteId: 'i-035', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-019', quantidade: 80, unidade: 'g' }, { ingredienteId: 'i-025', quantidade: 25, unidade: 'g' }, { ingredienteId: 'i-037', quantidade: 20, unidade: 'g' }, { ingredienteId: 'i-036', quantidade: 35, unidade: 'g' }, { ingredienteId: 'i-023', quantidade: 2, unidade: 'g' }, { ingredienteId: 'i-042', quantidade: 1, unidade: 'un' }, { ingredienteId: 'i-032', quantidade: 2, unidade: 'un' },
+  ]},
+  { id: 'f-br003', produtoId: 'p-br003', rendimento: 1, itens: [
+    { ingredienteId: 'i-033', quantidade: 250, unidade: 'g' }, { ingredienteId: 'i-034', quantidade: 40, unidade: 'ml' }, { ingredienteId: 'i-035', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-018', quantidade: 60, unidade: 'g' }, { ingredienteId: 'i-017', quantidade: 40, unidade: 'g' }, { ingredienteId: 'i-036', quantidade: 35, unidade: 'g' }, { ingredienteId: 'i-023', quantidade: 2, unidade: 'g' }, { ingredienteId: 'i-042', quantidade: 1, unidade: 'un' }, { ingredienteId: 'i-032', quantidade: 2, unidade: 'un' },
+  ]},
+  { id: 'f-br004', produtoId: 'p-br004', rendimento: 1, itens: [
+    { ingredienteId: 'i-033', quantidade: 250, unidade: 'g' }, { ingredienteId: 'i-034', quantidade: 40, unidade: 'ml' }, { ingredienteId: 'i-035', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-038', quantidade: 80, unidade: 'g' }, { ingredienteId: 'i-039', quantidade: 30, unidade: 'g' }, { ingredienteId: 'i-040', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-041', quantidade: 5, unidade: 'g' }, { ingredienteId: 'i-036', quantidade: 30, unidade: 'g' }, { ingredienteId: 'i-043', quantidade: 15, unidade: 'g' }, { ingredienteId: 'i-023', quantidade: 2, unidade: 'g' }, { ingredienteId: 'i-042', quantidade: 1, unidade: 'un' }, { ingredienteId: 'i-032', quantidade: 2, unidade: 'un' },
+  ]},
+  { id: 'f-br005', produtoId: 'p-br005', rendimento: 1, itens: [
+    { ingredienteId: 'i-033', quantidade: 250, unidade: 'g' }, { ingredienteId: 'i-034', quantidade: 40, unidade: 'ml' }, { ingredienteId: 'i-035', quantidade: 10, unidade: 'g' }, { ingredienteId: 'i-044', quantidade: 80, unidade: 'g' }, { ingredienteId: 'i-025', quantidade: 20, unidade: 'g' }, { ingredienteId: 'i-037', quantidade: 25, unidade: 'g' }, { ingredienteId: 'i-036', quantidade: 35, unidade: 'g' }, { ingredienteId: 'i-023', quantidade: 2, unidade: 'g' }, { ingredienteId: 'i-042', quantidade: 1, unidade: 'un' }, { ingredienteId: 'i-032', quantidade: 2, unidade: 'un' },
+  ]},
 ];
 
 /* ── Domínio: Pedidos e Clientes ─────────────────────────────── */
@@ -992,3 +1025,22 @@ if (!localStorage.getItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY)) {
 
   localStorage.setItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY, 'concluido');
 }
+
+// Adiciona a linha de Batatas Recheadas sem duplicar cadastros ou sobrescrever ajustes locais.
+const BATATAS_RECHEADAS_MIGRATION_KEY = 'petisbar-batatas-recheadas-v1';
+if (!localStorage.getItem(BATATAS_RECHEADAS_MIGRATION_KEY)) {
+  const produtosAtuais = Stores.produtos.get();
+  const ingredientesAtuais = Stores.ingredientes.get();
+  const fichasAtuais = Stores.fichas.get();
+  const produtoIds = new Set(produtosAtuais.map(item => item.id));
+  const ingredienteIds = new Set(ingredientesAtuais.map(item => item.id));
+  const novasProdutos = SEED_PRODUTOS.filter(item => item.id.startsWith('p-br') && !produtoIds.has(item.id));
+  const novosIngredientes = SEED_INGREDIENTES.filter(item => item.id >= 'i-033' && item.id <= 'i-044' && !ingredienteIds.has(item.id));
+  const fichasIds = new Set(fichasAtuais.map(item => item.produtoId));
+  const novasFichas = SEED_FICHAS.filter(item => item.produtoId.startsWith('p-br') && !fichasIds.has(item.produtoId));
+  if (novosIngredientes.length) Stores.ingredientes.set([...ingredientesAtuais, ...structuredClone(novosIngredientes)]);
+  if (novasProdutos.length) Stores.produtos.set([...produtosAtuais, ...structuredClone(novasProdutos)]);
+  if (novasFichas.length) Stores.fichas.set([...fichasAtuais, ...structuredClone(novasFichas)]);
+  localStorage.setItem(BATATAS_RECHEADAS_MIGRATION_KEY, 'concluido');
+}
+

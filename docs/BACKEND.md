@@ -87,6 +87,11 @@ Antes de divulgar, configure o domínio, conclua a conexão da tela administrati
 
 Ao mudar um pedido para `Entregue` ou `Concluído`, a API executa na mesma transação a baixa dos ingredientes da ficha técnica (ou do estoque direto do produto), a movimentação de estoque, a receita e o CMV. Um cancelamento posterior gera movimentos e lançamentos de estorno. As marcações no pedido e as chaves financeiras tornam esses efeitos idempotentes.
 
+| GET/PUT | `/api/v1/accounting-fiscal/profile` | `accounting.read/write` |
+| GET/POST/DELETE | `/api/v1/accounting-fiscal/documents` | `accounting.read/write` |
+| GET/POST/PATCH | `/api/v1/accounting-fiscal/obligations` | `accounting.read/write` |
+| GET | `/api/v1/accounting-fiscal/monthly-report?month=YYYY-MM` | `accounting.read` |
+
 ### Contábil e fiscal (base MEI)
 
 A migração `009_accounting_fiscal_mei.sql` cria plano de contas, documentos fiscais e obrigações. Para 2026, o DAS-MEI deve ser conferido no Portal do Empreendedor: a parcela depende da atividade (comércio, serviço ou ambas) e do salário mínimo vigente. O ERP deve registrar a guia e o comprovante, mas não substitui a emissão oficial nem a validação do contador.
@@ -108,3 +113,4 @@ O script `ops/backup/backup-postgres.sh` gera um dump em formato próprio do Pos
 - Configurar backup externo e monitoramento.
 - Revisar domínio, e-mail, política de privacidade e perfis dos funcionários.
 - Fazer homologação com dados de teste antes da migração definitiva.
+

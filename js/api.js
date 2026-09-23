@@ -253,6 +253,16 @@ const API = {
     return (await this._request('/reports/overview')).data;
   },
 
+  async getAccountingProfile() { return (await this._request('/accounting-fiscal/profile')).data; },
+  async saveAccountingProfile(data) { return (await this._request('/accounting-fiscal/profile', { method: 'PUT', body: JSON.stringify(data) })).data; },
+  async getFiscalDocuments() { return (await this._request('/accounting-fiscal/documents')).data; },
+  async createFiscalDocument(data) { return (await this._request('/accounting-fiscal/documents', { method: 'POST', body: JSON.stringify(data) })).data; },
+  async deleteFiscalDocument(id) { await this._request('/accounting-fiscal/documents/' + encodeURIComponent(id), { method: 'DELETE' }); },
+  async getTaxObligations() { return (await this._request('/accounting-fiscal/obligations')).data; },
+  async createTaxObligation(data) { return (await this._request('/accounting-fiscal/obligations', { method: 'POST', body: JSON.stringify(data) })).data; },
+  async updateTaxObligation(id, data) { return (await this._request('/accounting-fiscal/obligations/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) })).data; },
+  async getAccountingMonthlyReport(month) { return (await this._request('/accounting-fiscal/monthly-report?month=' + encodeURIComponent(month))).data; },
+
   _mapServerProduct(product) {
     return {
       id: product.id,
@@ -427,3 +437,4 @@ const API = {
     return supplier;
   },
 };
+
