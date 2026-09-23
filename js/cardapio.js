@@ -32,6 +32,11 @@ const Cardapio = {
     ['p-pet003','Calabresa Frita','Petiscos','Porção de calabresa frita acebolada',36.9,'snacks.jpg'],
     ['p-pet004','Frango a Passarinho','Petiscos','Frango a passarinho temperado e frito na hora',44.9,'snacks.jpg'],
     ['p-pet005','Isca de Carne','Petiscos','Iscas de carne fritas para compartilhar',49.9,'snacks.jpg'],
+    ['p-br001','Batata de Frango Cremoso — 400g','BATATAS RECHEADAS','Purê de batata cremoso, frango temperado, requeijão e muçarela gratinada.',27.9,'snacks.jpg'],
+    ['p-br002','Batata de Calabresa Acebolada — 400g','BATATAS RECHEADAS','Purê de batata cremoso, calabresa acebolada, requeijão e muçarela gratinada.',27.9,'snacks.jpg'],
+    ['p-br003','Batata Bacon & Cheddar — 400g','BATATAS RECHEADAS','Purê de batata cremoso, bacon crocante, cheddar cremoso e muçarela gratinada.',29.9,'snacks.jpg'],
+    ['p-br004','Batata Strogonoff de Frango — 400g','BATATAS RECHEADAS','Purê de batata cremoso com strogonoff de frango, muçarela gratinada e batata palha.',29.9,'snacks.jpg'],
+    ['p-br005','Batata de Carne Seca Cremosa — 400g','BATATAS RECHEADAS','Purê de batata cremoso, carne seca desfiada, requeijão e muçarela gratinada.',34.9,'snacks.jpg'],
     ['p-con001','Amendoim Temperado 100g','Conveniência','Amendoim crocante temperado',8,'snacks.jpg'],
     ['p-con002','Mix de Nuts 100g','Conveniência','Mix de castanhas e nozes',12,'snacks.jpg'],
     ['p-con003','Batata Chips 60g','Conveniência','Batata chips sabor original',8,'snacks.jpg'],
@@ -98,3 +103,4 @@ const Cardapio = {
   toast(message){const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>el.classList.remove('show'),3500)},
 };
 document.addEventListener('DOMContentLoaded',()=>Cardapio.init());
+
