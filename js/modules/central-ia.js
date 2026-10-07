@@ -204,11 +204,14 @@ const CentralIAModule = {
     const data = this.snapshot;
     if (/compr|repor|falta/.test(q)) {
       if (!data.criticalStock.length) return 'Nenhum ingrediente atingiu o ponto de compra neste momento.';
-      const items = data.criticalStock.slice(0, 10).map(item => {
+      const grouped = Object.fromEntries(SECOES_LISTA_COMPRAS.map(secao => [secao, []]));
+      data.criticalStock.forEach(item => {
         const quantity = item.purchaseQuantity > 0 ? ` — sugestão: ${item.purchaseQuantity} ${item.unidade}` : '';
-        return `• ${item.nome}: estoque ${item.current} ${item.unidade}${quantity}`;
+        grouped[secaoListaCompras(item.categoria)].push(`• ${item.nome}: estoque ${item.current} ${item.unidade}${quantity}`);
       });
-      return `Lista prioritária de compra:\n${items.join('\n')}\n\nConfira as embalagens e os preços antes de aprovar a compra.`;
+      const sections = SECOES_LISTA_COMPRAS
+        .map(secao => `${secao}:\n${grouped[secao].length ? grouped[secao].join('\n') : '(nenhum item)'}`);
+      return `Lista prioritária de compra:\n${sections.join('\n\n')}\n\nConfira as quantidades e os preços antes de aprovar a compra.`;
     }
     if (/estoque|insumo|ingrediente/.test(q)) {
       return data.criticalStock.length

@@ -40,6 +40,7 @@ export async function askOpenAI({ question, snapshot, userId }) {
         'Nunca afirme ter realizado uma compra, alterado preço, cancelado pedido, enviado mensagem ou mudado estoque.',
         'Toda ação externa, financeira ou que altere dados exige aprovação humana.',
         'Se faltarem dados, diga exatamente quais dados precisam ser cadastrados.',
+        'Ao fornecer uma lista de compras, divida os itens nas seções Comida, Utensílios e Embalagens, nesta ordem. Nas seções vazias escreva (nenhum item). Use a categoria do item: Utensílios em Utensílios, Embalagens em Embalagens e as demais categorias alimentares em Comida.',
         'Não inclua dados pessoais nem peça senhas, chaves ou informações bancárias.',
       ].join(' '),
       input: `DADOS OPERACIONAIS:\n${JSON.stringify(snapshot)}\n\nPERGUNTA:\n${question}`,

@@ -291,13 +291,15 @@ const EstoqueModule = {
       'LISTA DE COMPRAS - PETISBAR TEODORO',
       `Data: ${new Date().toLocaleDateString('pt-BR')}`,
       '',
-      ...itens.map(i => {
-        const pacote = Number(i.quantidadePacote) || 1;
-        const pacotes = Math.ceil(i.quantidadeComprar / pacote);
-        const detalhePacote = pacote > 1 ? ` (${pacotes} pacote${pacotes > 1 ? 's' : ''} de ${pacote})` : '';
-        return `☐ ${i.nome}: ${Number(i.quantidadeComprar.toFixed(3))} ${i.unidade}${detalhePacote}`;
+      ...SECOES_LISTA_COMPRAS.flatMap(secao => {
+        const itensSecao = itens.filter(i => secaoListaCompras(i.categoria) === secao);
+        return [secao.toUpperCase(), ...(!itensSecao.length ? ['(nenhum item)'] : itensSecao.map(i => {
+          const pacote = Number(i.quantidadePacote) || 1;
+          const pacotes = Math.ceil(i.quantidadeComprar / pacote);
+          const detalhePacote = pacote > 1 ? ` (${pacotes} pacote${pacotes > 1 ? 's' : ''} de ${pacote})` : '';
+          return `☐ ${i.nome}: ${Number(i.quantidadeComprar.toFixed(3))} ${i.unidade}${detalhePacote}`;
+        })), ''];
       }),
-      '',
       `Total de itens: ${itens.length}`,
     ];
     const blob = new Blob([`\uFEFF${linhas.join('\r\n')}`], { type: 'text/plain;charset=utf-8' });
