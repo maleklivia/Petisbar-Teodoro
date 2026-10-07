@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diario do PostgreSQL Petisbar
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=5m
+Unit=petisbar-db-backup.service
+
+[Install]
+WantedBy=timers.target
