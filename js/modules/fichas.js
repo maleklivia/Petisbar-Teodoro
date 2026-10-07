@@ -16,6 +16,26 @@ const FichasModule = {
   _saveTimers: new Map(),
   _saveQueues: new Map(),
 
+  _draftKey(produtoId) {
+    return `petisbar-preparo-pendente:${produtoId}`;
+  },
+
+  _readDraft(produtoId) {
+    try {
+      const value = JSON.parse(localStorage.getItem(this._draftKey(produtoId)) || 'null');
+      return value && typeof value.modoPreparo === 'string' ? value.modoPreparo : null;
+    } catch {
+      return null;
+    }
+  },
+
+  _saveStatus(produtoId, message, state) {
+    const status = document.getElementById('ficha-preparo-status');
+    if (!status || this._activeProdutoId !== produtoId) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  },
+
   /* ── Inicialização ─────────────────────────────────────────── */
 
   init(produtos) {
@@ -77,12 +97,23 @@ const FichasModule = {
     if (!this._canWrite || !ficha?.produtoId) return;
     const save = () => {
       const produtoId = ficha.produtoId;
+      this._saveStatus(produtoId, 'Salvando no VPS…', 'saving');
       const previous = this._saveQueues.get(produtoId) || Promise.resolve();
       const pending = previous.catch(() => {}).then(async () => {
-        const saved = await API.saveServerTechnicalSheet(ficha);
+        const submitted = structuredClone(ficha);
+        const saved = await API.saveServerTechnicalSheet(submitted);
         ficha.dataAtualizacao = saved.dataAtualizacao;
+        if (this._readDraft(produtoId) === submitted.modoPreparo) {
+          localStorage.removeItem(this._draftKey(produtoId));
+          this._saveStatus(produtoId, 'Salvo no VPS.', 'saved');
+        } else if (this._readDraft(produtoId) !== null) {
+          this._saveStatus(produtoId, 'Alterações pendentes de envio ao VPS.', 'pending');
+        } else {
+          this._saveStatus(produtoId, 'Salvo no VPS.', 'saved');
+        }
       }).catch(() => {
         UI.toast('Não foi possível salvar a ficha técnica.', 'danger');
+        this._saveStatus(produtoId, 'Falha no envio. O rascunho continua neste navegador; tente salvar novamente.', 'error');
       });
       this._saveQueues.set(produtoId, pending);
     };
@@ -163,6 +194,8 @@ const FichasModule = {
     if (!container) return;
 
     const ficha  = this._getOrCreate(produto.id);
+    const draft = this._serverMode ? this._readDraft(produto.id) : null;
+    if (draft !== null && draft !== ficha.modoPreparo) ficha.modoPreparo = draft;
     const custo  = this.calcCusto(ficha);
     const preco  = produto.precoVenda || 0;
     const lucro  = preco - custo;
@@ -208,7 +241,13 @@ const FichasModule = {
         <textarea class="form-input ficha-preparo__input" id="ficha-modo-preparo"
           rows="7" maxlength="10000" placeholder="Descreva o passo a passo de preparo e finalização deste produto."
           ${this._canWrite ? '' : 'disabled'}>${Utils.escapeHtml(ficha.modoPreparo || '')}</textarea>
-        <p class="ficha-preparo__hint">Instruções internas desta ficha técnica. Salvas automaticamente.</p>
+        ${this._serverMode
+          ? `<div class="ficha-preparo__feedback">
+               <p class="ficha-preparo__status" id="ficha-preparo-status" role="status"
+                 data-state="${draft !== null ? 'pending' : 'saved'}">${draft !== null ? 'Rascunho local pendente de envio ao VPS.' : 'Dados carregados do VPS.'}</p>
+               <button class="btn btn-ghost" id="ficha-salvar-preparo" type="button" ${this._canWrite ? '' : 'disabled'}>Salvar no VPS</button>
+             </div>`
+          : `<p class="ficha-preparo__status" data-state="pending">Modo local: o texto fica somente neste navegador. Para salvar no VPS, use <a href="https://177-153-67-250.nip.io/pages/produtos.html">o ERP no VPS</a>.</p>`}
       </div>
 
       <div class="ficha-summary">
@@ -300,7 +339,21 @@ const FichasModule = {
     document.getElementById('ficha-modo-preparo')?.addEventListener('input', event => {
       if (!this._canWrite) return;
       ficha.modoPreparo = event.target.value;
+      if (this._serverMode) {
+        try {
+          localStorage.setItem(this._draftKey(ficha.produtoId), JSON.stringify({ modoPreparo: ficha.modoPreparo }));
+          this._saveStatus(ficha.produtoId, 'Rascunho guardado neste navegador; enviando ao VPS…', 'pending');
+        } catch {
+          this._saveStatus(ficha.produtoId, 'Não foi possível guardar rascunho local. Confirme o salvamento no VPS antes de sair.', 'error');
+        }
+      }
       this._persist(ficha, { debounce: true });
+    });
+
+    document.getElementById('ficha-salvar-preparo')?.addEventListener('click', () => {
+      if (!this._canWrite) return;
+      clearTimeout(this._saveTimers.get(ficha.produtoId));
+      this._persist(ficha);
     });
 
     document.getElementById('ficha-add-item')?.addEventListener('click', () => {
