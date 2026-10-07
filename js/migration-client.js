@@ -41,19 +41,22 @@ document.getElementById('migration-start').addEventListener('click', async () =>
   const baseUrl = document.getElementById('migration-api').value.trim().replace(/\/$/, '');
   const email = document.getElementById('migration-email').value.trim();
   const password = document.getElementById('migration-password').value;
-  if (!baseUrl.startsWith('https://') || !email || !password) {
-    status.textContent = 'Preencha a URL HTTPS da API, o e-mail e a senha.';
+  if (!baseUrl.startsWith('https://')) {
+    status.textContent = 'Preencha uma URL HTTPS válida para a API.';
     return;
   }
 
   button.disabled = true;
   status.textContent = 'Autenticando…';
   try {
-    const login = await fetch(`${baseUrl}/auth/login`, {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!login.ok) throw new Error('Não foi possível entrar. Confira e-mail, senha e endereço da API.');
+    if (email || password) {
+      if (!email || !password) throw new Error('Preencha e-mail e senha ou deixe os dois vazios para usar a sessão já aberta.');
+      const login = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!login.ok) throw new Error('Não foi possível entrar. Confira e-mail, senha e endereço da API.');
+    }
 
     status.textContent = 'Importando dados…';
     const response = await fetch(`${baseUrl}/migration/local-storage`, {
