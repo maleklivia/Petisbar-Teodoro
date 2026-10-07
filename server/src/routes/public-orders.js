@@ -66,7 +66,9 @@ export default async function publicOrderRoutes(app) {
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
     } };
   });
-  app.get('/public/catalog', async () => { const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url FROM products WHERE active=true AND (current_stock IS NULL OR current_stock>0) ORDER BY category,name'); return {data:rows}; });
+  // Produto ativo no ERP é publicado; estoque zero não deve esconder o catálogo.
+  // A disponibilidade física será tratada no fechamento do pedido.
+  app.get('/public/catalog', async () => { const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url FROM products WHERE active=true ORDER BY category,name'); return {data:rows}; });
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});
