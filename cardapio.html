@@ -7,15 +7,25 @@
   <meta name="description" content="Cardápio digital do Petisbar Teodoro. Faça seu pedido para retirada ou entrega.">
   <title>Peça online — Petisbar Teodoro</title>
   <link rel="stylesheet" href="./css/variables.css">
-  <link rel="stylesheet" href="./css/cardapio.css?v=20261007-2">
+  <link rel="stylesheet" href="./css/cardapio.css?v=20261007-3">
 </head>
 <body>
   <header class="store-header">
     <img src="./assets/petisbar-teodoro-logo.jpg" alt="Petisbar Teodoro" class="store-logo">
-    <div><span class="store-eyebrow">Petisbar Teodoro</span><h1>Sabor para compartilhar.</h1><p>Escolha seus favoritos. Retirada ou entrega sob confirmação do estabelecimento.</p></div>
+    <div class="store-header-copy"><span class="store-eyebrow">Petisbar Teodoro</span><h1>Sabor para compartilhar.</h1><p>Escolha seus favoritos. Retirada ou entrega sob confirmação do estabelecimento.</p><div id="store-status" class="store-status" aria-live="polite"><span class="status-dot"></span><strong>Consultando horário…</strong></div></div>
   </header>
 
   <main class="store-main">
+    <section class="store-highlights" aria-label="Informações da loja">
+      <div><strong>Pedido mínimo</strong><span id="minimum-order">R$ 20,00</span></div>
+      <div><strong>Entrega</strong><span id="delivery-time">30–60 min</span></div>
+      <div><strong>Pagamento</strong><span id="payment-summary">Pix, dinheiro e cartão</span></div>
+      <div><strong>Funcionamento</strong><span id="opening-hours">Consultar horários</span></div>
+    </section>
+    <nav class="store-tabs" aria-label="Informações do estabelecimento"><button type="button" class="store-tab active" data-store-tab="promocoes">Promoções</button><button type="button" class="store-tab" data-store-tab="avaliacoes">Avaliações</button><button type="button" class="store-tab" data-store-tab="contato">Contato</button></nav>
+    <section id="store-panel-promocoes" class="store-panel"><strong>Ofertas do Petisbar</strong><span id="promotion-text">Confira as promoções disponíveis no cardápio.</span></section>
+    <section id="store-panel-avaliacoes" class="store-panel hidden"><strong>Avaliações</strong><span>As avaliações dos clientes aparecerão aqui.</span></section>
+    <section id="store-panel-contato" class="store-panel hidden"><strong>Fale com o Petisbar</strong><span>Pedidos e dúvidas pelo WhatsApp do estabelecimento.</span><a href="https://wa.me/5521975816050" target="_blank" rel="noopener">Abrir WhatsApp</a></section>
     <div id="service-notice" class="service-notice hidden" role="status"></div>
     <div class="catalog-tools">
       <label class="search-box"><span>⌕</span><input id="catalog-search" type="search" placeholder="Buscar no cardápio" aria-label="Buscar no cardápio"></label>
@@ -60,7 +70,7 @@
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20261007-4"></script>
+  <script src="./js/cardapio.js?v=20261007-5"></script>
 </body>
 </html>
 

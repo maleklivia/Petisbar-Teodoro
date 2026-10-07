@@ -1,5 +1,6 @@
 const Cardapio = {
   storeWhatsApp: '5521975816050',
+  storefront: {minimumOrder:20,deliveryTime:'30–60 min',isOpen:true,hours:'Horários definidos no ERP',paymentMethods:['Pix','Dinheiro','Cartão na entrega'],promotions:[{title:'Promoções do dia',description:'Confira as promoções disponíveis no cardápio.'}]},
   apiActive: false, products: [], cart: new Map(), flavoredIce: new Map(), category: 'Todos', search: '', deliveryFee: 0, coupon: null, tableNumber: '',
   fallback: [
     ['p-drk001','Caipirinha Limão 500ml','Drinks','Cachaça 51, limão, açúcar e gelo',15.9,'caipirinha.jpg'],
@@ -59,6 +60,22 @@ const Cardapio = {
     const apiOrigin=override || (location.hostname.endsWith('github.io') ? 'https://177-153-67-250.nip.io' : '');
     return apiOrigin ? `${apiOrigin.replace(/\/$/,'')}/api/v1${path}` : new URL(`./api/v1${path}`,location.href).href;
   },
+  async loadStorefront(){
+    try{const response=await fetch(this.endpoint('/public/storefront'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.storefront={...this.storefront,...(body.data||{})};if(this.storefront.whatsapp)this.storeWhatsApp=this.storefront.whatsapp}catch{};
+    this.renderStorefront();
+  },
+  renderStorefront(){
+    const data=this.storefront||{};
+    const minimum=document.getElementById('minimum-order');if(minimum)minimum.textContent=this.money(Number(data.minimumOrder)||20);
+    const delivery=document.getElementById('delivery-time');if(delivery)delivery.textContent=data.deliveryTime||'30–60 min';
+    const payments=Array.isArray(data.paymentMethods)&&data.paymentMethods.length?data.paymentMethods:['Pix','Dinheiro','Cartão na entrega'];
+    const paymentSummary=document.getElementById('payment-summary');if(paymentSummary)paymentSummary.textContent=payments.join(', ');
+    const hours=document.getElementById('opening-hours');if(hours)hours.textContent=data.hours||'Horários definidos no ERP';
+    const status=document.getElementById('store-status');if(status){status.classList.toggle('open',Boolean(data.isOpen));status.classList.toggle('closed',!data.isOpen);status.querySelector('strong').textContent=data.isOpen?'Aberto agora':'Fechado agora'}
+    const promotion=(Array.isArray(data.promotions)&&data.promotions[0])||{};const promotionText=document.getElementById('promotion-text');if(promotionText)promotionText.textContent=promotion.description||'Confira as promoções disponíveis no cardápio.';
+    const whatsapp=document.querySelector('#store-panel-contato a');if(whatsapp&&data.whatsapp)whatsapp.href=`https://wa.me/${String(data.whatsapp).replace(/\D/g,'')}`;
+    const select=document.querySelector('[name="payment"]');if(select){select.innerHTML=payments.map(method=>`<option>${this.escape(method)}</option>`).join('')}
+  },
   localCatalog(){
     try {
       const raw = localStorage.getItem('distrito-produtos-v3');
@@ -95,6 +112,7 @@ const Cardapio = {
   },
   async init(){
     this.tableNumber=(new URLSearchParams(location.search).get('mesa')||'').trim().slice(0,20);
+    await this.loadStorefront();
     try{const response=await fetch(this.endpoint('/public/catalog'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.products=(body.data||[]).map(product=>({...product,photo_url:this.productPhoto(product)}));this.apiActive=true}
     catch{
       this.products=this.localCatalog() || this.fallback;
@@ -106,6 +124,7 @@ const Cardapio = {
     this.renderCategories();this.renderCatalog();this.renderCart();
   },
   bind(){
+    document.querySelectorAll('[data-store-tab]').forEach(tab=>tab.addEventListener('click',()=>{document.querySelectorAll('[data-store-tab]').forEach(item=>item.classList.toggle('active',item===tab));document.querySelectorAll('.store-panel').forEach(panel=>panel.classList.toggle('hidden',panel.id!==`store-panel-${tab.dataset.storeTab}`))}));
     document.getElementById('catalog-search').addEventListener('input',e=>{this.search=e.target.value.toLowerCase();this.renderCatalog()});
     document.getElementById('category-list').addEventListener('click',e=>{const button=e.target.closest('[data-category]');if(!button)return;this.category=button.dataset.category;this.renderCategories();this.renderCatalog()});
     document.getElementById('catalog').addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(button)this.change(button.dataset.id,button.dataset.action==='inc'?1:-1)});
@@ -145,7 +164,7 @@ const Cardapio = {
   async applyCoupon(){const form=document.getElementById('checkout-form'),code=form.elements.couponCode.value.trim().toUpperCase(),phone=form.elements.phone.value.trim(),button=document.getElementById('coupon-apply');if(!code){this.toast('Digite o cupom.');return}if(!phone){this.toast('Digite seu WhatsApp antes de aplicar o cupom.');return}button.disabled=true;document.getElementById('coupon-status').textContent='Verificando…';try{const response=await fetch(this.endpoint('/public/coupons/validate'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,phone,items:this.cartData().map(i=>({productId:i.product.id,quantity:i.quantity}))})});const body=await response.json();if(!response.ok)throw new Error(body.error);this.coupon=body.data;document.getElementById('coupon-status').textContent=`Cupom aplicado: ${body.data.description}.`;this.renderCheckout()}catch(error){this.coupon=null;document.getElementById('coupon-status').textContent=this.couponError(error.message);this.renderCheckout()}finally{button.disabled=false}},
   openCart(open){document.getElementById('cart-overlay').classList.toggle('open',open);document.getElementById('cart-overlay').setAttribute('aria-hidden',String(!open));document.body.style.overflow=open?'hidden':''},
   payload(form){const data=new FormData(form),fulfillmentType=this.tableNumber?'retirada':data.get('fulfillment');return{customer:{name:data.get('name'),phone:data.get('phone')},fulfillmentType,tableNumber:this.tableNumber,address:{postalCode:data.get('postalCode')||'',city:data.get('city')||'',street:data.get('street')||'',number:data.get('number')||'',district:data.get('district')||'',complement:data.get('complement')||'',reference:data.get('reference')||''},paymentMethod:data.get('payment'),couponCode:this.coupon?.code||'',notes:data.get('notes')||'',adultConfirmed:data.get('adultConfirmed')==='on',website:data.get('website')||'',items:this.cartData().map(i=>({productId:i.product.id,quantity:i.quantity,flavoredIce:this.supportsFlavoredIce(i.product.id)&&(this.flavoredIce.get(i.product.id)||false)}))}},
-  validate(payload){if(!payload.items.length)return'Adicione pelo menos um produto.';if(payload.fulfillmentType==='entrega'&&(!payload.address.postalCode||!payload.address.city||!payload.address.street||!payload.address.number||!payload.address.district))return'Preencha CEP, cidade, rua, número e bairro.';if(this.hasAlcohol()&&!payload.adultConfirmed)return'Confirme que você tem 18 anos ou mais.';return''},
+  validate(payload){if(!payload.items.length)return'Adicione pelo menos um produto.';if(this.subtotal()<Number(this.storefront.minimumOrder||20))return`O pedido mínimo é de ${this.money(Number(this.storefront.minimumOrder||20))}.`;if(payload.fulfillmentType==='entrega'&&(!payload.address.postalCode||!payload.address.city||!payload.address.street||!payload.address.number||!payload.address.district))return'Preencha CEP, cidade, rua, número e bairro.';if(this.hasAlcohol()&&!payload.adultConfirmed)return'Confirme que você tem 18 anos ou mais.';return''},
   message(payload){const receipt=payload.tableNumber?`Consumo na Mesa ${payload.tableNumber}`:(payload.fulfillmentType==='entrega'?'Entrega':'Retirada');const lines=['*NOVO PEDIDO — PETISBAR TEODORO*','',...this.cartData().map(i=>`• ${i.quantity}x ${i.product.name}${this.flavoredIce.get(i.product.id)?' (com gelo saborizado)':''} — ${this.money(Number(i.product.sale_price)*i.quantity)}`),'',`*Subtotal:* ${this.money(this.subtotal())}`,`*Recebimento:* ${receipt}`,`*Pagamento:* ${payload.paymentMethod}`,`*Cliente:* ${payload.customer.name}`,`*Telefone:* ${payload.customer.phone}`];if(payload.fulfillmentType==='entrega'){lines.push('', '*ENDEREÇO DE ENTREGA*',`${payload.address.street}, ${payload.address.number}`,`${payload.address.district} — ${payload.address.city}`,`CEP: ${payload.address.postalCode}`);if(payload.address.complement)lines.push(`Complemento: ${payload.address.complement}`);if(payload.address.reference)lines.push(`Referência: ${payload.address.reference}`)}if(payload.notes)lines.push(`*Observações:* ${payload.notes}`);lines.push('','Aguardando confirmação do estabelecimento.');return lines.join('\n')},
   async submit(event){event.preventDefault();const form=event.currentTarget,payload=this.payload(form),error=this.validate(payload);if(error){this.toast(error);return}const button=document.getElementById('checkout-button');button.disabled=true;
     if(this.apiActive){try{const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const body=await response.json();if(!response.ok)throw new Error(body.error);this.cart.clear();this.flavoredIce.clear();this.coupon=null;this.renderCatalog();this.renderCart();this.openCart(false);this.toast(`Pedido #${body.data.orderNumber} recebido!`);form.reset();return}catch(error){button.disabled=false;if(['coupon_already_used','first_order_only','coupon_not_found','invalid_phone'].includes(error.message)){this.coupon=null;document.getElementById('coupon-status').textContent=this.couponError(error.message);this.renderCheckout();this.toast(this.couponError(error.message));return}this.toast('O servidor não respondeu. Tente novamente.');return}}

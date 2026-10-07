@@ -43,6 +43,29 @@ function discountFor(coupon, subtotal) {
 }
 
 export default async function publicOrderRoutes(app) {
+  const defaultStorefront = {
+    minimumOrder: 20,
+    deliveryTime: '30–60 min',
+    isOpen: true,
+    hours: 'Horários definidos no ERP',
+    paymentMethods: ['Pix', 'Dinheiro', 'Cartão na entrega'],
+    promotions: [{ title: 'Promoções do dia', description: 'Confira as promoções disponíveis no cardápio.' }],
+    whatsapp: '5521975816050',
+  };
+  app.get('/public/storefront', async () => {
+    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp'];
+    const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
+    const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
+    return { data: {
+      minimumOrder: Number(values['storefront.minimumOrder'] ?? defaultStorefront.minimumOrder),
+      deliveryTime: String(values['storefront.deliveryTime'] ?? defaultStorefront.deliveryTime),
+      isOpen: values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']),
+      hours: String(values['storefront.hours'] ?? defaultStorefront.hours),
+      paymentMethods: Array.isArray(values['storefront.paymentMethods']) ? values['storefront.paymentMethods'] : defaultStorefront.paymentMethods,
+      promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
+      whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
+    } };
+  });
   app.get('/public/catalog', async () => { const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url FROM products WHERE active=true AND (current_stock IS NULL OR current_stock>0) ORDER BY category,name'); return {data:rows}; });
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
@@ -63,6 +86,9 @@ export default async function publicOrderRoutes(app) {
     try {
       await client.query('BEGIN');
       const priced=await priceOrderItems(client,input.items,{lock:true}); if(!priced){await client.query('ROLLBACK');return reply.code(409).send({error:'product_unavailable'});}
+      const minimumResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.minimumOrder'");
+      const minimumOrder=Number(minimumResult.rows[0]?.value ?? 20);
+      if(priced.subtotal<minimumOrder){await client.query('ROLLBACK');return reply.code(422).send({error:'minimum_order_not_met',minimumOrder});}
       if(priced.items.some(item=>['Drinks','Cervejas'].includes(item.category))&&!input.adultConfirmed){await client.query('ROLLBACK');return reply.code(400).send({error:'adult_confirmation_required'});}
       if(priced.items.some(item=>item.currentStock!==null&&Number(item.currentStock)<item.quantity)){await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});}
       let coupon=null,discount=0;
