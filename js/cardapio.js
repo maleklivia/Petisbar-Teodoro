@@ -37,11 +37,9 @@ const Cardapio = {
     ['p-br003','Batata Bacon & Cheddar — 400g','BATATAS RECHEADAS','Purê de batata cremoso, bacon crocante, cheddar cremoso e muçarela gratinada.',29.9,'snacks.jpg'],
     ['p-br004','Batata Strogonoff de Frango — 400g','BATATAS RECHEADAS','Purê de batata cremoso com strogonoff de frango, muçarela gratinada e batata palha.',29.9,'snacks.jpg'],
     ['p-br005','Batata de Carne Seca Cremosa — 400g','BATATAS RECHEADAS','Purê de batata cremoso, carne seca desfiada, requeijão e muçarela gratinada.',34.9,'snacks.jpg'],
-    ['p-con001','Amendoim Temperado 100g','Conveniência','Amendoim crocante temperado',8,'snacks.jpg'],
     ['p-con002','Mix de Nuts 100g','Conveniência','Mix de castanhas e nozes',12,'snacks.jpg'],
     ['p-con003','Batata Chips 60g','Conveniência','Batata chips sabor original',8,'snacks.jpg'],
     ['p-con004','Azeitona Temperada 100g','Conveniência','Azeitona verde temperada',10,'snacks.jpg'],
-    ['p-con005','Torresmo 150g','Conveniência','Torresmo artesanal crocante',15,'snacks.jpg'],
   ].map(([id,name,category,description,price,image])=>({id,name,category,description,sale_price:price,photo_url:`./assets/products/${image}`})),
 
   money(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value)},
