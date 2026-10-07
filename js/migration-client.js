@@ -41,6 +41,7 @@ document.getElementById('migration-start').addEventListener('click', async () =>
   const baseUrl = document.getElementById('migration-api').value.trim().replace(/\/$/, '');
   const email = document.getElementById('migration-email').value.trim();
   const password = document.getElementById('migration-password').value;
+  const token = document.getElementById('migration-token').value.trim();
   if (!baseUrl.startsWith('https://')) {
     status.textContent = 'Preencha uma URL HTTPS válida para a API.';
     return;
@@ -49,7 +50,9 @@ document.getElementById('migration-start').addEventListener('click', async () =>
   button.disabled = true;
   status.textContent = 'Autenticando…';
   try {
-    if (email || password) {
+    if (token) {
+      status.textContent = 'Usando autorização temporária…';
+    } else if (email || password) {
       if (!email || !password) throw new Error('Preencha e-mail e senha ou deixe os dois vazios para usar a sessão já aberta.');
       const login = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
@@ -59,8 +62,10 @@ document.getElementById('migration-start').addEventListener('click', async () =>
     }
 
     status.textContent = 'Importando dados…';
+    const headers = {'Content-Type': 'application/json'};
+    if (token) headers['X-Migration-Token'] = token;
     const response = await fetch(`${baseUrl}/migration/local-storage`, {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', credentials: 'include', headers,
       body: JSON.stringify({ snapshot }),
     });
     const result = await response.json();
