@@ -6,7 +6,7 @@ export const db = new Pool({
   connectionString: config.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30_000,
-  ssl: isProduction && !config.DATABASE_URL.includes('@postgres:') ? { rejectUnauthorized: true } : false,
+  ssl: isProduction && process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : false,
 });
 
 db.on('error', error => console.error('[database] conexão ociosa falhou', error));
