@@ -45,6 +45,15 @@ const Cardapio = {
   money(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value)},
   escape(value){const el=document.createElement('div');el.textContent=String(value??'');return el.innerHTML},
   image(url){if(!url)return './assets/products/petiscos-referencia.jpg';return url.replace(/^\.\.\//,'./')},
+  productPhoto(product){
+    const id=product.id;
+    if(['p-br001','p-br002','p-br003','p-br004','p-br005'].includes(id)) return './assets/products/batatas-recheadas-referencia.jpg';
+    if(['p-pet001','p-pet002','p-pet003','p-pet004','p-pet005','p-pet006','p-pet007'].includes(id)) return './assets/products/petiscos-referencia.jpg';
+    if(['p-drk002','p-drk005'].includes(id)) return './assets/products/caipirinha-morango.jpg';
+    if(['p-drk003','p-drk006'].includes(id)) return './assets/products/caipirinha-maracuja.jpg';
+    if(['p-drk010','p-drk011'].includes(id)) return './assets/products/energy-cocktail.jpg';
+    return product.photo_url || './assets/products/snacks.jpg';
+  },
   endpoint(path){return new URL(`./api/v1${path}`,location.href).href},
   localCatalog(){
     try {
@@ -58,7 +67,7 @@ const Cardapio = {
         category: p.categoria,
         description: p.descricao || '',
         sale_price: Number(p.precoVenda) || 0,
-        photo_url: p.foto || './assets/products/snacks.jpg',
+        photo_url: this.productPhoto({id:p.id, photo_url:p.foto}),
       }));
     } catch {
       return null;
@@ -82,7 +91,7 @@ const Cardapio = {
   },
   async init(){
     this.tableNumber=(new URLSearchParams(location.search).get('mesa')||'').trim().slice(0,20);
-    try{const response=await fetch(this.endpoint('/public/catalog'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.products=body.data;this.apiActive=true}
+    try{const response=await fetch(this.endpoint('/public/catalog'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.products=(body.data||[]).map(product=>({...product,photo_url:this.productPhoto(product)}));this.apiActive=true}
     catch{
       this.products=this.localCatalog() || this.fallback;
       // Falhas de sincronização são assunto interno do ERP; o cliente vê apenas o catálogo.
