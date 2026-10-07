@@ -24,7 +24,7 @@ async function operationalSnapshot(db) {
       WHERE entry_date >= date_trunc('month', current_date)::date
     `),
     db.query(`
-      SELECT name, unit, current_stock, minimum_stock, average_daily_use, lead_time_days,
+      SELECT name, category, unit, current_stock, minimum_stock, average_daily_use, lead_time_days,
         GREATEST(minimum_stock, average_daily_use * lead_time_days) AS reorder_point
       FROM ingredients
       WHERE active = true
@@ -61,6 +61,7 @@ async function operationalSnapshot(db) {
     financeThisMonth: { income, expense, result: income - expense },
     criticalStock: stock.rows.map(item => ({
       name: item.name,
+      category: item.category,
       unit: item.unit,
       current: Number(item.current_stock),
       minimum: Number(item.minimum_stock),
