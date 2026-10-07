@@ -15,11 +15,14 @@ const API = {
   currentUser: null,
 
   isServerMode() {
+    const hostname = window.location.hostname;
+    const localCapable = hostname.endsWith('github.io') || hostname === 'localhost' || hostname === '127.0.0.1';
+    if (!localCapable) return true;
     const params = new URLSearchParams(window.location.search);
     if (params.get('server') === '1') sessionStorage.removeItem('petisbar-local-mode');
     if (params.get('local') === '1') sessionStorage.setItem('petisbar-local-mode', '1');
     if (sessionStorage.getItem('petisbar-local-mode') === '1') return false;
-    return !window.location.hostname.endsWith('github.io');
+    return hostname === 'localhost' || hostname === '127.0.0.1';
   },
 
   async _request(path, options = {}) {
