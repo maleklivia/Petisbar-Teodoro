@@ -207,12 +207,16 @@ const PRODUCT_PHOTOS_BY_CATEGORY = {
   'Águas': '../assets/products/water.jpg',
   'Energéticos': '../assets/products/energy-drink.jpg',
   'Açaí': '../assets/products/acai.jpg',
-  Petiscos: '../assets/products/snacks.jpg',
+  Petiscos: '../assets/products/petiscos-referencia.jpg',
   'Conveniência': '../assets/products/snacks.jpg',
-  'BATATAS RECHEADAS': '../assets/products/snacks.jpg',
+  'BATATAS RECHEADAS': '../assets/products/batatas-recheadas-referencia.jpg',
 };
 
 function getDefaultProductPhoto(product) {
+  if (product.categoria === 'Drinks') {
+    if (/Morango/i.test(product.nome)) return '../assets/products/caipirinha-morango.jpg';
+    if (/Maracujá/i.test(product.nome)) return '../assets/products/caipirinha-maracuja.jpg';
+  }
   if (['p-drk010', 'p-drk011'].includes(product.id)) {
     return '../assets/products/energy-cocktail.jpg';
   }
@@ -1026,6 +1030,17 @@ if (!localStorage.getItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY)) {
   localStorage.setItem(CARDAPIO_INGREDIENTES_MIGRATION_KEY, 'concluido');
 }
 
+const PROVISIONAL_PHOTOS_MIGRATION_KEY = 'petisbar-provisional-photos-v2';
+if (!localStorage.getItem(PROVISIONAL_PHOTOS_MIGRATION_KEY)) {
+  const photosById = new Map(SEED_PRODUTOS.map(product => [product.id, getDefaultProductPhoto(product)]));
+  Stores.produtos.set(Stores.produtos.get().map(product => ({
+    ...product,
+    foto: photosById.get(product.id) || product.foto || getDefaultProductPhoto(product),
+    fotoProvisoria: true,
+  })));
+  localStorage.setItem(PROVISIONAL_PHOTOS_MIGRATION_KEY, 'concluido');
+}
+
 // Adiciona a linha de Batatas Recheadas sem duplicar cadastros ou sobrescrever ajustes locais.
 const BATATAS_RECHEADAS_MIGRATION_KEY = 'petisbar-batatas-recheadas-v1';
 {
@@ -1043,4 +1058,3 @@ const BATATAS_RECHEADAS_MIGRATION_KEY = 'petisbar-batatas-recheadas-v1';
   if (novasFichas.length) Stores.fichas.set([...fichasAtuais, ...structuredClone(novasFichas)]);
   localStorage.setItem(BATATAS_RECHEADAS_MIGRATION_KEY, 'concluido');
 }
-
