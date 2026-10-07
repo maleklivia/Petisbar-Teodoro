@@ -25,7 +25,7 @@ const Cardapio = {
     ['p-agu002','Água com Gás 500ml','Águas','Água mineral com gás',4,'water.jpg'],
     ['p-ene001','Red Bull 250ml','Energéticos','Red Bull lata 250ml',12,'energy-drink.jpg'],
     ['p-ene002','Monster Energy 473ml','Energéticos','Monster Energy lata 473ml',12,'energy-drink.jpg'],
-    ['p-aca001','Batidinha de Açaí 300ml','Açaí','Açaí batido em garrafinha de 300ml',15,'acai.jpg'],
+    ['p-aca001','Batidinha de Açaí 300ml','Açaí','Açaí batido em garrafinha de 300ml',15,'acai-joy.png'],
     ['p-pet001','Batata Frita P — 300g','Petiscos','Porção individual com 300g de batata frita sequinha e crocante',17.9,'petiscos-referencia.jpg'],
     ['p-pet006','Batata Frita G — 500g','Petiscos','Porção grande com 500g de batata frita, ideal para compartilhar',24.9,'petiscos-referencia.jpg'],
     ['p-pet002','Batata com Cheddar e Bacon P — 400g','Petiscos','300g de batata, 60g de cheddar e 40g de bacon; porção individual',27.9,'petiscos-referencia.jpg'],
