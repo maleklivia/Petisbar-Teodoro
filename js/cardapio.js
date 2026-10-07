@@ -48,10 +48,32 @@ const Cardapio = {
   escape(value){const el=document.createElement('div');el.textContent=String(value??'');return el.innerHTML},
   image(url){if(!url)return './assets/products/snacks.jpg';return url.replace(/^\.\.\//,'./')},
   endpoint(path){return new URL(`./api/v1${path}`,location.href).href},
+  localCatalog(){
+    try {
+      const raw = localStorage.getItem('distrito-produtos-v3');
+      if (!raw) return null;
+      const products = JSON.parse(raw);
+      if (!Array.isArray(products)) return null;
+      return products.filter(p => p && p.ativo !== false).map(p => ({
+        id: p.id,
+        name: p.nome,
+        category: p.categoria,
+        description: p.descricao || '',
+        sale_price: Number(p.precoVenda) || 0,
+        photo_url: p.foto || './assets/products/snacks.jpg',
+      }));
+    } catch {
+      return null;
+    }
+  },
   async init(){
     this.tableNumber=(new URLSearchParams(location.search).get('mesa')||'').trim().slice(0,20);
     try{const response=await fetch(this.endpoint('/public/catalog'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.products=body.data;this.apiActive=true}
-    catch{this.products=this.fallback;document.getElementById('service-notice').classList.remove('hidden');document.getElementById('service-notice').textContent='Pedidos automáticos em fase de ativação. Por enquanto, a finalização será enviada pelo WhatsApp.'}
+    catch{
+      this.products=this.localCatalog() || this.fallback;
+      document.getElementById('service-notice').classList.remove('hidden');
+      document.getElementById('service-notice').textContent='Pedidos automáticos em fase de ativação. O cardápio está sincronizado com os produtos ativos do ERP.';
+    }
     this.bind();
     if(this.tableNumber){const notice=document.getElementById('service-notice');notice.classList.remove('hidden');notice.textContent=`Pedido para consumo na Mesa ${this.tableNumber}.`;const pickup=document.querySelector('[name="fulfillment"][value="retirada"]');if(pickup)pickup.checked=true;document.querySelectorAll('[name="fulfillment"]').forEach(input=>input.disabled=true)}
     this.renderCategories();this.renderCatalog();this.renderCart();
