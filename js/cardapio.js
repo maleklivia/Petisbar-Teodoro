@@ -64,7 +64,9 @@ const Cardapio = {
       return null;
     }
   },
-  categoryOrder: ['Petiscos','BATATAS RECHEADAS','Drinks','Cervejas','Refrigerantes','Águas','Energéticos','Açaí','Conveniência'],
+  categoryOrder: ['BATATAS RECHEADAS','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
+  categoryLabel(category){return ['Refrigerantes','Águas','Energéticos'].includes(category)?'Bebidas':category},
+  categoryMatches(product, category){return category==='Todos'||this.categoryLabel(product.category)===category},
   presentation(product){
     const known = {
       'p-pet003': { name:'Calabresa Frita — 400 g' },
@@ -106,10 +108,10 @@ const Cardapio = {
   qty(id){return this.cart.get(id)||0},
   supportsFlavoredIce(id){return ['p-drk010','p-drk011'].includes(id)},
   change(id,delta){const qty=Math.max(0,this.qty(id)+delta);if(qty)this.cart.set(id,qty);else{this.cart.delete(id);this.flavoredIce.delete(id)}if(this.coupon)this.clearCoupon('Carrinho alterado. Aplique o cupom novamente.');this.renderCatalog();this.renderCart()},
-  categories(){const available=new Set(this.products.map(p=>p.category));return ['Todos',...this.categoryOrder.filter(c=>available.has(c)),...([...available].filter(c=>!this.categoryOrder.includes(c))) ]},
+  categories(){const available=new Set(this.products.map(p=>this.categoryLabel(p.category)));return ['Todos',...this.categoryOrder.filter(c=>available.has(c)),...([...available].filter(c=>!this.categoryOrder.includes(c))) ]},
   renderCategories(){document.getElementById('category-list').innerHTML=this.categories().map(c=>`<button class="category-button ${c===this.category?'active':''}" data-category="${this.escape(c)}">${this.escape(c)}</button>`).join('')},
   renderCatalog(){
-    const list=this.products.map(p=>this.presentation(p)).filter(p=>(this.category==='Todos'||p.category===this.category)&&(`${p.name} ${p.description}`.toLowerCase().includes(this.search)));
+    const list=this.products.map(p=>this.presentation(p)).filter(p=>this.categoryMatches(p,this.category)&&(`${p.name} ${p.description}`.toLowerCase().includes(this.search)));
     document.getElementById('catalog').innerHTML=list.length?list.map(p=>{const q=this.qty(p.id),ice=this.flavoredIce.get(p.id)||false,option=this.supportsFlavoredIce(p.id)?`<label class="product-option"><input type="checkbox" data-flavored-ice="${this.escape(p.id)}" ${ice?'checked':''}> Gelo saborizado — preço a confirmar</label>`:'';return `<article class="product-card ${q?'selected':''}"><img class="product-image" src="${this.escape(this.image(p.photo_url))}" alt="${this.escape(p.name)}" loading="lazy"><div class="product-info"><span class="product-category">${this.escape(p.category)}</span><h2>${this.escape(p.name)}</h2><p class="product-description">${this.escape(p.description)}</p>${option}<div class="product-footer"><span class="product-price">${this.money(Number(p.sale_price))}</span><div class="qty-control" aria-label="Quantidade"><button data-action="dec" data-id="${this.escape(p.id)}" ${q?'':'disabled'} aria-label="Diminuir">−</button><output>${q}</output><button data-action="inc" data-id="${this.escape(p.id)}" aria-label="Adicionar">Adicionar</button></div></div></div></article>`}).join(''):'<div class="catalog-empty">Nenhum produto encontrado.</div>';
   },
   cartData(){return [...this.cart].map(([id,quantity])=>({product:this.products.find(p=>p.id===id),quantity})).filter(i=>i.product)},
