@@ -9,8 +9,8 @@ Imagens representativas baixadas do Unsplash em 20/07/2026 e armazenadas localme
 - `energy-drink.jpg` e `energy-cocktail.jpg`: seleção Energy Drinks — https://unsplash.com/s/photos/energy-drinks
 - `soda.jpg`: seleção Beverage Can — https://unsplash.com/s/photos/beverage-can
 - `snacks.jpg`: seleção Snack — https://unsplash.com/s/photos/snack
-- `petiscos-referencia.jpg`: Lucas Vinicius Peixoto — https://unsplash.com/photos/dish-on-brown-ceramic-bowl-pJIimwc_S4M
-- `batatas-recheadas-referencia.jpg`: mesma referência visual provisória usada para testes de layout; substituir por foto própria antes da divulgação.
+- `petiscos-referencia.jpg`: referência visual de porções fritas — https://www.a2burger.com/vorspeise
+- `batatas-recheadas-referencia.jpg`: referência visual de batata recheada — https://www.cyprusalive.com/en/pagkiprio-festival-patatas-potatoes-festival-2018-avgorou-kokkinoxoria
 - `caipirinha-morango.jpg` e `caipirinha-maracuja.jpg`: cópias da referência provisória de caipirinha para permitir troca independente por fotos reais de cada sabor.
 
 As fotos são provisórias, usadas somente para testes do catálogo. A foto do Unsplash é indicada como gratuita na página da fonte e deve permanecer com atribuição registrada; todas devem ser substituídas por fotos próprias do Petisbar antes da divulgação comercial.
