@@ -54,7 +54,11 @@ const Cardapio = {
     if(['p-drk010','p-drk011'].includes(id)) return './assets/products/energy-cocktail.jpg';
     return product.photo_url || './assets/products/snacks.jpg';
   },
-  endpoint(path){return new URL(`./api/v1${path}`,location.href).href},
+  endpoint(path){
+    const override=new URLSearchParams(location.search).get('api');
+    const apiOrigin=override || (location.hostname.endsWith('github.io') ? 'https://177-153-67-250.nip.io' : '');
+    return apiOrigin ? `${apiOrigin.replace(/\/$/,'')}/api/v1${path}` : new URL(`./api/v1${path}`,location.href).href;
+  },
   localCatalog(){
     try {
       const raw = localStorage.getItem('distrito-produtos-v3');
