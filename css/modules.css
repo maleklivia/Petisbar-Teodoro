@@ -308,6 +308,19 @@
 }
 
 /* Tabela de ingredientes da ficha */
+.ficha-preparo__input {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.ficha-preparo__hint {
+  margin-top: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .ficha-table {
   width: 100%;
   border-collapse: collapse;

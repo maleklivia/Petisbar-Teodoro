@@ -151,6 +151,7 @@ const API = {
       body: JSON.stringify({
         id: sheet.id,
         rendimento: sheet.rendimento || 1,
+        modoPreparo: sheet.modoPreparo || '',
         itens: (sheet.itens || [])
           .filter(item => item.ingredienteId && Number(item.quantidade) > 0)
           .map(item => ({
@@ -311,6 +312,7 @@ const API = {
       id: sheet.id,
       produtoId: sheet.productId,
       rendimento: Number(sheet.rendimento || 1),
+      modoPreparo: sheet.modoPreparo || '',
       itens: (sheet.items || []).map(item => ({
         ingredienteId: item.ingredientId,
         quantidade: Number(item.quantity),

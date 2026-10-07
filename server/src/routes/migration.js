@@ -185,9 +185,10 @@ export default async function migrationRoutes(app) {
       for (const f of collections.fichas) {
         if (!productIds.has(text(f.produtoId))) continue;
         await client.query(`
-          INSERT INTO technical_sheets (id,product_id,yield) VALUES ($1,$2,$3)
-          ON CONFLICT (id) DO UPDATE SET product_id=EXCLUDED.product_id,yield=EXCLUDED.yield,updated_at=now()
-        `, [text(f.id),text(f.produtoId),Math.max(0.001,number(f.rendimento,1))]);
+          INSERT INTO technical_sheets (id,product_id,yield,preparation_method) VALUES ($1,$2,$3,COALESCE($4::text,''))
+          ON CONFLICT (id) DO UPDATE SET product_id=EXCLUDED.product_id,yield=EXCLUDED.yield,
+            preparation_method=COALESCE($4::text,technical_sheets.preparation_method),updated_at=now()
+        `, [text(f.id),text(f.produtoId),Math.max(0.001,number(f.rendimento,1)),f.modoPreparo == null ? null : text(f.modoPreparo).slice(0,10000)]);
         await client.query('DELETE FROM technical_sheet_items WHERE sheet_id = $1', [text(f.id)]);
         for (const item of array(f.itens)) {
           if (!ingredientIds.has(text(item.ingredienteId))) continue;
