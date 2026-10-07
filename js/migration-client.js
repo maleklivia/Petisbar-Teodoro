@@ -1,7 +1,9 @@
 const MIGRATION_STORES = {
-  produtos: 'distrito-produtos-v1',
-  ingredientes: 'distrito-ingredientes-v1',
-  fichas: 'distrito-fichas-v1',
+  // O ERP atual grava o catálogo nestas versões; usar as chaves antigas
+  // importava uma lista vazia e deixava o cardápio público incompleto.
+  produtos: 'distrito-produtos-v3',
+  ingredientes: 'distrito-ingredientes-v2',
+  fichas: 'distrito-fichas-v2',
   pedidos: 'distrito-pedidos-v1',
   clientes: 'distrito-clientes-v1',
   fornecedores: 'distrito-fornecedores-v1',
