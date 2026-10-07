@@ -111,7 +111,10 @@ const Cardapio = {
   categories(){const available=new Set(this.products.map(p=>this.categoryLabel(p.category)));return ['Todos',...this.categoryOrder.filter(c=>available.has(c)),...([...available].filter(c=>!this.categoryOrder.includes(c))) ]},
   renderCategories(){document.getElementById('category-list').innerHTML=this.categories().map(c=>`<button class="category-button ${c===this.category?'active':''}" data-category="${this.escape(c)}">${this.escape(c)}</button>`).join('')},
   renderCatalog(){
-    const list=this.products.map(p=>this.presentation(p)).filter(p=>this.categoryMatches(p,this.category)&&(`${p.name} ${p.description}`.toLowerCase().includes(this.search)));
+    const list=this.products.map(p=>this.presentation(p)).filter(p=>this.categoryMatches(p,this.category)&&(`${p.name} ${p.description}`.toLowerCase().includes(this.search))).sort((a,b)=>{
+      const rank=p=>this.categoryOrder.indexOf(this.categoryLabel(p.category));
+      return (rank(a)<0?999:rank(a))-(rank(b)<0?999:rank(b));
+    });
     document.getElementById('catalog').innerHTML=list.length?list.map(p=>{const q=this.qty(p.id),ice=this.flavoredIce.get(p.id)||false,option=this.supportsFlavoredIce(p.id)?`<label class="product-option"><input type="checkbox" data-flavored-ice="${this.escape(p.id)}" ${ice?'checked':''}> Gelo saborizado — preço a confirmar</label>`:'';return `<article class="product-card ${q?'selected':''}"><img class="product-image" src="${this.escape(this.image(p.photo_url))}" alt="${this.escape(p.name)}" loading="lazy"><div class="product-info"><span class="product-category">${this.escape(p.category)}</span><h2>${this.escape(p.name)}</h2><p class="product-description">${this.escape(p.description)}</p>${option}<div class="product-footer"><span class="product-price">${this.money(Number(p.sale_price))}</span><div class="qty-control" aria-label="Quantidade"><button data-action="dec" data-id="${this.escape(p.id)}" ${q?'':'disabled'} aria-label="Diminuir">−</button><output>${q}</output><button data-action="inc" data-id="${this.escape(p.id)}" aria-label="Adicionar">Adicionar</button></div></div></div></article>`}).join(''):'<div class="catalog-empty">Nenhum produto encontrado.</div>';
   },
   cartData(){return [...this.cart].map(([id,quantity])=>({product:this.products.find(p=>p.id===id),quantity})).filter(i=>i.product)},
