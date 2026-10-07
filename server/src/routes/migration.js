@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { transaction } from '../db.js';
 import { requirePermission } from '../middleware/auth.js';
+import { config } from '../config.js';
 
 const importSchema = z.object({
   snapshot: z.record(z.string(), z.unknown()),
@@ -13,8 +14,12 @@ const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(
 const text = value => value == null ? '' : String(value);
 
 export default async function migrationRoutes(app) {
+  const migrationGuard = async (request, reply) => {
+    if (config.MIGRATION_TOKEN && request.headers['x-migration-token'] === config.MIGRATION_TOKEN) return;
+    return requirePermission('migration.run')(request, reply);
+  };
   app.post('/migration/local-storage', {
-    preHandler: requirePermission('migration.run'),
+    preHandler: migrationGuard,
     bodyLimit: 5 * 1024 * 1024,
   }, async (request, reply) => {
     const parsed = importSchema.safeParse(request.body);

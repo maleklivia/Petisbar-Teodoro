@@ -8,6 +8,7 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   APP_ORIGIN: z.string().url(),
   COOKIE_SECRET: z.string().min(32),
+  MIGRATION_TOKEN: z.string().default(''),
   SESSION_HOURS: z.coerce.number().int().min(1).max(168).default(12),
   DEFAULT_DELIVERY_FEE: z.coerce.number().nonnegative().default(0),
   IFOOD_ENABLED: z.string().default('false').transform(value => value === 'true'),
