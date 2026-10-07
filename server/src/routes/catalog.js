@@ -37,6 +37,7 @@ const ingredientSchema = z.object({
 const technicalSheetSchema = z.object({
   id: z.string().min(1).max(100).optional(),
   rendimento: z.number().positive().default(1),
+  modoPreparo: z.string().max(10000).optional(),
   itens: z.array(z.object({
     ingredienteId: z.string().min(1).max(100),
     quantidade: z.number().positive(),
@@ -49,6 +50,7 @@ function sheetRows(rows) {
     id: row.id,
     productId: row.product_id,
     rendimento: Number(row.yield),
+    modoPreparo: row.preparation_method,
     updatedAt: row.updated_at,
     items: row.items || [],
   }));
@@ -129,7 +131,7 @@ export default async function catalogRoutes(app) {
 
   app.get('/technical-sheets', { preHandler: requirePermission('catalog.read') }, async () => {
     const { rows } = await app.db.query(`
-      SELECT ts.id, ts.product_id, ts.yield, ts.updated_at,
+      SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
         COALESCE(json_agg(json_build_object(
           'ingredientId', tsi.ingredient_id,
           'quantity', tsi.quantity,
@@ -176,11 +178,12 @@ export default async function catalogRoutes(app) {
 
       const sheetId = parsed.data.id || `ts-${productId}`;
       const sheet = await client.query(`
-        INSERT INTO technical_sheets (id, product_id, yield, updated_at)
-        VALUES ($1,$2,$3,now())
-        ON CONFLICT (product_id) DO UPDATE SET yield=EXCLUDED.yield, updated_at=now()
+        INSERT INTO technical_sheets (id, product_id, yield, preparation_method, updated_at)
+        VALUES ($1,$2,$3,COALESCE($4::text,''),now())
+        ON CONFLICT (product_id) DO UPDATE SET yield=EXCLUDED.yield,
+          preparation_method=COALESCE($4::text,technical_sheets.preparation_method), updated_at=now()
         RETURNING id
-      `, [sheetId, productId, parsed.data.rendimento]);
+      `, [sheetId, productId, parsed.data.rendimento, parsed.data.modoPreparo]);
 
       await client.query('DELETE FROM technical_sheet_items WHERE sheet_id=$1', [sheet.rows[0].id]);
       for (const item of parsed.data.itens) {
@@ -191,7 +194,7 @@ export default async function catalogRoutes(app) {
       }
 
       const { rows } = await client.query(`
-        SELECT ts.id, ts.product_id, ts.yield, ts.updated_at,
+        SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
           COALESCE(json_agg(json_build_object(
             'ingredientId', tsi.ingredient_id,
             'quantity', tsi.quantity,

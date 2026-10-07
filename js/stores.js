@@ -18,8 +18,17 @@ const CATEGORIAS_PRODUTO = [
 ];
 
 const CATEGORIAS_INGREDIENTE = [
-  'Destilados', 'Frutas', 'Açúcares e Xaropes', 'Embalagens', 'Bebidas', 'Hortifruti', 'Carnes', 'Laticínios', 'Temperos', 'Insumos', 'Outros',
+  'Destilados', 'Frutas', 'Açúcares e Xaropes', 'Embalagens', 'Utensílios', 'Bebidas', 'Hortifruti', 'Carnes', 'Laticínios', 'Temperos', 'Insumos', 'Outros',
 ];
+
+const SECOES_LISTA_COMPRAS = ['Comida', 'Utensílios', 'Embalagens'];
+
+function secaoListaCompras(categoria) {
+  const normalized = String(categoria || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (normalized === 'utensilios') return 'Utensílios';
+  if (normalized === 'embalagens') return 'Embalagens';
+  return 'Comida';
+}
 
 const UNIDADES = ['g', 'kg', 'ml', 'L', 'un', 'cx', 'sc'];
 

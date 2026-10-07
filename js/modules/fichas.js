@@ -14,6 +14,7 @@ const FichasModule = {
   _serverMode: false,
   _canWrite: true,
   _saveTimers: new Map(),
+  _saveQueues: new Map(),
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
@@ -74,15 +75,16 @@ const FichasModule = {
       return;
     }
     if (!this._canWrite || !ficha?.produtoId) return;
-    const save = async () => {
-      try {
+    const save = () => {
+      const produtoId = ficha.produtoId;
+      const previous = this._saveQueues.get(produtoId) || Promise.resolve();
+      const pending = previous.catch(() => {}).then(async () => {
         const saved = await API.saveServerTechnicalSheet(ficha);
-        const idx = this._fichas.findIndex(f => f.produtoId === saved.produtoId);
-        if (idx >= 0) this._fichas[idx] = saved;
-        else this._fichas.push(saved);
-      } catch {
+        ficha.dataAtualizacao = saved.dataAtualizacao;
+      }).catch(() => {
         UI.toast('Não foi possível salvar a ficha técnica.', 'danger');
-      }
+      });
+      this._saveQueues.set(produtoId, pending);
     };
     if (!debounce) {
       save();
@@ -149,7 +151,7 @@ const FichasModule = {
   _getOrCreate(produtoId) {
     let ficha = this.getByProduto(produtoId);
     if (!ficha) {
-      ficha = { id: `f-${Utils.uid()}`, produtoId, rendimento: 1, itens: [] };
+      ficha = { id: `f-${Utils.uid()}`, produtoId, rendimento: 1, modoPreparo: '', itens: [] };
       this._fichas.push(ficha);
       this._persist(ficha, { debounce: true });
     }
@@ -199,6 +201,14 @@ const FichasModule = {
           </tbody>
         </table>
         <button class="ficha-table__add" id="ficha-add-item" ${this._canWrite ? '' : 'disabled'}>+ Adicionar ingrediente</button>
+      </div>
+
+      <div class="ficha-preparo">
+        <label class="form-label" for="ficha-modo-preparo">Modo de preparo</label>
+        <textarea class="form-input ficha-preparo__input" id="ficha-modo-preparo"
+          rows="7" maxlength="10000" placeholder="Descreva o passo a passo de preparo e finalização deste produto."
+          ${this._canWrite ? '' : 'disabled'}>${Utils.escapeHtml(ficha.modoPreparo || '')}</textarea>
+        <p class="ficha-preparo__hint">Instruções internas desta ficha técnica. Salvas automaticamente.</p>
       </div>
 
       <div class="ficha-summary">
@@ -286,6 +296,12 @@ const FichasModule = {
   _bindEditorEvents(ficha, produto) {
     const container = document.getElementById('ficha-editor');
     if (!container) return;
+
+    document.getElementById('ficha-modo-preparo')?.addEventListener('input', event => {
+      if (!this._canWrite) return;
+      ficha.modoPreparo = event.target.value;
+      this._persist(ficha, { debounce: true });
+    });
 
     document.getElementById('ficha-add-item')?.addEventListener('click', () => {
       if (!this._canWrite) return;
