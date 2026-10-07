@@ -85,8 +85,8 @@ const Cardapio = {
     try{const response=await fetch(this.endpoint('/public/catalog'),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error();const body=await response.json();this.products=body.data;this.apiActive=true}
     catch{
       this.products=this.localCatalog() || this.fallback;
-      document.getElementById('service-notice').classList.remove('hidden');
-      document.getElementById('service-notice').textContent='Pedidos automáticos em fase de ativação. O cardápio está sincronizado com os produtos ativos do ERP.';
+      // Falhas de sincronização são assunto interno do ERP; o cliente vê apenas o catálogo.
+      document.getElementById('service-notice').classList.add('hidden');
     }
     this.bind();
     if(this.tableNumber){const notice=document.getElementById('service-notice');notice.classList.remove('hidden');notice.textContent=`Pedido para consumo na Mesa ${this.tableNumber}.`;const pickup=document.querySelector('[name="fulfillment"][value="retirada"]');if(pickup)pickup.checked=true;document.querySelectorAll('[name="fulfillment"]').forEach(input=>input.disabled=true)}
