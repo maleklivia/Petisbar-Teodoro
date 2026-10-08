@@ -11,6 +11,7 @@ const FichasModule = {
   _activeProduto: null,
   _cmvGoal: 35,
   _allProdutos: [],
+  _receitasCurso: [],
   _serverMode: false,
   _canWrite: true,
   _saveTimers: new Map(),
@@ -48,6 +49,7 @@ const FichasModule = {
     }
     this._cmvGoal = (Storage.getState().settings || {}).cmvGoal || 35;
     this._renderProdutoList(produtos);
+    this._renderCourseRecipes();
     this._bindSearch(produtos);
 
     // Re-seleciona produto ativo se houver
@@ -65,9 +67,10 @@ const FichasModule = {
     this._fichas       = Stores.fichas.get();
   },
 
-  setData({ ingredientes, fichas } = {}) {
+  setData({ ingredientes, fichas, receitasCurso } = {}) {
     if (ingredientes) this._ingredientes = ingredientes;
     if (fichas) this._fichas = fichas;
+    if (receitasCurso) this._receitasCurso = receitasCurso;
   },
 
   getByProduto(produtoId) {
@@ -175,6 +178,46 @@ const FichasModule = {
     input.addEventListener('input', Utils.debounce(() => {
       this._renderProdutoList(produtos, input.value);
     }, 200));
+  },
+
+  _renderCourseRecipes() {
+    const container=document.getElementById('course-recipes-list');
+    const count=document.getElementById('course-recipes-count');
+    if(!container)return;
+    const section=container.closest('.course-recipes');
+    if(section)section.hidden=!this._serverMode;
+    if(!this._serverMode)return;
+    const cards=this._receitasCurso||[];
+    if(count)count.textContent=cards.length?`${cards.length} fichas`:'';
+    if(!cards.length){
+      container.innerHTML='<p class="course-recipes__empty">As receitas do curso aparecerão aqui após a atualização do banco do ERP.</p>';
+      return;
+    }
+    const statusLabel=status=>status==='draft'?'Rascunho':status==='ready'?'Completa':'Incompleta';
+    const quantity=item=>item.quantity===null?'Quantidade pendente':`${item.quantity} ${item.unit||''}`.trim();
+    container.innerHTML=cards.map(card=>{
+      const cost=card.cost||{};
+      const costLabel=cost.complete
+        ? card.recipeType==='preparation'
+          ? `Lote: ${Utils.currency(cost.total)}${card.outputYield?` · ${Utils.currency(cost.unit)} por ${card.outputUnit||'unidade'}`:''}`
+          : `Custo calculado: ${Utils.currency(cost.total)}`
+        : cost.partialTotal>0?`Custo parcial: ${Utils.currency(cost.partialTotal)} · não é custo final`:'Custo final indisponível';
+      return `<details class="course-recipe ${card.status==='draft'?'course-recipe--draft':'course-recipe--incomplete'}">
+        <summary>
+          <span class="course-recipe__identity"><strong>${Utils.escapeHtml(card.code)} · ${Utils.escapeHtml(card.name)}</strong><small>${card.recipeType==='preparation'?'Preparação intermediária':'Produto'}${card.linkedProductName?` · associado a ${Utils.escapeHtml(card.linkedProductName)}`:''}</small></span>
+          <span class="course-recipe__state">${statusLabel(card.status)}</span>
+        </summary>
+        <div class="course-recipe__body">
+          <div class="course-recipe__cost">${Utils.escapeHtml(costLabel)}</div>
+          ${card.packagingCapacity?`<p class="course-recipe__note">Embalagem com capacidade de ${card.packagingCapacity} ${Utils.escapeHtml(card.packagingCapacityUnit||'')}; capacidade não representa peso do produto.</p>`:''}
+          ${card.preparationMethod?`<p><strong>Preparo:</strong> ${Utils.escapeHtml(card.preparationMethod)}</p>`:''}
+          <ul>${(card.items||[]).map(item=>`<li><span>${Utils.escapeHtml(item.itemName)}${item.isPackaging?' (material de venda)':''}</span><span>${Utils.escapeHtml(quantity(item))}</span>${item.pendingNote?`<small>${Utils.escapeHtml(item.pendingNote)}</small>`:''}</li>`).join('')}</ul>
+          ${cost.notes?.length?`<div class="course-recipe__pending"><strong>Pendências de custo:</strong><ul>${cost.notes.map(note=>`<li>${Utils.escapeHtml(note)}</li>`).join('')}</ul></div>`:''}
+          ${card.pendingNotes?`<p class="course-recipe__note"><strong>Observação:</strong> ${Utils.escapeHtml(card.pendingNotes)}</p>`:''}
+          <small class="course-recipe__source">Fonte: ${Utils.escapeHtml(card.source||'material do curso')}</small>
+        </div>
+      </details>`;
+    }).join('');
   },
 
   /* ── Editor ────────────────────────────────────────────────── */

@@ -24,14 +24,15 @@ const ProdutosModule = {
       const tbody = document.getElementById('tbody-cardapio');
       if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">Carregando catálogo…</td></tr>';
       try {
-        const [produtos, ingredientes, fichas] = await Promise.all([
+        const [produtos, ingredientes, fichas, receitasCurso] = await Promise.all([
           API.getServerProducts(),
           API.getServerIngredients(),
           API.getServerTechnicalSheets(),
+          API.getServerRecipeCards(),
         ]);
         this._items = produtos;
         IngredientesModule.setItems(ingredientes);
-        FichasModule.setData({ ingredientes, fichas });
+        FichasModule.setData({ ingredientes, fichas, receitasCurso });
       } catch (error) {
         UI.toast('Falha ao carregar catálogo do servidor.', 'danger');
         this._items = [];
