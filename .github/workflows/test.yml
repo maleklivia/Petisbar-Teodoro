@@ -37,6 +37,4 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npm run check
-      - name: Aplicar todas as migrações no PostgreSQL temporário
-        run: npm run migrate
       - run: npm test
