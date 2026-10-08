@@ -153,7 +153,8 @@ const Cardapio = {
       await this.refresh();
       const payload=this.payload(form),error=this.validate(payload);
       if(error){this.toast(error);return}
-      const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
+      const idempotencyKey=crypto.randomUUID();
+      const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':idempotencyKey},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
       const body=await response.json().catch(()=>({}));
       if(!response.ok){
         if(['catalog_changed','product_unavailable','insufficient_stock','payment_unavailable','minimum_order_not_met'].includes(body.error)){
@@ -165,6 +166,7 @@ const Cardapio = {
       }
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.coupon=null;
       this.renderCatalog();this.renderCart();this.openCart(false);
+      if(body.data.trackingToken) localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
     }catch{
