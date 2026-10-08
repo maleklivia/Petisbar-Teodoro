@@ -14,12 +14,15 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
     if(sql.includes('LEFT JOIN technical_sheets'))return {rows:costs};
     if(sql.includes('SELECT id,name,category,sale_price,current_stock'))return {rows:products.filter(product=>params[0].includes(product.id))};
     if(sql.includes('SELECT id,sale_price FROM products'))return {rows:variants.filter(product=>params[0].includes(product.id))};
-    if(sql.includes('SELECT * FROM promotions WHERE id=ANY'))return {rows:promotions.filter(promotion=>params[0].includes(promotion.id)).map(promotion=>({
+    if(sql.includes('SELECT p.* FROM promotions p WHERE id=ANY')){
+      assert.match(sql,/FROM promotions\s+p\s+WHERE[\s\S]*p\.active=true/);
+      return {rows:promotions.filter(promotion=>params[0].includes(promotion.id)).map(promotion=>({
       id:promotion.id,code:promotion.code,rule_type:promotion.rule_type,priority:promotion.priority,
       discount_percent:promotion.discount_percent,discount_amount:promotion.discount_amount,combo_price:promotion.combo_price,
       cmv_estimate_percent:promotion.cmv_estimate_percent??null,
       stack_with_coupon:promotion.stack_with_coupon,active:true,starts_at:null,ends_at:null,
     }))};
+    }
     throw new Error(`Unexpected SQL: ${sql}`);
   }};
 }
