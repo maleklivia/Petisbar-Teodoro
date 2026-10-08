@@ -20,6 +20,8 @@ const schema = z.object({
   AI_ENABLED: z.string().default('false').transform(value => value === 'true'),
   OPENAI_API_KEY: z.string().default(''),
   OPENAI_MODEL: z.string().min(1).default('gpt-5.6-luna'),
+  RESEND_API_KEY: z.string().default(''),
+  MAIL_FROM: z.string().email().default('petisbarteodoro@gmail.com'),
 }).superRefine((value, context) => {
   if (value.IFOOD_ENABLED && (!value.IFOOD_CLIENT_ID || !value.IFOOD_CLIENT_SECRET || !value.IFOOD_MERCHANT_ID)) {
     context.addIssue({ code: 'custom', message: 'Credenciais do iFood são obrigatórias quando IFOOD_ENABLED=true' });

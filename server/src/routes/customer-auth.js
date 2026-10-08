@@ -2,6 +2,7 @@ import { createHash, randomInt } from 'node:crypto';
 import { z } from 'zod';
 import { hashToken } from '../middleware/auth.js';
 import { authenticateCustomer, CUSTOMER_SESSION_COOKIE, customerCookieOptions, newCustomerSession, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
+import { sendCustomerLoginCode } from '../services/customer-email.js';
 
 const emailSchema = z.string().trim().email().max(200).transform(value => value.toLowerCase());
 const requestSchema = z.object({ email: emailSchema, name: z.string().trim().min(2).max(120).optional(), phone: z.string().trim().max(24).optional() });
@@ -26,8 +27,12 @@ export default async function customerAuthRoutes(app) {
       await client.query(`UPDATE customer_login_challenges SET consumed_at=now() WHERE customer_account_id=$1 AND consumed_at IS NULL`, [account.rows[0].id]);
       await client.query(`INSERT INTO customer_login_challenges (customer_account_id,code_hash,expires_at) VALUES ($1,$2,now()+interval '10 minutes')`, [account.rows[0].id, codeHash(code)]);
       await client.query('COMMIT');
-      // A transportador de e-mail será ligado na próxima etapa de infraestrutura.
-      request.log.info({ event: 'customer_login_requested' }, 'login de cliente solicitado');
+      try {
+        const delivery = await sendCustomerLoginCode({ email, code });
+        request.log.info({ event: 'customer_login_requested', delivery: delivery.sent ? 'sent' : 'not_configured' }, 'login de cliente solicitado');
+      } catch (error) {
+        request.log.error({ event: 'customer_login_delivery_failed', error: error.message }, 'falha no envio do login de cliente');
+      }
       return { ok: true };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   });
