@@ -3,7 +3,15 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { priceOrderItems, roundMoney } from '../services/order-pricing.js';
 
-const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), flavoredIce: z.boolean().default(false) });
+const optionSchema = z.object({
+  flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
+  complement: z.array(z.enum(['leite-condensado', 'leite-em-po', 'granola', 'pacoca'])).max(4).optional(),
+  size: z.enum(['P', 'G', '500ml', '700ml']).optional(),
+  beverage: z.enum(['vodka', 'whisky']).optional(),
+  iceFlavor: z.enum(['coco', 'maracuja']).optional(),
+  drink: z.enum(['none', 'coca-cola', 'guarana', 'agua']).optional(),
+}).default({});
+const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), flavoredIce: z.boolean().default(false), options: optionSchema });
 const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).min(1).max(30) });
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
@@ -21,6 +29,14 @@ const normalizePhone = value => {
   return digits;
 };
 const validPhone = phone => phone.length === 10 || phone.length === 11;
+const optionError = item => {
+  const options = item.options || {};
+  if (item.productId === 'p-aca001' && !options.flavor) return 'product_options_required';
+  if (['p-drk001','p-drk002','p-drk003','p-drk004','p-drk005','p-drk006'].includes(item.productId) && !options.flavor) return 'product_options_required';
+  if (['p-drk010','p-drk011'].includes(item.productId) && (!options.size || !options.beverage || !options.iceFlavor)) return 'product_options_required';
+  if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !options.size) return 'product_options_required';
+  return '';
+};
 
 async function findCoupon(db, code, lock = false) {
   const { rows } = await db.query(`SELECT id,code,discount_percent,max_discount,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
@@ -72,6 +88,7 @@ export default async function publicOrderRoutes(app) {
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});
+    const invalidOptions=parsed.data.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
@@ -82,6 +99,7 @@ export default async function publicOrderRoutes(app) {
   app.post('/public/orders', {config:{rateLimit:{max:10,timeWindow:'1 minute'}}}, async (request,reply) => {
     const parsed=orderSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error',details:parsed.error.flatten()});
     const input=parsed.data; if(input.website)return reply.code(400).send({error:'invalid_request'});
+    const invalidOptions=input.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
     const phone=normalizePhone(input.customer.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     if(input.fulfillmentType==='entrega'&&(!input.address.postalCode||!input.address.city||!input.address.street||!input.address.number||!input.address.district))return reply.code(400).send({error:'delivery_address_required'});
     const client=await app.db.connect();

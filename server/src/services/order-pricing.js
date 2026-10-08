@@ -13,7 +13,10 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
   const products = new Map(result.rows.map(product => [product.id, product]));
   const items = requested.map(item => {
     const product = products.get(item.productId);
-    const unitPrice = Number(product.sale_price);
+    let unitPrice = Number(product.sale_price);
+    if (product.id === 'p-pet002' && item.options?.size === 'G') unitPrice = 39.90;
+    if (['p-drk010', 'p-drk011'].includes(product.id) && item.options?.size === '700ml') unitPrice = 24.90;
+    if (product.id === 'p-pet002') unitPrice += ({ 'coca-cola': 6, guarana: 5, agua: 3 }[item.options?.drink] || 0);
     const canAddFlavoredIce = ['p-drk010', 'p-drk011'].includes(product.id);
     const options = { ...(item.options || {}) };
     options.flavoredIce = canAddFlavoredIce && Boolean(item.flavoredIce ?? options.flavoredIce);
