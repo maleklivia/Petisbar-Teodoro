@@ -11,7 +11,7 @@ const optionSchema = z.object({
   iceFlavor: z.enum(['coco', 'maracuja']).optional(),
   drink: z.enum(['none', 'coca-cola', 'guarana', 'agua']).optional(),
 }).default({});
-const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative().optional(), flavoredIce: z.boolean().default(false), options: optionSchema });
+const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
 const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).min(1).max(30) });
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
@@ -84,7 +84,18 @@ export default async function publicOrderRoutes(app) {
     } };
   });
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
-  app.get('/public/catalog', async (request, reply) => { reply.header('Cache-Control', 'no-store'); const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock FROM products WHERE active=true ORDER BY category,name'); return {data:rows}; });
+  app.get('/public/catalog', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const [catalog, variants] = await Promise.all([
+      app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock FROM products WHERE active=true ORDER BY category,name'),
+      app.db.query("SELECT id,sale_price FROM products WHERE id=ANY($1::text[])", [['p-pet007','p-drk011','p-ref001','p-ref002','p-agu001']]),
+    ]);
+    const prices = Object.fromEntries(variants.rows.map(row => [row.id, Number(row.sale_price)]));
+    return {data:catalog.rows.map(product => ({...product,
+      option_prices:product.id==='p-pet002' ? {G:prices['p-pet007'],drinks:{'coca-cola':prices['p-ref001'],guarana:prices['p-ref002'],agua:prices['p-agu001']}}
+        : product.id==='p-drk010' ? {'700ml':prices['p-drk011']} : null,
+    }))};
+  });
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});

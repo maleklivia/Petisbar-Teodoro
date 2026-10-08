@@ -54,3 +54,11 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
   assert.match(element('catalog').innerHTML, /Indisponível/);
   assert.match(element('catalog').innerHTML, /disabled.*aria-label="Adicionar"/);
 });
+
+test('preço de opção usa valor retornado pelo ERP', async () => {
+  const { client } = loadClient();
+  const batata = { id: 'p-pet002', sale_price: '27.90', option_prices: { G: 42, drinks: { 'coca-cola': 7.5 } } };
+  assert.equal(client.productUnitPrice(batata, { size: 'G', drink: 'coca-cola' }), 49.5);
+  assert.equal(client.productUnitPrice(batata, { size: 'P' }), 27.9);
+  assert.ok(Number.isNaN(client.productUnitPrice(batata, { size: 'G', drink: 'agua' })));
+});
