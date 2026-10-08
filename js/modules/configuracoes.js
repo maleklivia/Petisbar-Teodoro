@@ -7,6 +7,27 @@ const ConfiguracoesModule = {
   _tab: 'restaurante',
   _storefront: null,
   _eventsBound: false,
+  _storefrontDraftKey: 'petisbar-storefront-draft-v1',
+
+  _readStorefrontDraft() {
+    try { return JSON.parse(localStorage.getItem(this._storefrontDraftKey) || 'null'); }
+    catch { return null; }
+  },
+
+  _captureStorefrontDraft(form) {
+    const data = new FormData(form);
+    const draft = {
+      minimumOrder: String(data.get('minimumOrder') ?? ''),
+      deliveryTime: String(data.get('deliveryTime') ?? ''),
+      hours: String(data.get('hours') ?? ''),
+      isOpen: data.get('isOpen') === 'on',
+      paymentMethods: [...form.querySelectorAll('[data-payment]:checked')].map(input => input.dataset.payment),
+      promotion: String(data.get('promotion') ?? ''),
+      whatsapp: String(data.get('whatsapp') ?? ''),
+    };
+    try { localStorage.setItem(this._storefrontDraftKey, JSON.stringify(draft)); }
+    catch { UI.toast('Não foi possível guardar o rascunho neste navegador.', 'error'); }
+  },
 
   async init() {
     if (API.isServerMode() && API.hasPermission('settings.manage')) {
@@ -58,17 +79,19 @@ const ConfiguracoesModule = {
     if (!API.hasPermission('settings.manage')) return '<p>Você não tem permissão para alterar o cardápio online.</p>';
     const s = this._storefront;
     if (!s) return '<p>Não foi possível carregar as configurações do VPS. Recarregue a página antes de editar.</p>';
-    const payment = s['storefront.paymentMethods'] || [];
+    const draft = this._readStorefrontDraft();
+    const payment = draft?.paymentMethods ?? s['storefront.paymentMethods'] ?? [];
     const promotion = (s['storefront.promotions'] || [])[0] || {};
     return `<form id="cfg-storefront" style="max-width:620px;display:flex;flex-direction:column;gap:var(--sp-4)">
       <p>Estas informações são publicadas no cardápio do cliente. A aba aberta se atualiza automaticamente em até 15 segundos.</p>
-      <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Number(s['storefront.minimumOrder'] ?? 20)}"></label>
-      <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(s['storefront.deliveryTime'] || '')}"></label>
-      <label class="form-group">Horário exibido<input class="form-input" name="hours" maxlength="160" required value="${Utils.escapeHtml(s['storefront.hours'] || '')}"></label>
-      <label class="form-group"><input name="isOpen" type="checkbox" ${s['storefront.isOpen'] ? 'checked' : ''}> Aceitar pedidos agora</label>
+      ${draft ? '<p role="status">Rascunho deste navegador recuperado. Clique em “Salvar no VPS” para publicá-lo. <button type="button" class="btn btn-ghost" id="cfg-discard-draft">Descartar rascunho</button></p>' : ''}
+      <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Utils.escapeHtml(draft?.minimumOrder ?? String(s['storefront.minimumOrder'] ?? 20))}"></label>
+      <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
+      <label class="form-group">Horário exibido<input class="form-input" name="hours" maxlength="160" required value="${Utils.escapeHtml(draft?.hours ?? s['storefront.hours'] ?? '')}"></label>
+      <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
       <fieldset><legend>Formas de pagamento</legend>${['Pix','Dinheiro','Cartão na entrega'].map(method => `<label style="display:block"><input type="checkbox" data-payment="${method}" ${payment.includes(method) ? 'checked' : ''}> ${method}</label>`).join('')}</fieldset>
-      <label class="form-group">Texto da promoção<textarea class="form-input" name="promotion" rows="2" maxlength="500">${Utils.escapeHtml(promotion.description || '')}</textarea></label>
-      <label class="form-group">WhatsApp do estabelecimento<input class="form-input" name="whatsapp" inputmode="tel" pattern="[0-9]{10,15}" required value="${Utils.escapeHtml(s['storefront.whatsapp'] || '')}"></label>
+      <label class="form-group">Texto da promoção<textarea class="form-input" name="promotion" rows="2" maxlength="500">${Utils.escapeHtml(draft?.promotion ?? promotion.description ?? '')}</textarea></label>
+      <label class="form-group">WhatsApp do estabelecimento<input class="form-input" name="whatsapp" inputmode="tel" pattern="[0-9]{10,15}" required value="${Utils.escapeHtml(draft?.whatsapp ?? s['storefront.whatsapp'] ?? '')}"></label>
       <button class="btn btn-primary" type="submit">Salvar no VPS</button>
     </form>`;
   },
@@ -94,6 +117,7 @@ const ConfiguracoesModule = {
     try {
       await API.saveServerSettings(settings);
       this._storefront = { ...current, ...settings };
+      try { localStorage.removeItem(this._storefrontDraftKey); } catch { /* O servidor já confirmou a gravação. */ }
       UI.toast('Configurações salvas no VPS.', 'success');
     } catch (error) {
       console.error(error);
@@ -374,7 +398,12 @@ const ConfiguracoesModule = {
       this._saveStorefront(e.target);
     });
 
+    const saveDraft = e => { const form = e.target.closest('#cfg-storefront'); if (form) this._captureStorefrontDraft(form); };
+    el.addEventListener('input', saveDraft);
+    el.addEventListener('change', saveDraft);
+
     el.addEventListener('click', e => {
+      if (e.target.closest('#cfg-discard-draft')) { localStorage.removeItem(this._storefrontDraftKey); this._render(); return; }
       const tab = e.target.closest('[data-cfg-tab]');
       if (tab) { this._tab = tab.dataset.cfgTab; this._render(); this._bindEvents(); return; }
 
