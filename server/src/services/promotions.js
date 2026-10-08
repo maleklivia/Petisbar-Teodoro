@@ -228,7 +228,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
     comboGroupId:allLines[index].comboGroupId || null, comboGroupName:allLines[index].comboGroupName || null,
     comboPromotionId:allLines[index].comboPromotionId || null, comboInstanceId:allLines[index].comboPromotionId || null,
     groupSurcharge:Number(allLines[index].groupSurcharge || 0) }));
-  const promoRows = await db.query(`SELECT * FROM promotions WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
+  const promoRows = await db.query(`SELECT p.* FROM promotions p WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
     [[...new Set([...requestedCombos.map(combo=>combo.promotionId),...eligiblePromos.filter(p=>p.rule_type!=='combo').map(p=>p.id)])]]);
   const locked = new Map(promoRows.rows.map(row => [row.id, row]));
   if (requestedCombos.some(combo=>!locked.has(combo.promotionId))) return { error:'promotion_unavailable' };
