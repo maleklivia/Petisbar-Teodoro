@@ -21,4 +21,14 @@ WHERE id = 'p-drk010';
 
 UPDATE products SET active = false, updated_at = now() WHERE id = 'p-drk011';
 
+UPDATE products
+SET name = 'Refrigerante lata',
+    description = 'Refrigerante lata 350ml: escolha Coca-Cola, Guaraná Antarctica ou Sprite',
+    sale_price = 5.00,
+    active = true,
+    updated_at = now()
+WHERE id = 'p-ref001';
+
+UPDATE products SET active = false, updated_at = now() WHERE id IN ('p-ref002', 'p-ref003');
+
 COMMIT;
