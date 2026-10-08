@@ -20,7 +20,8 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
   try {
     await client.query(`CREATE SCHEMA ${schema}`);
     await client.query(`SET search_path TO ${schema}, public`);
-    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public');
+    const extension = await client.query("SELECT 1 FROM pg_extension WHERE extname='pgcrypto'");
+    if (!extension.rowCount) await client.query('CREATE EXTENSION pgcrypto SCHEMA public');
     const files = (await readdir(migrationsDir)).filter(name => name.endsWith('.sql')).sort();
     for (const file of files) await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
 
