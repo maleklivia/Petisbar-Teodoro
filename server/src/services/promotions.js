@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { priceOrderItems, roundMoney } from './order-pricing.js';
 
-const activeNow = "active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now())";
+const activeNow = "p.active=true AND (p.starts_at IS NULL OR p.starts_at<=now()) AND (p.ends_at IS NULL OR p.ends_at>=now())";
 const money = value => roundMoney(Number(value || 0));
 
 export async function listPromotions(db, { publicOnly = false, activeOnly = false } = {}) {
@@ -21,7 +21,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
         ORDER BY p.category,p.name) FILTER (WHERE gp.product_id IS NOT NULL),'[]'::json) AS products
     FROM promotion_groups g LEFT JOIN promotion_group_products gp ON gp.group_id=g.id
     LEFT JOIN products p ON p.id=gp.product_id
-    ${publicOnly ? `JOIN promotions active_p ON active_p.id=g.promotion_id AND ${activeNow.replaceAll('active', 'active_p.active').replaceAll('starts_at', 'active_p.starts_at').replaceAll('ends_at', 'active_p.ends_at')}` : activeOnly ? 'JOIN promotions active_p ON active_p.id=g.promotion_id AND active_p.active=true' : ''}
+    ${publicOnly ? 'JOIN promotions active_p ON active_p.id=g.promotion_id AND active_p.active=true AND (active_p.starts_at IS NULL OR active_p.starts_at<=now()) AND (active_p.ends_at IS NULL OR active_p.ends_at>=now())' : activeOnly ? 'JOIN promotions active_p ON active_p.id=g.promotion_id AND active_p.active=true' : ''}
     WHERE g.active=true
     GROUP BY g.id ORDER BY g.promotion_id,g.code
   `);
