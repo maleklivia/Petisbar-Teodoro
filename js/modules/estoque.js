@@ -118,11 +118,15 @@ const EstoqueModule = {
     return this._renderIngredientes(ings);
   },
 
+  _normalizarBusca(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  },
+
   _renderProdutos() {
     let data = this._getProdutos().filter(p => p.ativo);
     if (this._busca) {
-      const b = this._busca.toLowerCase();
-      data = data.filter(p => `${p.nome} ${p.categoria} ${p.descricao || ''}`.toLowerCase().includes(b));
+      const b = this._normalizarBusca(this._busca);
+      data = data.filter(p => this._normalizarBusca(`${p.nome} ${p.categoria} ${p.descricao || ''}`).includes(b));
     }
     if (this._filtroStatus === 'critico') data = data.filter(p => p.estoqueAtual !== null && Number(p.estoqueAtual) <= Number(p.estoqueMinimo || 0));
     if (this._filtroStatus === 'ok') data = data.filter(p => p.estoqueAtual === null || Number(p.estoqueAtual) > Number(p.estoqueMinimo || 0));
@@ -149,8 +153,8 @@ const EstoqueModule = {
   _renderIngredientes(ings) {
     let data = ings.filter(i => i.ativo);
     if (this._busca) {
-      const b = this._busca.toLowerCase();
-      data = data.filter(i => i.nome.toLowerCase().includes(b) || i.categoria.toLowerCase().includes(b));
+      const b = this._normalizarBusca(this._busca);
+      data = data.filter(i => this._normalizarBusca(`${i.nome} ${i.categoria}`).includes(b));
     }
     if (this._filtroStatus === 'critico') data = data.filter(i => this._precisaComprar(i));
     if (this._filtroStatus === 'ok')      data = data.filter(i => !this._precisaComprar(i));
