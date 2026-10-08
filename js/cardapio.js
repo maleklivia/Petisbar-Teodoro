@@ -88,6 +88,8 @@ const Cardapio = {
     this.bind();
     if(this.tableNumber){const pickup=document.querySelector('[name="fulfillment"][value="retirada"]');if(pickup)pickup.checked=true;document.querySelectorAll('[name="fulfillment"]').forEach(input=>input.disabled=true)}
     await this.refresh();
+    const reorder=localStorage.getItem('petisbar.reorderItems');
+    if(reorder){try{const items=JSON.parse(reorder);for(const item of items){const product=this.products.find(p=>p.id===item.productId);if(product){this.cart.set(product.id,Math.min(20,Number(item.quantity)||1));this.productOptions.set(product.id,item.options||{})}}}catch{}localStorage.removeItem('petisbar.reorderItems');this.renderCart()}
     setInterval(()=>{if(!document.hidden)this.refresh()},15000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)this.refresh()});
     window.addEventListener('focus',()=>this.refresh());
@@ -255,6 +257,11 @@ const Cardapio = {
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.combos.clear();this.coupon=null;this.quote=null;sessionStorage.removeItem('petisbar-pending-order');
       this.renderPromotions();this.renderCatalog();this.renderCart();this.openCart(false);
       if(body.data.trackingToken)localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
+      if(body.data.trackingToken){
+        document.getElementById('order-confirmation-number').textContent=`Pedido #${body.data.orderNumber}`;
+        document.getElementById('order-confirmation').classList.remove('hidden');
+        document.getElementById('order-confirmation').scrollIntoView({behavior:'smooth',block:'center'});
+      }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
     }catch{

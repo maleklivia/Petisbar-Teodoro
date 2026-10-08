@@ -567,3 +567,4 @@
   padding: 5px 12px !important;
   font-size: 0.8rem !important;
 }
+.customer-account-badge{color:var(--color-success,#59d68a);font-size:11px}
