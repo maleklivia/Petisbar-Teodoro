@@ -432,7 +432,7 @@ const API = {
   },
 
   async getServerSettings() { return (await this._request('/settings')).data; },
-  async saveServerSettings(settings) { return (await this._request('/settings', { method: 'PUT', body: settings })).data; },
+  async saveServerSettings(settings) { return (await this._request('/settings', { method: 'PUT', body: JSON.stringify(settings) })).data; },
 
   async createSupplier(data) {
     const state = Storage.getState();
