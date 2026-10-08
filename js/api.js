@@ -161,6 +161,10 @@ const API = {
     return (await this._request('/technical-sheets')).data.map(this._mapServerTechnicalSheet);
   },
 
+  async getServerRecipeCards() {
+    return (await this._request('/recipe-cards')).data;
+  },
+
   async saveServerTechnicalSheet(sheet) {
     return this._mapServerTechnicalSheet((await this._request(`/technical-sheets/${encodeURIComponent(sheet.produtoId)}`, {
       method: 'PUT',

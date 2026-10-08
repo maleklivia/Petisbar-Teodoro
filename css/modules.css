@@ -206,6 +206,38 @@
   min-height: 520px;
 }
 
+.course-recipes {
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4);
+  border: 1px solid var(--border-color, #2b2b2b);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface, #141414);
+}
+.course-recipes__heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.course-recipes__heading h2 { margin:0 0 5px; font-size:var(--text-lg); }
+.course-recipes__heading p,.course-recipes__empty { margin:0; color:var(--text-muted); font-size:var(--text-sm); }
+.course-recipes__count { color:var(--text-muted); font-size:var(--text-sm); white-space:nowrap; }
+.course-recipes__list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.course-recipe { min-width:0; border:1px solid var(--border-color,#2b2b2b); border-radius:10px; background:rgba(255,255,255,.02); }
+.course-recipe summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; cursor:pointer; list-style:none; }
+.course-recipe summary::-webkit-details-marker { display:none; }
+.course-recipe__identity { display:grid; gap:4px; min-width:0; }
+.course-recipe__identity strong { font-size:var(--text-sm); }
+.course-recipe__identity small,.course-recipe__source { color:var(--text-muted); font-size:var(--text-xs); }
+.course-recipe__state { flex:none; padding:4px 8px; border-radius:999px; color:var(--warning,#e9bc55); background:rgba(233,188,85,.12); font-size:var(--text-xs); }
+.course-recipe--draft .course-recipe__state { color:var(--text-muted); background:rgba(255,255,255,.08); }
+.course-recipe__body { padding:0 12px 12px; color:var(--text-secondary,#b9b9b9); font-size:var(--text-sm); }
+.course-recipe__body p { line-height:1.5; }
+.course-recipe__body ul { margin:8px 0; padding-left:18px; }
+.course-recipe__body li { margin:5px 0; }
+.course-recipe__body li span:first-child { color:var(--text-primary,#f5f5f5); }
+.course-recipe__body li span:nth-child(2) { margin-left:8px; color:var(--accent,#e9bc55); }
+.course-recipe__body li small { display:block; color:var(--text-muted); }
+.course-recipe__cost { margin:8px 0; font-weight:700; color:var(--accent,#e9bc55); }
+.course-recipe__pending,.course-recipe__note { padding:8px 10px; border-radius:8px; background:rgba(233,188,85,.08); }
+.course-recipe__source { display:block; margin-top:10px; }
+@media(max-width:900px) { .course-recipes__list { grid-template-columns:1fr; } }
+
 /* Sidebar de produtos */
 .ficha-sidebar {
   background: var(--bg-surface);
