@@ -69,6 +69,48 @@ integrationTest('conclusão e cancelamento são atômicos e idempotentes', async
     assert.equal(Number(entries.rows[0].count), 4);
     const movements = await client.query("SELECT movement_type,quantity FROM stock_movements WHERE reference='order-test' ORDER BY movement_type");
     assert.deepEqual(movements.rows.map(row => [row.movement_type, Number(row.quantity)]), [['Estorno', 0.1], ['Saída', 0.1]]);
+
+    await client.query(`
+      INSERT INTO products (id,name,category,sale_price,current_stock,active) VALUES
+        ('p-drk001','Caipirinha','Drinks',15.90,null,true),
+        ('p-drk002','Caipirinha Morango','Drinks',16.90,null,false),
+        ('p-drk003','Caipirinha Maracujá','Drinks',17.90,null,false)
+    `);
+    await client.query(`
+      INSERT INTO ingredients (id,name,category,unit,current_stock,minimum_stock,unit_cost) VALUES
+        ('ingredient-lemon','Limão','Teste','kg',1,0,10),
+        ('ingredient-strawberry','Morango','Teste','kg',1,0,20),
+        ('ingredient-passionfruit','Maracujá','Teste','kg',1,0,30)
+    `);
+    await client.query(`
+      INSERT INTO technical_sheets (id,product_id,yield) VALUES
+        ('sheet-lemon','p-drk001',1),
+        ('sheet-strawberry','p-drk002',1),
+        ('sheet-passionfruit','p-drk003',1)
+    `);
+    await client.query(`
+      INSERT INTO technical_sheet_items (sheet_id,ingredient_id,quantity,unit) VALUES
+        ('sheet-lemon','ingredient-lemon',100,'g'),
+        ('sheet-strawberry','ingredient-strawberry',100,'g'),
+        ('sheet-passionfruit','ingredient-passionfruit',100,'g')
+    `);
+    await client.query(`
+      INSERT INTO orders (id,order_number,source,client_name,status,subtotal,total)
+      VALUES ('order-flavors',900002,'Teste','Cliente teste','Pronto',50.70,50.70)
+    `);
+    for (const [flavor, price] of [['natural',15.9],['morango',16.9],['maracuja',17.9]]) {
+      await client.query(`
+        INSERT INTO order_items (id,order_id,product_id,name,quantity,unit_price,subtotal,options)
+        VALUES ($1,'order-flavors','p-drk001','Caipirinha',1,$2,$2,$3)
+      `, [randomUUID(), price, { flavor }]);
+    }
+    await client.query('BEGIN');
+    await transitionOrderStatus(client, { orderId: 'order-flavors', nextStatus: 'Entregue' });
+    await client.query('COMMIT');
+    const flavorStocks = await client.query("SELECT id,current_stock FROM ingredients WHERE id LIKE 'ingredient-%' ORDER BY id");
+    assert.deepEqual(flavorStocks.rows.map(row => [row.id, Number(row.current_stock)]), [
+      ['ingredient-lemon',0.9],['ingredient-passionfruit',0.9],['ingredient-strawberry',0.9],['ingredient-test',1],
+    ]);
   } finally {
     await client.end();
   }
