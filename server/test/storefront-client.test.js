@@ -63,4 +63,5 @@ test('preço de opção usa valor retornado pelo ERP', async () => {
   assert.ok(Number.isNaN(client.productUnitPrice(batata, { size: 'G', drink: 'agua' })));
   const soda = { id: 'p-ref001', sale_price: '5.00', option_prices: { soda: { 'coca-cola': 6.5, guarana: 5 } } };
   assert.equal(client.productUnitPrice(soda, { sodaFlavor: 'coca-cola' }), 6.5);
+  assert.equal(client.productUnitPrice({ id: 'p-pet002', sale_price: 19.99, option_prices: { drinks: { agua: 4.99 } } }, { size: 'P', drink: 'agua' }), 24.98);
 });

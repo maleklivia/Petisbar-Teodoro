@@ -64,3 +64,14 @@ test('sabor do refrigerante usa preço de variante cadastrado', async () => {
   assert.equal(priced.items[0].unitPrice, 6.5);
   assert.equal(priced.subtotal, 13);
 });
+
+test('soma centavos de adicionais sem criar divergência de ponto flutuante', async () => {
+  const client = { async query(sql) {
+    return sql.includes('active=true')
+      ? { rows: [{ id: 'p-pet002', name: 'Batata', category: 'Petiscos', sale_price: '19.99', current_stock: null }] }
+      : { rows: [{ id: 'p-agu001', sale_price: '4.99' }] };
+  } };
+  const priced = await priceOrderItems(client, [{ productId: 'p-pet002', quantity: 1, options: { size: 'P', drink: 'agua' } }]);
+  assert.equal(priced.items[0].unitPrice, 24.98);
+  assert.equal(pricesMatch([{ expectedUnitPrice: 24.98 }], priced), true);
+});

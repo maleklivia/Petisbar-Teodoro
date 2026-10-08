@@ -36,6 +36,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
     if (['p-drk010', 'p-drk011'].includes(product.id) && item.options?.size === '700ml') unitPrice = optionPrices.get('p-drk011');
     if (product.id === 'p-pet002' && drinkIds[item.options?.drink]) unitPrice += optionPrices.get(drinkIds[item.options.drink]);
     if (product.id === 'p-ref001' && sodaIds[item.options?.sodaFlavor]) unitPrice = optionPrices.get(sodaIds[item.options.sodaFlavor]);
+    unitPrice = roundMoney(unitPrice);
     const canAddFlavoredIce = ['p-drk010', 'p-drk011'].includes(product.id);
     const options = { ...(item.options || {}) };
     options.flavoredIce = canAddFlavoredIce && Boolean(item.flavoredIce ?? options.flavoredIce);
