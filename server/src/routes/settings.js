@@ -9,15 +9,17 @@ export default async function settingsRoutes(app) {
   app.put('/settings', { preHandler: requirePermission('settings.manage') }, async (request, reply) => {
     const settings = request.body && typeof request.body === 'object' ? request.body : null;
     if (!settings || Array.isArray(settings)) return reply.code(400).send({ error: 'validation_error' });
-    await app.db.query('BEGIN');
+    const client = await app.db.connect();
     try {
+      await client.query('BEGIN');
       for (const [key, value] of Object.entries(settings)) {
-        if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(key)) { await app.db.query('ROLLBACK'); return reply.code(400).send({ error: 'invalid_key' }); }
-        await app.db.query(`INSERT INTO app_settings(key,value) VALUES($1,$2::jsonb)
+        if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(key)) { await client.query('ROLLBACK'); return reply.code(400).send({ error: 'invalid_key' }); }
+        await client.query(`INSERT INTO app_settings(key,value) VALUES($1,$2::jsonb)
           ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [key, JSON.stringify(value)]);
       }
-      await app.db.query('COMMIT');
+      await client.query('COMMIT');
       return { data: settings };
-    } catch (error) { await app.db.query('ROLLBACK'); throw error; }
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
   });
 }
