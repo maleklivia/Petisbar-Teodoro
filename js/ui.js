@@ -103,7 +103,9 @@ const UI = {
     notice.className = 'data-source-notice';
     notice.textContent = document.body.dataset.page === 'configuracoes'
       ? 'A aba Cardápio online salva no VPS. As demais configurações ainda estão em migração.'
-      : 'Tela em migração: os dados exibidos aqui ainda são locais e não representam a base oficial do servidor.';
+      : document.body.dataset.page === 'marketing'
+        ? 'Promoções e combos são salvos no ERP. Cupons e indicadores de clientes desta tela ainda usam dados locais.'
+        : 'Tela em migração: os dados exibidos aqui ainda são locais e não representam a base oficial do servidor.';
     main.prepend(notice);
   },
 

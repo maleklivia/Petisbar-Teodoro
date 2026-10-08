@@ -19,7 +19,7 @@ function entry(row) {
 
 export default async function reportsRoutes(app) {
   app.get('/reports/overview', { preHandler: requirePermission('reports.read') }, async () => {
-    const [finance, delivered, products, ingredients, sheets, clients] = await Promise.all([
+    const [finance, delivered, products, ingredients, sheets, clients, promotions] = await Promise.all([
       app.db.query(`
         SELECT id, entry_date, description, category, entry_type, amount
         FROM financial_entries
@@ -29,7 +29,7 @@ export default async function reportsRoutes(app) {
       app.db.query(`
         SELECT id, client_id, client_name, total, created_at
         FROM orders
-        WHERE status = ANY($1::text[])
+        WHERE status = ANY($1::text[]) AND source NOT LIKE '%(Teste)' AND notes NOT LIKE '[TESTE SEM ESTOQUE]%'
       `, [completedStatuses]),
       app.db.query('SELECT id, name, category, sale_price, active FROM products ORDER BY category, name'),
       app.db.query('SELECT id, name, unit, unit_cost, current_stock, minimum_stock, category, active FROM ingredients ORDER BY category, name'),
@@ -39,6 +39,10 @@ export default async function reportsRoutes(app) {
         JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
       `),
       app.db.query('SELECT id, name, phone FROM clients WHERE active=true ORDER BY name'),
+      app.db.query(`SELECT code,name,rule_type AS "ruleType",COUNT(DISTINCT pa.order_id)::int AS orders,
+        SUM(discount_amount)::numeric(12,2) AS discount,SUM(applied_subtotal)::numeric(12,2) AS promoted_sales
+        FROM promotion_applications pa JOIN orders o ON o.id=pa.order_id
+        WHERE o.status=ANY($1::text[]) AND o.source NOT LIKE '%(Teste)' AND o.notes NOT LIKE '[TESTE SEM ESTOQUE]%' GROUP BY code,name,rule_type ORDER BY SUM(discount_amount) DESC,code`,[completedStatuses]),
     ]);
 
     const ingredientsById = new Map(ingredients.rows.map(item => [item.id, item]));
@@ -113,6 +117,7 @@ export default async function reportsRoutes(app) {
         clients: [...rankingByKey.values()]
           .map(client => ({ ...client, ticketMedio: client.pedidos ? client.total / client.pedidos : 0 }))
           .sort((a, b) => b.total - a.total),
+        promotionPerformance: promotions.rows.map(promotion=>({...promotion,orders:Number(promotion.orders),discount:Number(promotion.discount),promotedSales:Number(promotion.promoted_sales)})),
       },
     };
   });
