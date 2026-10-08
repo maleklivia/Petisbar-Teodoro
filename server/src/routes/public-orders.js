@@ -1,7 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { priceOrderItems, pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pricing.js';
+import { pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pricing.js';
+import { calculatePromotions, couponCanStack } from '../services/promotions.js';
+import { reserveOrderStock } from '../services/order-stock-reservations.js';
 
 const optionSchema = z.object({
   flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
@@ -13,7 +15,8 @@ const optionSchema = z.object({
   drink: z.enum(['none', 'coca-cola', 'guarana', 'agua']).optional(),
 }).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
-const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).min(1).max(30) });
+const comboSchema = z.object({ promotionId:z.string().uuid(), selections:z.array(z.object({ groupId:z.string().uuid(), items:z.array(z.object({ productId:z.string().min(1).max(100),quantity:z.number().int().min(1).max(20),flavoredIce:z.boolean().default(false),options:optionSchema })).min(1).max(30) })).min(1).max(20) });
+const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).max(30), combos:z.array(comboSchema).max(10).default([]) }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
   fulfillmentType: z.enum(['retirada', 'entrega']),
@@ -21,8 +24,8 @@ const orderSchema = z.object({
   address: z.object({ postalCode:z.string().trim().max(12).default(''), city:z.string().trim().max(100).default(''), street:z.string().trim().max(160).default(''), number:z.string().trim().max(30).default(''), district:z.string().trim().max(100).default(''), complement:z.string().trim().max(120).default(''), reference:z.string().trim().max(180).default('') }).default({}),
   paymentMethod: z.enum(['Pix', 'Dinheiro', 'Cartão na entrega']), notes: z.string().trim().max(500).default(''),
   couponCode: z.string().trim().max(40).default(''), adultConfirmed: z.boolean().default(false), website: z.string().max(0).optional(),
-  items: z.array(itemSchema).min(1).max(30),
-});
+  idempotencyKey:z.string().uuid(), items: z.array(itemSchema).max(30).default([]), combos:z.array(comboSchema).max(10).default([]),
+}).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
 
 const normalizePhone = value => {
   let digits = String(value || '').replace(/\D/g, '');
@@ -37,6 +40,13 @@ const optionError = item => {
   if (['p-drk001','p-drk002','p-drk003','p-drk004','p-drk005','p-drk006'].includes(item.productId) && !options.flavor) return 'product_options_required';
   if (['p-drk010','p-drk011'].includes(item.productId) && (!options.size || !options.beverage || !options.iceFlavor)) return 'product_options_required';
   if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !['P','G'].includes(options.size)) return 'product_options_required';
+  const validKeys={
+    'p-aca001':['flavor','complement'],'p-ref001':['sodaFlavor'],
+    'p-drk001':['flavor'],'p-drk004':['flavor'],'p-drk005':['flavor'],'p-drk006':['flavor'],
+    'p-drk010':['size','beverage','iceFlavor'],'p-drk011':['size','beverage','iceFlavor'],
+    'p-pet001':['size'],'p-pet002':['size','drink'],
+  }[item.productId]||[];
+  if(Object.keys(options).some(key=>!validKeys.includes(key)))return 'product_options_invalid';
   return '';
 };
 
@@ -49,7 +59,7 @@ async function couponEligibility(db, coupon, phone) {
   const used = await db.query('SELECT 1 FROM coupon_redemptions WHERE coupon_id=$1 AND phone_normalized=$2', [coupon.id, phone]);
   if (used.rowCount) return 'coupon_already_used';
   if (coupon.first_order_only) {
-    const previous = await db.query("SELECT 1 FROM orders WHERE right(regexp_replace(coalesce(customer_phone,''),'\\D','','g'),11)=$1 LIMIT 1", [phone]);
+    const previous = await db.query("SELECT 1 FROM orders WHERE right(regexp_replace(coalesce(customer_phone,''),'\\D','','g'),11)=$1 AND source NOT LIKE '%(Teste)' AND notes NOT LIKE '[TESTE SEM ESTOQUE]%' LIMIT 1", [phone]);
     if (previous.rowCount) return 'first_order_only';
   }
   return '';
@@ -107,24 +117,37 @@ export default async function publicOrderRoutes(app) {
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});
     const invalidOptions=parsed.data.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
+    const invalidComboOptions=parsed.data.combos.flatMap(combo=>combo.selections.flatMap(group=>group.items)).find(optionError);if(invalidComboOptions)return reply.code(400).send({error:optionError(invalidComboOptions)});
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
-    const priced=await priceOrderItems(app.db,parsed.data.items); if(!priced)return reply.code(409).send({error:'product_unavailable'});
+    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos); if(priced.error)return reply.code(409).send({error:priced.error});
     if(!pricesMatch(parsed.data.items,priced))return reply.code(409).send({error:'catalog_changed'});
-    return {data:{code:coupon.code,discount:discountFor(coupon,priced.subtotal),description:'10% de desconto (máximo R$ 10,00)'}};
+    if(!couponCanStack(priced))return reply.code(409).send({error:'coupon_not_combinable'});
+    const amount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));
+    return {data:{code:coupon.code,discount:amount,subtotalNormal:priced.subtotal,promotionDiscount:priced.promotionDiscount,description:`${Number(coupon.discount_percent)}% de desconto${coupon.max_discount?` (máximo R$ ${Number(coupon.max_discount).toFixed(2)})`:''}`, promotions:priced.promotions.map(p=>({code:p.code,name:p.name,discount:p.discount}))}};
   });
 
   app.post('/public/orders', {config:{rateLimit:{max:10,timeWindow:'1 minute'}}}, async (request,reply) => {
     const parsed=orderSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error',details:parsed.error.flatten()});
     const input=parsed.data; if(input.website)return reply.code(400).send({error:'invalid_request'});
     const invalidOptions=input.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
+    const invalidComboOptions=input.combos.flatMap(combo=>combo.selections.flatMap(group=>group.items)).find(optionError);if(invalidComboOptions)return reply.code(400).send({error:optionError(invalidComboOptions)});
     const phone=normalizePhone(input.customer.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     if(input.fulfillmentType==='entrega'&&(!input.address.postalCode||!input.address.city||!input.address.street||!input.address.number||!input.address.district))return reply.code(400).send({error:'delivery_address_required'});
     const client=await app.db.connect();
     try {
       await client.query('BEGIN');
-      const priced=await priceOrderItems(client,input.items,{lock:true}); if(!priced){await client.query('ROLLBACK');return reply.code(409).send({error:'product_unavailable'});}
+      const requestHash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
+      const claimed=await client.query(`INSERT INTO public_order_idempotency(idempotency_key,request_hash) VALUES($1,$2)
+        ON CONFLICT(idempotency_key) DO NOTHING RETURNING idempotency_key`,[input.idempotencyKey,requestHash]);
+      if(!claimed.rowCount){
+        const previous=await client.query('SELECT request_hash,response FROM public_order_idempotency WHERE idempotency_key=$1 FOR UPDATE',[input.idempotencyKey]);
+        if(previous.rows[0]?.request_hash!==requestHash){await client.query('ROLLBACK');return reply.code(409).send({error:'idempotency_key_reused'});}
+        if(previous.rows[0]?.response){await client.query('COMMIT');return reply.code(201).send(previous.rows[0].response);}
+        await client.query('ROLLBACK');return reply.code(409).send({error:'order_request_in_progress'});
+      }
+      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
       const openResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.isOpen' FOR SHARE");
       if(openResult.rows[0]?.value===false){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed'});}
@@ -138,18 +161,27 @@ export default async function publicOrderRoutes(app) {
       const testStockResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.allowOrdersWithoutStockForTesting' FOR SHARE");
       const testStockMode=testStockResult.rows[0]?.value===true;
       if(!stockAllowsOrder(priced.items,testStockMode)){await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});}
-      let coupon=null,discount=0;
-      if(input.couponCode){coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}discount=discountFor(coupon,priced.subtotal);}
+      let coupon=null,couponDiscount=0;
+      if(input.couponCode){if(!couponCanStack(priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'coupon_not_combinable'});}coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}couponDiscount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));}
+      const discount=roundMoney(priced.promotionDiscount+couponDiscount);
       const deliveryFee=input.fulfillmentType==='entrega'?config.DEFAULT_DELIVERY_FEE:0;
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
       const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
       const rawNotes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
       const notes=testStockMode?`[TESTE SEM ESTOQUE] ${rawNotes}`.trim():rawNotes;
-      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address]);
-      for(const item of priced.items)await client.query('INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,item.options]);
-      if(coupon)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,discount]);
-      await client.query('COMMIT'); return reply.code(201).send({data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,total,couponCode:coupon?.code||null}});
+      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null]);
+      const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items,allowWithoutStock:testStockMode});
+      if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}
+      for(const application of priced.promotions){
+        await client.query(`INSERT INTO promotion_applications(id,order_id,promotion_id,code,name,rule_type,discount_amount,normal_subtotal,applied_subtotal,item_snapshot)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[application.id,id,application.promotionId,application.code,application.name,application.ruleType,application.discount,application.normalSubtotal,application.appliedSubtotal,application.comboGroups||application.items]);
+      }
+      for(const item of priced.items)await client.query(`INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options,list_unit_price,promotion_discount,promotion_application_id,combo_group_id,combo_group_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,item.options,item.listUnitPrice,item.promotionDiscount,item.promotionApplicationId,item.comboGroupId,item.comboGroupName]);
+      if(coupon&&!testStockMode)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,couponDiscount]);
+      const response={data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount}))}};
+      await client.query('UPDATE public_order_idempotency SET order_id=$2,response=$3 WHERE idempotency_key=$1',[input.idempotencyKey,id,response]);
+      await client.query('COMMIT'); return reply.code(201).send(response);
     } catch(error){await client.query('ROLLBACK');if(error.code==='23505')return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
   });
 }

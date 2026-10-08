@@ -104,6 +104,19 @@ const API = {
     return (await this._request(`/orders${query}`)).data;
   },
 
+  async getServerPromotions() { return (await this._request('/promotions')).data; },
+  async getServerPromotionProducts() { return (await this._request('/promotions/catalog')).data; },
+  async saveServerPromotion(data, id = '') {
+    return (await this._request(id ? `/promotions/${encodeURIComponent(id)}` : '/promotions', {
+      method: id ? 'PUT' : 'POST', body: JSON.stringify(data),
+    }));
+  },
+  async setServerPromotionActive(id, active) {
+    return (await this._request(`/promotions/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH', body: JSON.stringify({ active }),
+    })).data;
+  },
+
   async createServerOrder(order) {
     return (await this._request('/orders', { method: 'POST', body: JSON.stringify(order) })).data;
   },

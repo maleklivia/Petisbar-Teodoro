@@ -1,12 +1,21 @@
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 export function pricesMatch(requested, priced) {
-  return requested.every((item, index) =>
-    Number.isFinite(item.expectedUnitPrice) && roundMoney(item.expectedUnitPrice) === priced.items[index]?.unitPrice);
+  const optionsKey=value=>JSON.stringify(Object.fromEntries(Object.entries(value||{}).filter(([,option])=>option!==false)));
+  return requested.every((item,index) => Number.isFinite(item.expectedUnitPrice) && priced.items.some((line,lineIndex) =>
+    (item.productId ? line.productId===item.productId && optionsKey(line.options)===optionsKey(item.options) : lineIndex===index) &&
+    roundMoney(item.expectedUnitPrice)===(line.listUnitPrice??line.unitPrice)));
 }
 
 export function stockAllowsOrder(items, allowWithoutStock = false) {
-  return allowWithoutStock || items.every(item => item.currentStock === null || Number(item.currentStock) >= item.quantity);
+  if (allowWithoutStock) return true;
+  const required = new Map();
+  for (const item of items) {
+    if (item.currentStock === null) continue;
+    const entry=required.get(item.productId)||{currentStock:Number(item.currentStock),quantity:0};
+    entry.quantity+=Number(item.quantity);required.set(item.productId,entry);
+  }
+  return [...required.values()].every(item=>item.currentStock>=item.quantity);
 }
 
 export async function priceOrderItems(client, requested, { lock = false } = {}) {
@@ -15,6 +24,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
     SELECT id,name,category,sale_price,current_stock
     FROM products
     WHERE id=ANY($1::text[]) AND active=true
+    ORDER BY id
     ${lock ? 'FOR UPDATE' : ''}
   `, [ids]);
   if (result.rows.length !== ids.length) return null;
@@ -32,7 +42,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
     ...(item.productId === 'p-ref001' && sodaIds[item.options?.sodaFlavor] ? [sodaIds[item.options.sodaFlavor]] : []),
   ]))];
   const priceResult = priceIds.length
-    ? await client.query(`SELECT id,sale_price FROM products WHERE id=ANY($1::text[]) ${lock ? 'FOR SHARE' : ''}`, [priceIds])
+    ? await client.query(`SELECT id,sale_price FROM products WHERE id=ANY($1::text[]) ORDER BY id ${lock ? 'FOR SHARE' : ''}`, [priceIds])
     : { rows: [] };
   if (priceResult.rows.length !== priceIds.length) return null;
   const optionPrices = new Map(priceResult.rows.map(row => [row.id, Number(row.sale_price)]));
