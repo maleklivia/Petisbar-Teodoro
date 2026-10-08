@@ -37,4 +37,4 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npm run check
-      - run: npm test
+      - run: npm test -- --test-concurrency=1
