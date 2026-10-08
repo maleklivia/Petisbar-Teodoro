@@ -144,6 +144,11 @@ const RelatoriosModule = {
           </table>
         </div>
       ` : '<div class="empty-state"><p>Nenhum dado de venda no período.</p></div>'}
+      ${this._serverMode && (this._data?.promotionPerformance || []).length ? `
+        <h3 style="margin:var(--sp-5) 0 var(--sp-3)">Promoções concluídas</h3>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Promoção</th><th>Tipo</th><th>Pedidos</th><th>Vendas com promoção</th><th>Descontos</th></tr></thead><tbody>
+          ${this._data.promotionPerformance.map(p=>`<tr><td>${Utils.escapeHtml(p.name)} <small>${Utils.escapeHtml(p.code)}</small></td><td>${Utils.escapeHtml(p.ruleType)}</td><td>${p.orders}</td><td>${Utils.currency(p.promotedSales)}</td><td>${Utils.currency(p.discount)}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
     `;
   },
 

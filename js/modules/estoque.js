@@ -118,11 +118,15 @@ const EstoqueModule = {
     return this._renderIngredientes(ings);
   },
 
+  _normalizarBusca(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  },
+
   _renderProdutos() {
     let data = this._getProdutos().filter(p => p.ativo);
     if (this._busca) {
-      const b = this._busca.toLowerCase();
-      data = data.filter(p => `${p.nome} ${p.categoria} ${p.descricao || ''}`.toLowerCase().includes(b));
+      const b = this._normalizarBusca(this._busca);
+      data = data.filter(p => this._normalizarBusca(`${p.nome} ${p.categoria} ${p.descricao || ''}`).includes(b));
     }
     if (this._filtroStatus === 'critico') data = data.filter(p => p.estoqueAtual !== null && Number(p.estoqueAtual) <= Number(p.estoqueMinimo || 0));
     if (this._filtroStatus === 'ok') data = data.filter(p => p.estoqueAtual === null || Number(p.estoqueAtual) > Number(p.estoqueMinimo || 0));
@@ -149,8 +153,8 @@ const EstoqueModule = {
   _renderIngredientes(ings) {
     let data = ings.filter(i => i.ativo);
     if (this._busca) {
-      const b = this._busca.toLowerCase();
-      data = data.filter(i => i.nome.toLowerCase().includes(b) || i.categoria.toLowerCase().includes(b));
+      const b = this._normalizarBusca(this._busca);
+      data = data.filter(i => this._normalizarBusca(`${i.nome} ${i.categoria}`).includes(b));
     }
     if (this._filtroStatus === 'critico') data = data.filter(i => this._precisaComprar(i));
     if (this._filtroStatus === 'ok')      data = data.filter(i => !this._precisaComprar(i));
@@ -289,7 +293,8 @@ const EstoqueModule = {
 
   _bindEvents() {
     const el = document.getElementById('estoque-content');
-    if (!el) return;
+    if (!el || this._boundElement === el) return;
+    this._boundElement = el;
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-est-tab]');
@@ -306,11 +311,26 @@ const EstoqueModule = {
       }
     });
 
-    const busca = el.querySelector('#est-busca');
-    if (busca) busca.addEventListener('input', e => { this._busca = e.target.value; this._render(); this._bindEvents(); });
+    el.addEventListener('input', e => {
+      if (e.target.id !== 'est-busca') return;
+      this._busca = e.target.value;
+      this._atualizarResultadosBusca();
+    });
 
-    const sel = el.querySelector('#est-status');
-    if (sel) sel.addEventListener('change', e => { this._filtroStatus = e.target.value; this._render(); this._bindEvents(); });
+    el.addEventListener('change', e => {
+      if (e.target.id !== 'est-status') return;
+      this._filtroStatus = e.target.value;
+      this._atualizarResultadosBusca();
+    });
+  },
+
+  _atualizarResultadosBusca() {
+    const atual = document.querySelector('#est-tab-body .table-wrap');
+    if (!atual || !['produtos', 'ingredientes'].includes(this._tab)) return;
+    const proximo = document.createElement('div');
+    proximo.innerHTML = this._renderTab(this._getIngredientes());
+    const tabela = proximo.querySelector('.table-wrap');
+    if (tabela) atual.replaceWith(tabela);
   },
 
   _baixarListaCompras() {

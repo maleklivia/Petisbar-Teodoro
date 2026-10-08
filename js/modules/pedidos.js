@@ -54,12 +54,19 @@ const PedidosModule = {
         nome: item.name,
         qty: Number(item.quantity),
         precoUnitario: Number(item.unitPrice),
+        precoNormalUnitario: item.listUnitPrice==null?Number(item.unitPrice):Number(item.listUnitPrice),
+        descontoPromocional: Number(item.promotionDiscount||0),
+        promotionCode: item.promotionCode||'',
+        grupoCombo: item.comboGroupName||'',
         subtotal: Number(item.subtotal),
         options: item.options || {},
       })),
       subtotal: Number(order.subtotal),
       taxaEntrega: Number(order.deliveryFee),
       desconto: Number(order.discount),
+      descontoPromocional:Number(order.promotionDiscount||0),
+        promocoesAplicadas:order.appliedPromotions||[],
+        cuponsAplicados:order.appliedCoupons||[],
       total: Number(order.total),
       formaPagamento: order.paymentMethod,
       observacoes: order.notes,
@@ -136,7 +143,7 @@ const PedidosModule = {
   _renderRow(p) {
     const slug = this._statusSlug(p.status);
     const next = nextStatus(p.status);
-    const resumo = p.itens.map(i => `${i.nome} ×${i.qty}`).join(', ');
+    const resumo = p.itens.map(i => `${i.grupoCombo?`${i.grupoCombo}: `:''}${i.nome}${Object.keys(i.options||{}).length?` (${Object.values(i.options).flat().filter(Boolean).join(', ')})`:''} ×${i.qty}`).join(', ');
     const resumoCurt = resumo.length > 35 ? resumo.slice(0, 35) + '…' : resumo;
     const canCancel = !['Cancelado', 'Entregue', 'Concluído'].includes(p.status);
 
@@ -146,7 +153,7 @@ const PedidosModule = {
         <td>${Utils.escapeHtml(p.clienteNome || '—')}${p.clienteContaId ? `<br><small class="customer-account-badge">Conta: ${Utils.escapeHtml(p.clienteEmail || 'cliente autenticado')}</small>` : ''}</td>
         <td><span class="origem-badge">${Utils.escapeHtml(p.origem)}</span></td>
         <td class="itens-cell" title="${Utils.escapeHtml(resumo)}">${Utils.escapeHtml(resumoCurt)}</td>
-        <td><strong>${Utils.currency(p.total)}</strong><br><small style="color:var(--color-text-muted)">${Utils.escapeHtml(p.formaPagamento)}</small></td>
+        <td><strong>${Utils.currency(p.total)}</strong><br><small style="color:var(--color-text-muted)">${Utils.escapeHtml(p.formaPagamento)}</small>${p.promocoesAplicadas?.length?`<small style="display:block;color:var(--color-gold)">${p.promocoesAplicadas.map(promo=>`${Utils.escapeHtml(promo.code)} −${Utils.currency(Number(promo.discount))}`).join('<br>')}</small>`:''}${p.cuponsAplicados?.length?`<small style="display:block;color:var(--color-gold)">${p.cuponsAplicados.map(coupon=>`${Utils.escapeHtml(coupon.code)} −${Utils.currency(Number(coupon.discount))}`).join('<br>')}</small>`:''}</td>
         <td><span class="status-pill status-pill--${slug}">${Utils.escapeHtml(p.status)}</span></td>
         <td class="row-actions">
           ${this._canWrite && next ? `<button class="btn btn-sm btn-primary" data-action="avancar" data-id="${p.id}" title="→ ${Utils.escapeHtml(next)}">→ ${Utils.escapeHtml(next)}</button>` : ''}

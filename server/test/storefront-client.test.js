@@ -79,3 +79,42 @@ test('preço de opção usa valor retornado pelo ERP', async () => {
   assert.equal(client.productUnitPrice(soda, { sodaFlavor: 'coca-cola' }), 6.5);
   assert.equal(client.productUnitPrice({ id: 'p-pet002', sale_price: 19.99, option_prices: { drinks: { agua: 4.99 } } }, { size: 'P', drink: 'agua' }), 24.98);
 });
+
+test('Batata Frita aparece uma vez e oferece P 300g e G 500g', async () => {
+  const { client, element } = loadClient();
+  client.fetchPublic = async path => path.endsWith('storefront')
+    ? { isOpen: true, minimumOrder: 20, allowOrdersWithoutStockForTesting: true }
+    : [{ id: 'p-pet001', name: 'Batata Frita', category: 'Petiscos', description: 'Escolha P ou G', sale_price: 17.9, current_stock: 0, option_prices: { G: 24.9 } }];
+  await client.refresh();
+  assert.equal((element('catalog').innerHTML.match(/<h2>Batata Frita<\/h2>/g) || []).length, 1);
+  assert.equal(client.products.length, 1);
+  const fries = client.products[0];
+  assert.deepEqual([...client.customizationConfig(fries).groups[0].options].map(option => option[0]), ['P', 'G']);
+  assert.match(client.customizationConfig(fries).groups[0].options[1][1], /500g/);
+  assert.equal(client.productUnitPrice(fries, { size: 'P' }), 17.9);
+  assert.equal(client.productUnitPrice(fries, { size: 'G' }), 24.9);
+  assert.ok(Number.isNaN(client.productUnitPrice({ ...fries, option_prices: {} }, { size: 'G' })));
+  assert.equal(client.stockLimit(fries), 20);
+});
+
+test('Caipirinha aparece uma vez e aceita sabores diferentes no mesmo carrinho', async () => {
+  const { client, element } = loadClient();
+  client.fetchPublic = async path => path.endsWith('storefront')
+    ? { isOpen: true, minimumOrder: 20, allowOrdersWithoutStockForTesting: true }
+    : [{ id: 'p-drk001', name: 'Caipirinha', category: 'Drinks', description: 'Escolha o sabor', sale_price: 15.9, current_stock: null, option_prices: { flavors: { morango: 16.9, maracuja: 17.9 } } }];
+  await client.refresh();
+  const drink = client.products[0];
+  assert.equal((element('catalog').innerHTML.match(/<h2>Caipirinha<\/h2>/g) || []).length, 1);
+  assert.deepEqual([...client.customizationConfig(drink).groups[0].options].map(option => option[0]), ['natural', 'morango', 'maracuja']);
+  assert.equal(client.productUnitPrice(drink, { flavor: 'natural' }), 15.9);
+  assert.equal(client.productUnitPrice(drink, { flavor: 'morango' }), 16.9);
+  assert.equal(client.productUnitPrice(drink, { flavor: 'maracuja' }), 17.9);
+  client.change('p-drk001', 1, { flavor: 'natural' });
+  client.change('p-drk001', 1, { flavor: 'morango' });
+  assert.equal(client.qty('p-drk001'), 2);
+  assert.equal(client.cartData().length, 2);
+  assert.equal(client.subtotal(), 32.8);
+  client.change('p-drk001::morango', -1);
+  assert.equal(client.cartData().length, 1);
+  assert.equal(client.subtotal(), 15.9);
+});

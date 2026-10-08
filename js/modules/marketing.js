@@ -5,8 +5,22 @@
 
 const MarketingModule = {
   _tab: 'cupons',
+  _serverMode: false,
+  _canReadPromotions: false,
+  _canWritePromotions: false,
+  _promotions: [],
+  _promotionProducts: [],
 
-  init() {
+  async init() {
+    this._serverMode = API.isServerMode();
+    this._canReadPromotions = API.hasPermission('promotions.read');
+    this._canWritePromotions = API.hasPermission('promotions.write');
+    if (this._serverMode && this._canReadPromotions) {
+      const el=document.getElementById('marketing-content');
+      if(el)el.innerHTML='<div class="empty-state"><p>Carregando promoções…</p></div>';
+      try { [this._promotions,this._promotionProducts]=await Promise.all([API.getServerPromotions(),API.getServerPromotionProducts()]); }
+      catch { if(el)el.innerHTML='<div class="empty-state"><p>Não foi possível carregar as promoções do ERP.</p></div>';return; }
+    }
     this._render();
     this._bindEvents();
   },
@@ -51,6 +65,7 @@ const MarketingModule = {
         <button class="tab-btn ${this._tab === 'inativos' ? 'active' : ''}" data-mkt-tab="inativos">
           Inativos ${inativos.length > 0 ? `<span class="count-badge">${inativos.length}</span>` : ''}
         </button>
+        ${this._serverMode&&this._canReadPromotions?`<button class="tab-btn ${this._tab === 'promocoes' ? 'active' : ''}" data-mkt-tab="promocoes">Promoções e combos</button>`:''}
       </div>
 
       <div id="mkt-tab-body">
@@ -62,7 +77,32 @@ const MarketingModule = {
   _renderTab(cupons, vips, inativos) {
     if (this._tab === 'vips')     return this._renderVIPs(vips);
     if (this._tab === 'inativos') return this._renderInativos(inativos);
+    if (this._tab === 'promocoes') return this._renderPromotions();
     return this._renderCupons(cupons);
+  },
+
+  _renderPromotions() {
+    if (!this._canReadPromotions) return '<div class="empty-state"><p>Seu usuário não possui permissão para consultar promoções.</p></div>';
+    const missingSkol=!this._promotionProducts.some(product=>product.name.toLowerCase().includes('skol'));
+    return `
+      <div class="module-toolbar"><div style="flex:1;color:var(--text-muted);font-size:var(--text-sm)">O preço normal continua vindo do cadastro do produto. Promoções só entram no pedido quando estiverem ativas e dentro do período.</div>
+        ${this._canWritePromotions?'<button class="btn btn-primary" id="btn-nova-promocao">+ Nova promoção</button>':''}</div>
+      ${missingSkol?'<div class="alert alert-warning" style="margin-bottom:var(--sp-4)">Skol não está cadastrada como produto ativo; ela não aparece nas opções do rascunho de cervejas.</div>':''}
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Promoção</th><th>Regra</th><th>Preço / desconto</th><th>Período</th><th>Margem estimada</th><th>Status</th><th></th></tr></thead><tbody>
+        ${this._promotions.length?this._promotions.map(p=>{
+          const type={percentage:'Percentual',fixed:'Desconto fixo',combo:'Combo fechado'}[p.rule_type]||p.rule_type;
+          const value=p.rule_type==='percentage'?`${p.discount_percent}%`:p.rule_type==='fixed'?Utils.currency(Number(p.discount_amount||0)):p.combo_price==null?'Preço pendente':Utils.currency(Number(p.combo_price));
+          const active=p.active&&(!p.ends_at||new Date(p.ends_at)>=new Date())&&(!p.starts_at||new Date(p.starts_at)<=new Date());
+          const margin=p.estimatedMargin==null?'Não calculável':`${Utils.currency(Number(p.estimatedMargin))} · ${Number(p.marginPercent).toFixed(1)}%`;
+          const period=`${p.starts_at?Utils.formatShortDate(p.starts_at):'Sem início'} – ${p.ends_at?Utils.formatShortDate(p.ends_at):'Sem fim'}`;
+          const incomplete=p.costComplete===false?`<small style="display:block;color:var(--color-warning)">Custo/ficha pendente: ${(p.missingCostProductNames||p.missingCostProductIds||[]).map(name=>Utils.escapeHtml(name)).join(', ')||'complete os custos do catálogo'}</small>`:`<small style="display:block;color:var(--text-muted)">${Utils.escapeHtml(p.marginBasis||'')}</small>`;
+          return `<tr><td><strong>${Utils.escapeHtml(p.name)}</strong><small style="display:block;color:var(--text-muted)">${Utils.escapeHtml(p.code)}${p.description?` · ${Utils.escapeHtml(p.description)}`:''}</small></td>
+            <td>${type}${p.rule_type==='combo'?`<small style="display:block;color:var(--text-muted)">${(p.groups||[]).map(group=>`${Utils.escapeHtml(group.name)}: ${group.requiredQuantity}`).join(' · ')}</small>`:''}</td>
+            <td>${value}</td><td>${period}</td><td>${margin}${incomplete}</td>
+            <td>${active?'<span class="badge badge-success">Ativa</span>':p.active?'<span class="badge badge-warning">Fora do período</span>':'<span class="badge badge-neutral">Rascunho / inativa</span>'}</td>
+            <td><div class="row-actions">${this._canWritePromotions?`<button class="btn btn-sm btn-secondary" data-promo-edit="${p.id}">Editar</button><button class="btn btn-sm ${p.active?'btn-ghost':'btn-primary'}" data-promo-toggle="${p.id}" data-active="${!p.active}">${p.active?'Desativar':'Ativar'}</button>`:''}</div></td></tr>`;
+        }).join(''):'<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma promoção cadastrada.</td></tr>'}
+      </tbody></table></div>`;
   },
 
   _renderCupons(cupons) {
@@ -225,6 +265,12 @@ const MarketingModule = {
       if (tab) { this._tab = tab.dataset.mktTab; this._render(); this._bindEvents(); return; }
 
       if (e.target.closest('#btn-novo-cupom')) { this._openFormCupom(); return; }
+      if (e.target.closest('#btn-nova-promocao')) { this._openPromotionForm(); return; }
+
+      const editPromotion=e.target.closest('[data-promo-edit]');
+      if(editPromotion){this._openPromotionForm(this._promotions.find(p=>p.id===editPromotion.dataset.promoEdit));return;}
+      const togglePromotion=e.target.closest('[data-promo-toggle]');
+      if(togglePromotion){this._setPromotionActive(togglePromotion.dataset.promoToggle,togglePromotion.dataset.active==='true');return;}
 
       const toggle = e.target.closest('[data-mkt-toggle]');
       if (toggle) {
@@ -244,6 +290,86 @@ const MarketingModule = {
       }
     });
   },
+
+  _renderPromotionGroup(group={}) {
+    const selected=new Map((group.products||[]).map(product=>[product.id,product]));
+    const cards=this._promotionProducts.map(product=>{
+      const value=selected.get(product.id),unitCost=product.purchase_cost;
+      const costLabel=unitCost!=null?`Custo de compra ${Utils.currency(Number(unitCost))}`:product.has_sheet&&product.sheet_items?`${product.sheet_items} ingrediente(s) na ficha`:'Custo/ficha incompleto';
+      return `<label class="promo-product-choice"><input type="checkbox" data-group-product value="${this._esc(product.id)}" ${value?'checked':''}>
+        <span><strong>${this._esc(product.name)}</strong><small>${this._esc(product.category)} · ${Utils.currency(Number(product.sale_price))} · ${this._esc(costLabel)}</small></span>
+        <span class="form-group promo-surcharge"><small>Acréscimo</small><input class="form-input" data-group-surcharge type="number" min="0" step="0.01" value="${Number(value?.surcharge||0)}" aria-label="Acréscimo em ${this._esc(product.name)}"></span></label>`;
+    }).join('');
+    return `<fieldset class="promo-group" data-promo-group><legend>Grupo de escolha</legend>
+      <div class="form-row"><div class="form-group" style="flex:2"><label class="form-label">Nome do grupo</label><input class="form-input" data-group-name maxlength="100" value="${this._esc(group.name||'')}" placeholder="Ex.: Bebidas" required></div>
+      <div class="form-group"><label class="form-label">Quantidade obrigatória</label><input class="form-input" data-group-required type="number" min="1" max="30" value="${Number(group.requiredQuantity||1)}" required></div>
+      <div class="form-group"><label class="form-label">Máximo de escolhas</label><input class="form-input" data-group-maximum type="number" min="1" max="30" value="${Number(group.maxQuantity||group.requiredQuantity||1)}" required></div></div>
+      <label class="form-check"><input type="checkbox" data-group-same ${group.allowSameProduct===false?'':'checked'}> Permitir repetir o mesmo produto (cada unidade pode ter opções diferentes)</label>
+      <div class="form-group"><label class="form-label">Opções válidas para este grupo (JSON, opcional)</label><input class="form-input" data-group-options value="${this._esc(JSON.stringify(group.allowedOptions||{}))}" placeholder='{"flavor":["natural","morango"]}'></div>
+      <div class="form-group"><label class="form-label">Produtos permitidos e acréscimos</label><div class="promo-products">${cards}</div></div>
+      <button type="button" class="btn btn-ghost" data-group-remove>Remover grupo</button></fieldset>`;
+  },
+
+  _esc(value){return Utils.escapeHtml(String(value??''));},
+
+  _openPromotionForm(promotion=null) {
+    if(!this._canWritePromotions)return;
+    const groups=promotion?.groups||[],targetIds=(promotion?.products||[]).map(product=>product.id);
+    const targetProducts=this._promotionProducts.map(product=>`<label class="promo-product-choice"><input type="checkbox" data-promo-target value="${this._esc(product.id)}" ${targetIds.includes(product.id)?'checked':''}><span><strong>${this._esc(product.name)}</strong><small>${this._esc(product.category)} · ${Utils.currency(Number(product.sale_price))}</small></span></label>`).join('');
+    const localDate=value=>{if(!value)return'';const date=new Date(value);date.setMinutes(date.getMinutes()-date.getTimezoneOffset());return date.toISOString().slice(0,16)};
+    UI.openModal({title:promotion?'Editar promoção':'Nova promoção',size:'wide',confirmLabel:'Salvar rascunho',body:`
+      <form id="promotion-form"><div class="form-row"><div class="form-group"><label class="form-label">Código interno</label><input class="form-input" name="code" value="${this._esc(promotion?.code||'')}" placeholder="COMBO-EXEMPLO" maxlength="40" required></div>
+      <div class="form-group" style="flex:2"><label class="form-label">Nome comercial</label><input class="form-input" name="name" value="${this._esc(promotion?.name||'')}" maxlength="120" required></div></div>
+      <div class="form-group"><label class="form-label">Descrição para o cliente</label><textarea class="form-input" name="description" maxlength="2000">${this._esc(promotion?.description||'')}</textarea></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Tipo de regra</label><select class="form-input" name="ruleType" data-promo-rule><option value="combo" ${promotion?.rule_type==='combo'||!promotion?'selected':''}>Combo com preço fechado</option><option value="percentage" ${promotion?.rule_type==='percentage'?'selected':''}>Desconto percentual</option><option value="fixed" ${promotion?.rule_type==='fixed'?'selected':''}>Desconto fixo</option></select></div>
+      <div class="form-group promo-value" data-rule-value="combo"><label class="form-label">Preço fechado do combo</label><input class="form-input" name="comboPrice" type="number" min="0" step="0.01" value="${promotion?.combo_price??''}" placeholder="Deixe vazio até definir"></div>
+      <div class="form-group promo-value" data-rule-value="percentage"><label class="form-label">Desconto (%)</label><input class="form-input" name="discountPercent" type="number" min="0.01" max="100" step="0.01" value="${promotion?.discount_percent??''}"></div>
+      <div class="form-group promo-value" data-rule-value="fixed"><label class="form-label">Desconto (R$)</label><input class="form-input" name="discountAmount" type="number" min="0.01" step="0.01" value="${promotion?.discount_amount??''}"></div></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Início</label><input class="form-input" name="startsAt" type="datetime-local" value="${this._esc(localDate(promotion?.starts_at))}"></div><div class="form-group"><label class="form-label">Fim</label><input class="form-input" name="endsAt" type="datetime-local" value="${this._esc(localDate(promotion?.ends_at))}"></div><div class="form-group"><label class="form-label">Prioridade</label><input class="form-input" name="priority" type="number" value="${Number(promotion?.priority??100)}"></div></div>
+      <label class="form-check"><input type="checkbox" name="stackWithCoupon" ${promotion?.stack_with_coupon?'checked':''}> Permitir acumular com cupom</label>
+      <section data-rule-section="combo"><div style="display:flex;align-items:center;justify-content:space-between;margin:var(--sp-4) 0"><strong>Grupos e produtos permitidos</strong><button type="button" id="promo-add-group" class="btn btn-secondary">+ Adicionar grupo</button></div><div id="promo-groups">${groups.map(group=>this._renderPromotionGroup(group)).join('')}</div></section>
+      <section data-rule-section="targets"><div class="form-group"><label class="form-label">Produtos que recebem o desconto</label><div class="promo-products">${targetProducts}</div></div></section>
+      ${promotion?.active?'<p class="form-hint">Salvar alterações deixará a promoção inativa; reative depois de revisar preço e margem.</p>':''}</form>
+    `,onConfirm:()=>this._savePromotion(promotion?.id||'')});
+    const dialog=UI._activeModal;
+    dialog.querySelector('[data-promo-rule]')?.addEventListener('change',()=>this._syncPromotionForm(dialog));
+    dialog.querySelector('#promo-add-group')?.addEventListener('click',()=>{dialog.querySelector('#promo-groups').insertAdjacentHTML('beforeend',this._renderPromotionGroup());});
+    dialog.querySelector('#promo-groups')?.addEventListener('click',event=>{if(event.target.closest('[data-group-remove]'))event.target.closest('[data-promo-group]').remove();});
+    this._syncPromotionForm(dialog);
+  },
+
+  _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value;dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==type);dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==type);},
+
+  async _savePromotion(id){
+    const form=UI._activeModal?.querySelector('#promotion-form');if(!form)return;
+    try{
+      const value=name=>form.elements[name]?.value||'';
+      const type=value('ruleType');
+      const groups=type==='combo'?[...form.querySelectorAll('[data-promo-group]')].map((group,index)=>{
+        let allowedOptions={};try{allowedOptions=JSON.parse(group.querySelector('[data-group-options]').value||'{}');}catch{throw new Error('As opções do grupo precisam estar em JSON válido.');}
+        const selected=[...group.querySelectorAll('[data-group-product]:checked')].map(check=>({productId:check.value,surcharge:Number(check.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value||0),allowedOptions}));
+        const name=group.querySelector('[data-group-name]').value.trim();return{code:name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||`grupo-${index+1}`,name,requiredQuantity:Number(group.querySelector('[data-group-required]').value),maxQuantity:Number(group.querySelector('[data-group-maximum]').value),allowSameProduct:group.querySelector('[data-group-same]').checked,allowedOptions,products:selected};
+      }):[];
+      const starts=value('startsAt'),ends=value('endsAt');
+      const data={code:value('code').trim().toUpperCase(),name:value('name').trim(),description:value('description').trim(),ruleType:type,
+        discountPercent:type==='percentage'?Number(value('discountPercent')):null,discountAmount:type==='fixed'?Number(value('discountAmount')):null,
+        comboPrice:type==='combo'&&value('comboPrice')!==''?Number(value('comboPrice')):null,startsAt:starts?new Date(starts).toISOString():null,endsAt:ends?new Date(ends).toISOString():null,
+        priority:Number(value('priority')||100),stackWithCoupon:form.elements.stackWithCoupon.checked,
+        productIds:type==='combo'?[]:[...form.querySelectorAll('[data-promo-target]:checked')].map(check=>check.value),groups};
+      if(type==='combo'&&(!groups.length||groups.some(group=>!group.products.length)))throw new Error('Cada grupo precisa ter pelo menos um produto permitido.');
+      if(type!=='combo'&&!data.productIds.length)throw new Error('Selecione os produtos que recebem o desconto.');
+      const saveButton=UI._activeModal.querySelector('#modal-confirm');saveButton.disabled=true;
+      await API.saveServerPromotion(data,id);this._promotions=await API.getServerPromotions();UI.closeModal();this._tab='promocoes';this._render();this._bindEvents();UI.toast('Promoção salva como rascunho.', 'success');
+    }catch(error){UI.toast(this._promotionError(error.code||error.message),'danger');}
+    finally{if(UI._activeModal)UI._activeModal.querySelector('#modal-confirm').disabled=false;}
+  },
+
+  async _setPromotionActive(id,active){
+    try{await API.setServerPromotionActive(id,active);this._promotions=await API.getServerPromotions();this._render();this._bindEvents();UI.toast(active?'Promoção ativada.':'Promoção desativada.','success');}
+    catch(error){const detail=(error.details?.productNames||error.details?.productIds?.map(productId=>this._promotionProducts.find(product=>product.id===productId)?.name||productId)||[]).join(', ');UI.toast(this._promotionError(error.code,detail),'danger');}
+  },
+
+  _promotionError(code,detail='') {return ({promotion_code_exists:'Este código já está em uso.',promotion_product_inactive_or_missing:'Revise os produtos permitidos; todos precisam estar ativos.',promotion_price_unconfigured:'Informe o preço fechado antes de ativar.',promotion_value_unconfigured:'Informe o valor do desconto antes de ativar.',combo_group_empty:'Todos os grupos precisam ter produtos permitidos.',promotion_cost_incomplete:`Não é possível calcular a margem. Complete os custos e fichas: ${detail||'veja a lista na promoção'}.`,invalid_period:'A data final precisa ser posterior ao início.',coupon_not_combinable:'O cupom não pode ser usado junto com esta promoção.'})[code]||code||'Não foi possível salvar a promoção.';},
 
   _openFormCupom() {
     UI.openModal({

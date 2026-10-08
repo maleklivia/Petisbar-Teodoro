@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { canTransitionOrder, convertQuantity, isCompletedStatus } from '../domain/orders.js';
+import { setOrderReservationsStatus } from './order-stock-reservations.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
@@ -52,7 +53,10 @@ async function applyInventory(client, order) {
       ts.id AS sheet_id,ts.yield
     FROM order_items oi
     LEFT JOIN products p ON p.id=oi.product_id
-    LEFT JOIN technical_sheets ts ON ts.product_id=oi.product_id
+    LEFT JOIN technical_sheets ts ON ts.product_id=CASE
+      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='morango' THEN 'p-drk002'
+      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='maracuja' THEN 'p-drk003'
+      ELSE oi.product_id END
     WHERE oi.order_id=$1
     ORDER BY oi.id
   `, [order.id]);
@@ -132,19 +136,25 @@ async function applyFinancialEntries(client, order, cmv) {
 async function applyEffects(client, order) {
   if (order.effects_applied_at && !order.effects_reversed_at) return;
   if (order.effects_reversed_at) throw businessError('order_effects_already_reversed');
-  if (isTestOrder(order)) {
-    await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1', [order.id]);
+  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+    await setOrderReservationsStatus(client,order.id,'released');
+    await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1',[order.id]);
     return;
   }
   const cmv = await applyInventory(client, order);
   await applyFinancialEntries(client, order, cmv);
+  await setOrderReservationsStatus(client,order.id,'consumed');
   await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1', [order.id]);
 }
 
 async function reverseEffects(client, order) {
-  if (!order.effects_applied_at || order.effects_reversed_at) return;
-  if (isTestOrder(order)) {
-    await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1', [order.id]);
+  if (!order.effects_applied_at || order.effects_reversed_at) {
+    await setOrderReservationsStatus(client,order.id,'released');
+    return;
+  }
+  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+    await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1',[order.id]);
+    await setOrderReservationsStatus(client,order.id,'released');
     return;
   }
   const { rows: movements } = await client.query(`
@@ -185,6 +195,7 @@ async function reverseEffects(client, order) {
     `, [randomUUID(), `Estorno de CMV do pedido #${order.order_number}`, Number(cmv.rows[0].amount), order.id, order.created_by, `order:${order.id}:cmv-reversal`]);
   }
   await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1', [order.id]);
+  await setOrderReservationsStatus(client,order.id,'released');
 }
 
 export async function transitionOrderStatus(client, { orderId, nextStatus, userId = null, ip = null, external = false }) {

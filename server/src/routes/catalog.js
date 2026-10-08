@@ -66,7 +66,18 @@ export default async function catalogRoutes(app) {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
     const p = parsed.data;
-    const { rows } = await app.db.query(`
+    const client=await app.db.connect();
+    try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE',[p.id]);
+    if (!p.ativo) {
+      const referenced = await client.query(`SELECT 1 FROM promotions pr WHERE pr.active=true AND (
+        EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
+        OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)
+      ) LIMIT 1`, [p.id]);
+      if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
+    }
+    const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
         preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
@@ -78,14 +89,27 @@ export default async function catalogRoutes(app) {
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
       p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood]);
+    await client.query('COMMIT');
     return reply.code(201).send({ data: rows[0] });
+    } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   });
 
   app.delete('/products/:id', { preHandler: requirePermission('catalog.write') }, async (request, reply) => {
     const id = z.string().min(1).max(100).parse(request.params.id);
-    const { rows } = await app.db.query('UPDATE products SET active=false, updated_at=now() WHERE id=$1 RETURNING *', [id]);
-    if (!rows[0]) return reply.code(404).send({ error: 'product_not_found' });
+    const client=await app.db.connect();
+    try {
+    await client.query('BEGIN');
+    const product=await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE',[id]);
+    if(!product.rowCount){await client.query('ROLLBACK');return reply.code(404).send({error:'product_not_found'});}
+    const referenced = await client.query(`SELECT 1 FROM promotions pr WHERE pr.active=true AND (
+      EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
+      OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)
+    ) LIMIT 1`, [id]);
+    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
+    const { rows } = await client.query('UPDATE products SET active=false, updated_at=now() WHERE id=$1 RETURNING *', [id]);
+    await client.query('COMMIT');
     return { data: rows[0] };
+    } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   });
 
   app.get('/ingredients', { preHandler: requirePermission('stock.read') }, async () => {

@@ -62,6 +62,62 @@ test('preço da variante e bebida acompanha o cadastro de produtos', async () =>
   assert.equal(pricesMatch([{ expectedUnitPrice: 49.5 }], priced), true);
 });
 
+test('Batata Frita usa preço P do item e preço G do SKU histórico', async () => {
+  const calls = [];
+  const client = { async query(sql, params) {
+    calls.push(params);
+    return sql.includes('active=true')
+      ? { rows: [{ id: 'p-pet001', name: 'Batata Frita', category: 'Petiscos', sale_price: '17.90', current_stock: 0 }] }
+      : { rows: [{ id: 'p-pet006', sale_price: '26.50' }] };
+  } };
+  const priced = await priceOrderItems(client, [
+    { productId: 'p-pet001', quantity: 1, options: { size: 'P' } },
+    { productId: 'p-pet001', quantity: 1, options: { size: 'G' } },
+  ], { lock: true });
+  assert.deepEqual(priced.items.map(item => item.unitPrice), [17.9, 26.5]);
+  assert.deepEqual(calls[1], [['p-pet006']]);
+  assert.equal(pricesMatch([{ expectedUnitPrice: 17.9 }, { expectedUnitPrice: 24.9 }], priced), false);
+  assert.equal(pricesMatch([{ expectedUnitPrice: 17.9 }, { expectedUnitPrice: 26.5 }], priced), true);
+});
+
+test('Batata Frita G falha fechada sem cadastro de preço', async () => {
+  const client = { async query(sql) {
+    return sql.includes('active=true')
+      ? { rows: [{ id: 'p-pet001', name: 'Batata Frita', category: 'Petiscos', sale_price: '17.90', current_stock: 0 }] }
+      : { rows: [] };
+  } };
+  assert.equal(await priceOrderItems(client, [{ productId: 'p-pet001', quantity: 1, options: { size: 'G' } }]), null);
+});
+
+test('Caipirinha usa o preço cadastrado de cada sabor', async () => {
+  const client = { async query(sql, params) {
+    return sql.includes('active=true')
+      ? { rows: [{ id: 'p-drk001', name: 'Caipirinha', category: 'Drinks', sale_price: '15.90', current_stock: null }] }
+      : { rows: [
+        { id: 'p-drk002', sale_price: '16.90' },
+        { id: 'p-drk003', sale_price: '18.50' },
+      ] };
+  } };
+  const requested = [
+    { productId: 'p-drk001', quantity: 1, options: { flavor: 'natural' } },
+    { productId: 'p-drk001', quantity: 1, options: { flavor: 'morango' } },
+    { productId: 'p-drk001', quantity: 1, options: { flavor: 'maracuja' } },
+  ];
+  const priced = await priceOrderItems(client, requested, { lock: true });
+  assert.deepEqual(priced.items.map(item => item.unitPrice), [15.9, 16.9, 18.5]);
+  assert.deepEqual(priced.items.map(item => item.name), ['Caipirinha Limão', 'Caipirinha Morango', 'Caipirinha Maracujá']);
+  assert.equal(pricesMatch(requested.map((item, index) => ({ ...item, expectedUnitPrice: [15.9, 16.9, 17.9][index] })), priced), false);
+});
+
+test('Caipirinha não aceita preço ausente para sabor adicional', async () => {
+  const client = { async query(sql) {
+    return sql.includes('active=true')
+      ? { rows: [{ id: 'p-drk001', name: 'Caipirinha', category: 'Drinks', sale_price: '15.90', current_stock: null }] }
+      : { rows: [] };
+  } };
+  assert.equal(await priceOrderItems(client, [{ productId: 'p-drk001', quantity: 1, options: { flavor: 'morango' } }]), null);
+});
+
 test('sabor do refrigerante usa preço de variante cadastrado', async () => {
   const client = { async query(sql) {
     return sql.includes('active=true')

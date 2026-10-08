@@ -24,6 +24,7 @@ import purchasesRoutes from './routes/purchases.js';
 import reportsRoutes from './routes/reports.js';
 import settingsRoutes from './routes/settings.js';
 import accountingFiscalRoutes from './routes/accounting-fiscal.js';
+import promotionRoutes from './routes/promotions.js';
 import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
@@ -60,6 +61,7 @@ export async function buildApp() {
   await app.register(reportsRoutes, { prefix: '/api/v1' });
   await app.register(settingsRoutes, { prefix: '/api/v1' });
   await app.register(accountingFiscalRoutes, { prefix: '/api/v1' });
+  await app.register(promotionRoutes, { prefix: '/api/v1' });
 
   let stopIfoodWorker = () => {};
   app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); });
