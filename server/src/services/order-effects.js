@@ -51,7 +51,10 @@ async function applyInventory(client, order) {
       ts.id AS sheet_id,ts.yield
     FROM order_items oi
     LEFT JOIN products p ON p.id=oi.product_id
-    LEFT JOIN technical_sheets ts ON ts.product_id=oi.product_id
+    LEFT JOIN technical_sheets ts ON ts.product_id=CASE
+      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='morango' THEN 'p-drk002'
+      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='maracuja' THEN 'p-drk003'
+      ELSE oi.product_id END
     WHERE oi.order_id=$1
     ORDER BY oi.id
   `, [order.id]);
