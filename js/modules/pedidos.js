@@ -45,6 +45,8 @@ const PedidosModule = {
       origem: order.source,
       clienteId: order.clientId,
       clienteNome: order.clientName,
+      clienteEmail: order.customerEmail,
+      clienteContaId: order.customerAccountId,
       status: order.status,
       itens: (order.items || []).map(item => ({
         id: item.id,
@@ -141,7 +143,7 @@ const PedidosModule = {
     return `
       <tr data-id="${p.id}">
         <td><strong>#${p.numeroPedido}</strong><br><small style="color:var(--color-text-muted)">${p.origem}</small>${p.agendadoPara ? `<br><span class="badge badge-gold">${new Date(p.agendadoPara).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</td>
-        <td>${Utils.escapeHtml(p.clienteNome || '—')}</td>
+        <td>${Utils.escapeHtml(p.clienteNome || '—')}${p.clienteContaId ? `<br><small class="customer-account-badge">Conta: ${Utils.escapeHtml(p.clienteEmail || 'cliente autenticado')}</small>` : ''}</td>
         <td><span class="origem-badge">${Utils.escapeHtml(p.origem)}</span></td>
         <td class="itens-cell" title="${Utils.escapeHtml(resumo)}">${Utils.escapeHtml(resumoCurt)}</td>
         <td><strong>${Utils.currency(p.total)}</strong><br><small style="color:var(--color-text-muted)">${Utils.escapeHtml(p.formaPagamento)}</small></td>

@@ -35,6 +35,8 @@ function serializeOrder(row) {
     clientId: row.client_id,
     clientName: row.client_name,
     customerPhone: row.customer_phone,
+    customerAccountId: row.customer_account_id,
+    customerEmail: row.customer_email,
     status: row.status,
     subtotal: Number(row.subtotal),
     deliveryFee: Number(row.delivery_fee),
@@ -54,11 +56,13 @@ function serializeOrder(row) {
 
 const orderSelect = `
   SELECT o.*,
+    ca.email AS customer_email,
     COALESCE(jsonb_agg(jsonb_build_object(
       'id',oi.id,'productId',oi.product_id,'name',oi.name,'quantity',oi.quantity,
       'unitPrice',oi.unit_price,'subtotal',oi.subtotal,'options',oi.options
     ) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),'[]'::jsonb) AS items
   FROM orders o
+  LEFT JOIN customer_accounts ca ON ca.id=o.customer_account_id
   LEFT JOIN order_items oi ON oi.order_id=o.id
 `;
 
