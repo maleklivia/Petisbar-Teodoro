@@ -69,6 +69,20 @@
       </form>
     </section>
   </div>
+
+  <div id="customization-overlay" class="customization-overlay" aria-hidden="true">
+    <section class="customization-sheet" role="dialog" aria-modal="true" aria-labelledby="customization-title">
+      <header class="customization-header">
+        <div><span class="store-eyebrow">Personalize seu pedido</span><h2 id="customization-title">Escolha as opções</h2></div>
+        <button id="customization-close" class="icon-button" type="button" aria-label="Fechar">×</button>
+      </header>
+      <div id="customization-content" class="customization-content"></div>
+      <footer class="customization-footer">
+        <button id="customization-cancel" class="btn btn-secondary" type="button">Cancelar</button>
+        <button id="customization-add" class="checkout-button" type="button">Adicionar</button>
+      </footer>
+    </section>
+  </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
   <script src="./js/cardapio.js?v=20261007-6"></script>
 </body>
