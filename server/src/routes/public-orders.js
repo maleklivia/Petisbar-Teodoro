@@ -36,7 +36,7 @@ const optionError = item => {
   if (item.productId === 'p-ref001' && !options.sodaFlavor) return 'product_options_required';
   if (['p-drk001','p-drk002','p-drk003','p-drk004','p-drk005','p-drk006'].includes(item.productId) && !options.flavor) return 'product_options_required';
   if (['p-drk010','p-drk011'].includes(item.productId) && (!options.size || !options.beverage || !options.iceFlavor)) return 'product_options_required';
-  if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !options.size) return 'product_options_required';
+  if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !['P','G'].includes(options.size)) return 'product_options_required';
   return '';
 };
 
@@ -92,11 +92,12 @@ export default async function publicOrderRoutes(app) {
     reply.header('Cache-Control', 'no-store');
     const [catalog, variants] = await Promise.all([
       app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock FROM products WHERE active=true ORDER BY category,name'),
-      app.db.query("SELECT id,sale_price FROM products WHERE id=ANY($1::text[])", [['p-pet007','p-drk011','p-ref005','p-ref002','p-ref003','p-agu001']]),
+      app.db.query("SELECT id,sale_price FROM products WHERE id=ANY($1::text[])", [['p-pet006','p-pet007','p-drk011','p-ref005','p-ref002','p-ref003','p-agu001']]),
     ]);
     const prices = Object.fromEntries(variants.rows.map(row => [row.id, Number(row.sale_price)]));
     return {data:catalog.rows.map(product => ({...product,
-      option_prices:product.id==='p-pet002' ? {G:prices['p-pet007'],drinks:{'coca-cola':prices['p-ref005'],guarana:prices['p-ref002'],agua:prices['p-agu001']}}
+      option_prices:product.id==='p-pet001' ? {G:prices['p-pet006']}
+        : product.id==='p-pet002' ? {G:prices['p-pet007'],drinks:{'coca-cola':prices['p-ref005'],guarana:prices['p-ref002'],agua:prices['p-agu001']}}
         : product.id==='p-drk010' ? {'700ml':prices['p-drk011']}
         : product.id==='p-ref001' ? {soda:{'coca-cola':prices['p-ref005'],guarana:prices['p-ref002'],sprite:prices['p-ref003']}} : null,
     }))};
