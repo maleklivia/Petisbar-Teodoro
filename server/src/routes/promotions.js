@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 import { calculatePromotions, listPromotions } from '../services/promotions.js';
+import { roundMoney } from '../services/order-pricing.js';
 
 const optionsSchema = z.record(z.string(), z.array(z.string()).max(30)).default({});
 const groupSchema = z.object({
@@ -125,7 +126,7 @@ export default async function promotionRoutes(app){
     const client=await app.db.connect();try{await client.query('BEGIN');const result=await calculatePromotions(client,parsed.data.items,parsed.data.combos);
       await client.query('ROLLBACK');if(result.error)return reply.code(409).send({error:result.error,details:result});
       return {data:{subtotalNormal:result.subtotal,promotions:result.promotions.map(p=>({code:p.code,name:p.name,discount:p.discount,items:p.items})),
-        rejectedPromotions:result.rejectedPromotions,totalPromotionDiscount:result.promotionDiscount,totalAfterPromotions:result.subtotal-result.promotionDiscount}};
+        rejectedPromotions:result.rejectedPromotions,totalPromotionDiscount:result.promotionDiscount,totalAfterPromotions:roundMoney(result.subtotal-result.promotionDiscount)}};
     }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
   });
 }
