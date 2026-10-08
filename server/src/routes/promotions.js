@@ -14,6 +14,7 @@ const promotionSchema = z.object({
   name:z.string().trim().min(2).max(120), description:z.string().trim().max(2000).default(''),
   ruleType:z.enum(['percentage','fixed','combo']), discountPercent:z.number().positive().max(100).nullable().optional(),
   discountAmount:z.number().positive().max(100000).nullable().optional(), comboPrice:z.number().nonnegative().max(100000).nullable().optional(),
+  cmvEstimatePercent:z.number().positive().max(99).nullable().optional(),
   startsAt:z.string().datetime().nullable().optional(), endsAt:z.string().datetime().nullable().optional(),
   priority:z.number().int().min(-100000).max(100000).default(100), stackWithCoupon:z.boolean().default(false),
   productIds:z.array(z.string().min(1).max(100)).max(100).default([]), groups:z.array(groupSchema).max(20).default([]),
@@ -35,18 +36,18 @@ async function savePromotion(client, input, { id=null, userId, ip }) {
     const current=await client.query('SELECT id,active,code FROM promotions WHERE id=$1 FOR UPDATE',[id]);
     if(!current.rowCount)throw Object.assign(new Error('promotion_not_found'),{statusCode:404,code:'promotion_not_found'});
     await client.query(`UPDATE promotions SET code=$2,name=$3,description=$4,rule_type=$5,discount_percent=$6,discount_amount=$7,
-      combo_price=$8,starts_at=$9,ends_at=$10,priority=$11,stack_with_coupon=$12,updated_by=$13,updated_at=now(),active=false WHERE id=$1`,
+      combo_price=$8,cmv_estimate_percent=$9,starts_at=$10,ends_at=$11,priority=$12,stack_with_coupon=$13,updated_by=$14,updated_at=now(),active=false WHERE id=$1`,
       [id,input.code,input.name,input.description,input.ruleType,input.discountPercent??null,input.discountAmount??null,input.comboPrice??null,
-        input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
+        input.cmvEstimatePercent??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
     await client.query('DELETE FROM promotion_products WHERE promotion_id=$1',[id]);
     await client.query('UPDATE promotion_groups SET active=false WHERE promotion_id=$1',[id]);
     if(current.rows[0].active)await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip)
       VALUES($1,'promotion.deactivate','promotion',$2,$3,$4)`,[userId,id,{code:current.rows[0].code,reason:'edited_rule'},ip]);
   }else{
     const created=await client.query(`INSERT INTO promotions(code,name,description,rule_type,discount_percent,discount_amount,combo_price,
-      starts_at,ends_at,priority,stack_with_coupon,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
+      cmv_estimate_percent,starts_at,ends_at,priority,stack_with_coupon,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
       [input.code,input.name,input.description,input.ruleType,input.discountPercent??null,input.discountAmount??null,input.comboPrice??null,
-        input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
+        input.cmvEstimatePercent??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
     promotionId=created.rows[0].id;
   }
   for(const productId of input.productIds)await client.query('INSERT INTO promotion_products(promotion_id,product_id) VALUES($1,$2)',[promotionId,productId]);
@@ -59,7 +60,7 @@ async function savePromotion(client, input, { id=null, userId, ip }) {
     for(const product of group.products)await client.query('INSERT INTO promotion_group_products(group_id,product_id,surcharge,allowed_options) VALUES($1,$2,$3,$4)',[inserted.rows[0].id,product.productId,product.surcharge,product.allowedOptions]);
   }
   await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip)
-    VALUES($1,$2,'promotion',$3,$4,$5)`,[userId,id?'promotion.update':'promotion.create',promotionId,{code:input.code,ruleType:input.ruleType,productIds,groups:input.groups.length},ip]);
+    VALUES($1,$2,'promotion',$3,$4,$5)`,[userId,id?'promotion.update':'promotion.create',promotionId,{code:input.code,ruleType:input.ruleType,productIds,groups:input.groups.length,cmvEstimatePercent:input.cmvEstimatePercent??null},ip]);
   return promotionId;
 }
 
@@ -78,13 +79,14 @@ async function activationReadiness(db,id){
   if(!refs.rowCount||refs.rows.some(row=>!row.active))return {ok:false,reason:'promotion_product_inactive_or_missing'};
   const estimate=(await listPromotions(db)).find(item=>item.id===id);
   if(p.rule_type==='combo'&&Number(p.combo_price)>Number(estimate?.normalPriceEstimate||0))return {ok:false,reason:'combo_price_exceeds_normal',minimumNormalPrice:Number(estimate?.normalPriceEstimate||0)};
-  if(!estimate?.costComplete)return {ok:false,reason:'promotion_cost_incomplete',productIds:estimate?.missingCostProductIds||[],productNames:estimate?.missingCostProductNames||[]};
+  if(!estimate?.costComplete&&p.cmv_estimate_percent==null)return {ok:false,reason:'promotion_cost_incomplete',productIds:estimate?.missingCostProductIds||[],productNames:estimate?.missingCostProductNames||[]};
+  if(!estimate?.costComplete&&Number(estimate?.estimatedMargin??0)<=0)return {ok:false,reason:'promotion_estimate_no_margin',estimatedCost:estimate?.estimatedCost,price:estimate?.combo_price};
   if(p.rule_type==='combo'&&Number(p.combo_price)<0)return {ok:false,reason:'promotion_price_invalid'};
   return {ok:true};
 }
 
 export default async function promotionRoutes(app){
-  app.get('/public/promotions',async(request,reply)=>{reply.header('Cache-Control','no-store');return {data:(await listPromotions(app.db,{publicOnly:true})).filter(p=>p.active).map(({created_by,updated_by,estimatedCost,estimatedMargin,marginPercent,costComplete,missingCostProductIds,missingCostProductNames,marginBasis,...promotion})=>promotion)};});
+  app.get('/public/promotions',async(request,reply)=>{reply.header('Cache-Control','no-store');return {data:(await listPromotions(app.db,{publicOnly:true})).filter(p=>p.active).map(({created_by,updated_by,cmv_estimate_percent,estimatedCost,estimatedMargin,marginPercent,estimatedCmvPercent,costComplete,missingCostProductIds,missingCostProductNames,marginBasis,...promotion})=>promotion)};});
   app.get('/promotions/catalog',{preHandler:requirePermission('promotions.read')},async()=>{
     const {rows}=await app.db.query(`SELECT p.id,p.name,p.category,p.description,p.sale_price,p.purchase_cost,p.active,
       (ts.id IS NOT NULL) AS has_sheet,(SELECT COUNT(*) FROM technical_sheet_items tsi WHERE tsi.sheet_id=ts.id)::int AS sheet_items
@@ -114,7 +116,7 @@ export default async function promotionRoutes(app){
       const current=await client.query('SELECT * FROM promotions WHERE id=$1 FOR UPDATE',[id.data]);if(!current.rowCount){await client.query('ROLLBACK');return reply.code(404).send({error:'promotion_not_found'});}
       if(body.data.active){const readiness=await activationReadiness(client,id.data);if(!readiness.ok){await client.query('ROLLBACK');return reply.code(409).send({error:readiness.reason,details:readiness});}}
       await client.query('UPDATE promotions SET active=$2,updated_at=now(),updated_by=$3 WHERE id=$1',[id.data,body.data.active,request.user.id]);
-      await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip) VALUES($1,$2,'promotion',$3,$4,$5)`,[request.user.id,body.data.active?'promotion.activate':'promotion.deactivate',id.data,{code:current.rows[0].code},request.ip]);
+      await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip) VALUES($1,$2,'promotion',$3,$4,$5)`,[request.user.id,body.data.active?'promotion.activate':'promotion.deactivate',id.data,{code:current.rows[0].code,cmvEstimatePercent:current.rows[0].cmv_estimate_percent??null},request.ip]);
       const data=(await listPromotions(client)).find(p=>p.id===id.data);await client.query('COMMIT');return {data};
     }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
   });
