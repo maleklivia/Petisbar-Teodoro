@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { priceOrderItems, pricesMatch, roundMoney } from '../src/services/order-pricing.js';
+import { priceOrderItems, pricesMatch, roundMoney, stockAllowsOrder } from '../src/services/order-pricing.js';
+
+test('modo de testes permite estoque zero sem alterar a regra normal', () => {
+  const items = [{ productId: 'food', currentStock: '0', quantity: 1 }];
+  assert.equal(stockAllowsOrder(items), false);
+  assert.equal(stockAllowsOrder(items, true), true);
+  assert.equal(stockAllowsOrder([{ currentStock: '2', quantity: 3 }]), false);
+  assert.equal(stockAllowsOrder([{ currentStock: '2', quantity: 2 }]), true);
+});
 
 test('recalcula preços no servidor e preserva somente opções permitidas', async () => {
   const client = {

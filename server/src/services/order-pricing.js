@@ -5,6 +5,10 @@ export function pricesMatch(requested, priced) {
     Number.isFinite(item.expectedUnitPrice) && roundMoney(item.expectedUnitPrice) === priced.items[index]?.unitPrice);
 }
 
+export function stockAllowsOrder(items, allowWithoutStock = false) {
+  return allowWithoutStock || items.every(item => item.currentStock === null || Number(item.currentStock) >= item.quantity);
+}
+
 export async function priceOrderItems(client, requested, { lock = false } = {}) {
   const ids = [...new Set(requested.map(item => item.productId))];
   const result = await client.query(`

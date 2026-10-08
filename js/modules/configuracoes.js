@@ -21,6 +21,7 @@ const ConfiguracoesModule = {
       deliveryTime: String(data.get('deliveryTime') ?? ''),
       hours: String(data.get('hours') ?? ''),
       isOpen: data.get('isOpen') === 'on',
+      allowOrdersWithoutStockForTesting: data.get('allowOrdersWithoutStockForTesting') === 'on',
       paymentMethods: [...form.querySelectorAll('[data-payment]:checked')].map(input => input.dataset.payment),
       promotion: String(data.get('promotion') ?? ''),
       whatsapp: String(data.get('whatsapp') ?? ''),
@@ -89,6 +90,8 @@ const ConfiguracoesModule = {
       <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
       <label class="form-group">Horário exibido<input class="form-input" name="hours" maxlength="160" required value="${Utils.escapeHtml(draft?.hours ?? s['storefront.hours'] ?? '')}"></label>
       <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
+      <label class="form-group"><input name="allowOrdersWithoutStockForTesting" type="checkbox" ${(draft?.allowOrdersWithoutStockForTesting ?? s['storefront.allowOrdersWithoutStockForTesting']) ? 'checked' : ''}> Modo de testes: permitir pedidos sem estoque real</label>
+      <small>Durante os testes, todos os produtos ativos ficam disponíveis. Os pedidos entram no ERP identificados como teste. Desative esta opção antes de vender normalmente.</small>
       <fieldset><legend>Formas de pagamento</legend>${['Pix','Dinheiro','Cartão na entrega'].map(method => `<label style="display:block"><input type="checkbox" data-payment="${method}" ${payment.includes(method) ? 'checked' : ''}> ${method}</label>`).join('')}</fieldset>
       <label class="form-group">Texto da promoção<textarea class="form-input" name="promotion" rows="2" maxlength="500">${Utils.escapeHtml(draft?.promotion ?? promotion.description ?? '')}</textarea></label>
       <label class="form-group">WhatsApp do estabelecimento<input class="form-input" name="whatsapp" inputmode="tel" pattern="[0-9]{10,15}" required value="${Utils.escapeHtml(draft?.whatsapp ?? s['storefront.whatsapp'] ?? '')}"></label>
@@ -108,6 +111,7 @@ const ConfiguracoesModule = {
       'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
       'storefront.hours': String(data.get('hours')).trim(),
       'storefront.isOpen': data.get('isOpen') === 'on',
+      'storefront.allowOrdersWithoutStockForTesting': data.get('allowOrdersWithoutStockForTesting') === 'on',
       'storefront.paymentMethods': payments,
       'storefront.promotions': [{ ...promotion, description: String(data.get('promotion')).trim() }],
       'storefront.whatsapp': String(data.get('whatsapp')).trim(),
