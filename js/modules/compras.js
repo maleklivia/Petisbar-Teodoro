@@ -12,6 +12,7 @@ const ComprasModule = {
   _canWrite: true,
   _compras: [],
   _ingredientes: [],
+  _produtos: [],
   _fornecedores: [],
 
   async init() {
@@ -21,18 +22,21 @@ const ComprasModule = {
       const el = document.getElementById('compras-content');
       if (el) el.innerHTML = '<div class="empty-state"><p>Carregando compras…</p></div>';
       try {
-        const [compras, ingredientes, fornecedores] = await Promise.all([
+        const [compras, ingredientes, produtos, fornecedores] = await Promise.all([
           API.getServerPurchases(),
           API.getServerIngredients(),
+          API.getServerProducts(),
           API.getServerSuppliers(),
         ]);
         this._compras = compras;
         this._ingredientes = ingredientes;
+        this._produtos = produtos;
         this._fornecedores = fornecedores;
       } catch {
         UI.toast('Falha ao carregar compras do servidor.', 'danger');
         this._compras = [];
         this._ingredientes = [];
+        this._produtos = [];
         this._fornecedores = [];
       }
     } else {
@@ -44,6 +48,7 @@ const ComprasModule = {
 
   _getCompras() { return this._serverMode ? this._compras : Stores.compras.get(); },
   _getIngredientes() { return this._serverMode ? this._ingredientes : Stores.ingredientes.get(); },
+  _getProdutos() { return this._serverMode ? this._produtos : Stores.produtos.get(); },
   _getFornecedores() { return this._serverMode ? this._fornecedores : Stores.fornecedores.get(); },
 
   _render() {
@@ -473,6 +478,11 @@ const ComprasModule = {
   _abrirModalNovaCompra() {
     const fornecedores = this._getFornecedores().filter(f => f.ativo);
     const ings = this._getIngredientes().filter(i => i.ativo);
+    const produtos = this._getProdutos().filter(p => p.ativo);
+    const opcoes = [
+      ...ings.map(i => ({ ...i, tipo: 'ingrediente', chave: `i:${i.id}`, unidadeBase: i.unidade, custoBase: i.custoUnitario })),
+      ...produtos.map(p => ({ ...p, tipo: 'produto', chave: `p:${p.id}`, unidadeBase: 'un', custoBase: p.custoCompra || 0 })),
+    ];
     let itens  = [];
 
     const renderItens = () => {
@@ -480,8 +490,8 @@ const ComprasModule = {
       if (!cont) return;
       cont.innerHTML = itens.map((it, idx) => `
         <div style="display:grid;grid-template-columns:1fr 80px 60px 90px 28px;gap:6px;align-items:center;margin-bottom:6px">
-          <select class="form-input" data-cmp-it-ing="${idx}">
-            ${ings.map(i => `<option value="${i.id}" ${i.id === it.ingredienteId ? 'selected' : ''}>${Utils.escapeHtml(i.nome)}</option>`).join('')}
+          <select class="form-input" data-cmp-it-item="${idx}">
+            ${opcoes.map(o => `<option value="${o.chave}" ${o.chave === it.chave ? 'selected' : ''}>${o.tipo === 'produto' ? 'Produto · ' : ''}${Utils.escapeHtml(o.nome)}</option>`).join('')}
           </select>
           <input type="number" class="form-input" data-cmp-it-qty="${idx}" min="0.001" step="0.001" value="${it.quantidade}" placeholder="Qtd">
           <input type="text" class="form-input" data-cmp-it-un="${idx}" value="${it.unidade}" placeholder="un">
@@ -490,11 +500,14 @@ const ComprasModule = {
         </div>
       `).join('') + `<button class="btn btn-ghost" id="cmp-add-item" type="button" style="font-size:var(--text-sm)">+ Adicionar item</button>`;
 
-      cont.querySelectorAll('[data-cmp-it-ing]').forEach(sel => {
+      cont.querySelectorAll('[data-cmp-it-item]').forEach(sel => {
         sel.addEventListener('change', e => {
-          const idx = parseInt(e.target.dataset.cmpItIng);
-          const ing = ings.find(i => i.id === e.target.value);
-          if (ing) { itens[idx].ingredienteId = ing.id; itens[idx].unidade = ing.unidade; itens[idx].custoUnitario = ing.custoUnitario; renderItens(); }
+          const idx = parseInt(e.target.dataset.cmpItItem);
+          const option = opcoes.find(o => o.chave === e.target.value);
+          if (option) {
+            itens[idx] = { ...itens[idx], chave: option.chave, ingredienteId: option.tipo === 'ingrediente' ? option.id : undefined, produtoId: option.tipo === 'produto' ? option.id : undefined, nome: option.nome, unidade: option.unidadeBase, custoUnitario: option.custoBase };
+            renderItens();
+          }
         });
       });
       cont.querySelectorAll('[data-cmp-it-qty]').forEach(el => el.addEventListener('input', e => { itens[parseInt(e.target.dataset.cmpItQty)].quantidade = parseFloat(e.target.value) || 0; }));
@@ -502,7 +515,7 @@ const ComprasModule = {
       cont.querySelectorAll('[data-cmp-it-custo]').forEach(el => el.addEventListener('input', e => { itens[parseInt(e.target.dataset.cmpItCusto)].custoUnitario = parseFloat(e.target.value) || 0; }));
       cont.querySelectorAll('[data-cmp-it-del]').forEach(btn => btn.addEventListener('click', e => { itens.splice(parseInt(e.target.closest('[data-cmp-it-del]').dataset.cmpItDel), 1); renderItens(); }));
       const addBtn = cont.querySelector('#cmp-add-item');
-      if (addBtn) addBtn.addEventListener('click', () => { const i = ings[0]; itens.push({ ingredienteId: i.id, nome: i.nome, quantidade: 1, unidade: i.unidade, custoUnitario: i.custoUnitario }); renderItens(); });
+      if (addBtn) addBtn.addEventListener('click', () => { const o = opcoes[0]; if (o) itens.push({ chave: o.chave, ingredienteId: o.tipo === 'ingrediente' ? o.id : undefined, produtoId: o.tipo === 'produto' ? o.id : undefined, nome: o.nome, quantidade: 1, unidade: o.unidadeBase, custoUnitario: o.custoBase }); renderItens(); });
     };
 
     UI.openModal({
@@ -546,9 +559,9 @@ const ComprasModule = {
 
         // Calculate subtotals and total
         const itensFinal = itens.map(it => {
-          const ing = ings.find(i => i.id === it.ingredienteId);
+          const option = opcoes.find(o => o.chave === it.chave) || opcoes.find(o => o.id === it.ingredienteId) || opcoes.find(o => o.id === it.produtoId);
           const sub = it.quantidade * it.custoUnitario;
-          return { ...it, nome: ing?.nome || '?', subtotal: sub };
+          return { ...it, nome: option?.nome || it.nome || '?', subtotal: sub };
         });
         const total = itensFinal.reduce((s, i) => s + i.subtotal, 0);
 
@@ -587,7 +600,7 @@ const ComprasModule = {
     });
 
     // Start with one empty item
-    if (ings.length) { itens = [{ ingredienteId: ings[0].id, nome: ings[0].nome, quantidade: 1, unidade: ings[0].unidade, custoUnitario: ings[0].custoUnitario }]; }
+    if (opcoes.length) { const o = opcoes[0]; itens = [{ chave: o.chave, ingredienteId: o.tipo === 'ingrediente' ? o.id : undefined, produtoId: o.tipo === 'produto' ? o.id : undefined, nome: o.nome, quantidade: 1, unidade: o.unidadeBase, custoUnitario: o.custoBase }]; }
     setTimeout(() => renderItens(), 50);
   },
 
