@@ -20,10 +20,10 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
   try {
     await client.query(`CREATE SCHEMA ${schema}`);
     await client.query(`SET search_path TO ${schema}, public`);
-    try {
-      await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-    } catch (error) {
-      if (error.code !== '23505') throw error;
+    const extension = await client.query("SELECT 1 FROM pg_extension WHERE extname='pgcrypto'");
+    if (!extension.rowCount) {
+      try { await client.query('CREATE EXTENSION pgcrypto SCHEMA public'); }
+      catch (error) { if (error.code !== '23505') throw error; }
     }
     const files = (await readdir(migrationsDir)).filter(name => name.endsWith('.sql')).sort();
     for (const file of files) await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
