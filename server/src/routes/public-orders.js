@@ -5,6 +5,7 @@ import { priceOrderItems, pricesMatch, roundMoney } from '../services/order-pric
 
 const optionSchema = z.object({
   flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
+  sodaFlavor: z.enum(['coca-cola', 'guarana', 'sprite']).optional(),
   complement: z.array(z.enum(['leite-condensado', 'leite-em-po', 'granola', 'pacoca'])).max(4).optional(),
   size: z.enum(['P', 'G', '500ml', '700ml']).optional(),
   beverage: z.enum(['vodka', 'whisky']).optional(),
@@ -32,6 +33,7 @@ const validPhone = phone => phone.length === 10 || phone.length === 11;
 const optionError = item => {
   const options = item.options || {};
   if (item.productId === 'p-aca001' && !options.flavor) return 'product_options_required';
+  if (item.productId === 'p-ref001' && !options.sodaFlavor) return 'product_options_required';
   if (['p-drk001','p-drk002','p-drk003','p-drk004','p-drk005','p-drk006'].includes(item.productId) && !options.flavor) return 'product_options_required';
   if (['p-drk010','p-drk011'].includes(item.productId) && (!options.size || !options.beverage || !options.iceFlavor)) return 'product_options_required';
   if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !options.size) return 'product_options_required';

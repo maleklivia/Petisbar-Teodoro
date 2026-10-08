@@ -22,6 +22,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
     if (product.id === 'p-pet002' && item.options?.size === 'G') unitPrice = 39.90;
     if (['p-drk010', 'p-drk011'].includes(product.id) && item.options?.size === '700ml') unitPrice = 24.90;
     if (product.id === 'p-pet002') unitPrice += ({ 'coca-cola': 6, guarana: 5, agua: 3 }[item.options?.drink] || 0);
+    if (product.id === 'p-ref001' && item.options?.sodaFlavor === 'coca-cola') unitPrice = 6.00;
     const canAddFlavoredIce = ['p-drk010', 'p-drk011'].includes(product.id);
     const options = { ...(item.options || {}) };
     options.flavoredIce = canAddFlavoredIce && Boolean(item.flavoredIce ?? options.flavoredIce);
