@@ -24,7 +24,7 @@ const schema = z.object({
   MAIL_HOST: z.string().default('smtp.gmail.com'),
   MAIL_PORT: z.coerce.number().int().positive().default(465),
   MAIL_SECURE: z.string().default('true').transform(value => value === 'true'),
-  MAIL_USER: z.string().email().default(''),
+  MAIL_USER: z.union([z.string().email(), z.literal('')]).default(''),
   MAIL_PASSWORD: z.string().default(''),
   MAIL_FROM: z.string().email().default('petisbarteodoro@gmail.com'),
 }).superRefine((value, context) => {
