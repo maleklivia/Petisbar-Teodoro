@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
   phone text NOT NULL DEFAULT '',
   google_subject text,
   email_verified_at timestamptz,
+  anonymized_at timestamptz,
+  retention_until date,
   active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -21,6 +23,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS customer_accounts_email_normalized_idx
   ON customer_accounts(email_normalized);
 CREATE UNIQUE INDEX IF NOT EXISTS customer_accounts_google_subject_idx
   ON customer_accounts(google_subject) WHERE google_subject IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS customer_data_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_account_id uuid REFERENCES customer_accounts(id) ON DELETE SET NULL,
+  request_type text NOT NULL CHECK (request_type IN ('access', 'correction', 'deletion', 'anonymization')),
+  status text NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'approved', 'completed', 'rejected')),
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  notes text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS customer_data_requests_account_idx ON customer_data_requests(customer_account_id, requested_at DESC);
 
 CREATE TABLE IF NOT EXISTS customer_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

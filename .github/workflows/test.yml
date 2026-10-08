@@ -27,6 +27,7 @@ jobs:
         working-directory: server
     env:
       TEST_DATABASE_URL: postgresql://petisbar:petisbar-test-password@localhost:5432/petisbar_test
+      DATABASE_URL: postgresql://petisbar:petisbar-test-password@localhost:5432/petisbar_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,4 +37,6 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npm run check
+      - name: Aplicar todas as migrações no PostgreSQL temporário
+        run: npm run migrate
       - run: npm test
