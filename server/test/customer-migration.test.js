@@ -8,7 +8,10 @@ import pg from 'pg';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../database/migrations');
-const withoutTransaction = source => source.replace(/^\s*BEGIN;\s*/i, '').replace(/\s*COMMIT;\s*$/i, '');
+const withoutTransaction = source => source
+  .replace(/^\s*BEGIN;\s*/i, '')
+  .replace(/\s*COMMIT;\s*$/i, '')
+  .replace(/CREATE EXTENSION IF NOT EXISTS pgcrypto;?/gi, '');
 
 test('reproduz todas as migrações, verifica integridade e repete 017 sem duplicar dados', { skip: !databaseUrl }, async () => {
   const client = new pg.Client({ connectionString: databaseUrl });
@@ -17,6 +20,7 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
   try {
     await client.query(`CREATE SCHEMA ${schema}`);
     await client.query(`SET search_path TO ${schema}, public`);
+    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
     const files = (await readdir(migrationsDir)).filter(name => name.endsWith('.sql')).sort();
     for (const file of files) await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
 
