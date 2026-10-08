@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 
 const purchaseItemSchema = z.object({
-  ingredienteId: z.string().min(1).max(100),
+  ingredienteId: z.string().min(1).max(100).optional(),
+  produtoId: z.string().min(1).max(100).optional(),
   nome: z.string().min(1).max(200).optional(),
   quantidade: z.number().positive(),
   unidade: z.string().min(1).max(20),
@@ -23,15 +24,20 @@ const purchaseSchema = z.object({
 }).superRefine((purchase, ctx) => {
   const seen = new Set();
   for (let index = 0; index < purchase.itens.length; index += 1) {
-    const ingredientId = purchase.itens[index].ingredienteId;
-    if (seen.has(ingredientId)) {
+    const item = purchase.itens[index];
+    const itemId = item.produtoId || item.ingredienteId;
+    if (!itemId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe um ingrediente ou produto', path: ['itens', index] });
+      continue;
+    }
+    if (seen.has(itemId)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Ingrediente duplicado na compra',
-        path: ['itens', index, 'ingredienteId'],
+        message: 'Item duplicado na compra',
+        path: ['itens', index, item.produtoId ? 'produtoId' : 'ingredienteId'],
       });
     }
-    seen.add(ingredientId);
+    seen.add(itemId);
   }
 });
 
@@ -54,6 +60,7 @@ function mapPurchase(row) {
     itens: (row.items || []).map(item => ({
       id: item.id,
       ingredienteId: item.ingredientId,
+      produtoId: item.productId,
       nome: item.name,
       quantidade: Number(item.quantity),
       unidade: item.unit,
@@ -76,6 +83,7 @@ async function fetchPurchase(client, id) {
       COALESCE(json_agg(json_build_object(
         'id', pi.id,
         'ingredientId', pi.ingredient_id,
+        'productId', pi.product_id,
         'name', pi.name,
         'quantity', pi.quantity,
         'unit', pi.unit,
@@ -92,13 +100,16 @@ async function fetchPurchase(client, id) {
 
 async function insertPurchaseItems(client, purchaseId, items) {
   for (const item of items) {
-    const ingredient = await client.query('SELECT name, unit FROM ingredients WHERE id=$1', [item.ingredienteId]);
-    const name = item.nome || ingredient.rows[0]?.name || 'Ingrediente';
+    const source = item.produtoId ? 'products' : 'ingredients';
+    const sourceId = item.produtoId || item.ingredienteId;
+    const sourceRow = await client.query(`SELECT name, ${source === 'products' ? "'un'" : 'unit'} AS unit, ${source === 'products' ? 'sale_price' : 'unit_cost'} AS cost FROM ${source} WHERE id=$1`, [sourceId]);
+    if (!sourceRow.rowCount) throw new Error(`Item não encontrado: ${sourceId}`);
+    const name = item.nome || sourceRow.rows[0].name;
     const subtotal = item.quantidade * item.custoUnitario;
     await client.query(`
-      INSERT INTO purchase_items (purchase_id, ingredient_id, name, quantity, unit, unit_cost, subtotal)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
-    `, [purchaseId, item.ingredienteId, name, item.quantidade, item.unidade, item.custoUnitario, subtotal]);
+      INSERT INTO purchase_items (purchase_id, ingredient_id, product_id, name, quantity, unit, unit_cost, subtotal)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `, [purchaseId, item.ingredienteId || null, item.produtoId || null, name, item.quantidade, item.unidade || sourceRow.rows[0].unit, item.custoUnitario, subtotal]);
   }
 }
 
@@ -108,19 +119,23 @@ async function applyReceipt(client, purchase, userId) {
   const items = await client.query('SELECT * FROM purchase_items WHERE purchase_id=$1', [purchase.id]);
 
   for (const item of items.rows) {
-    const ingredient = await client.query('SELECT * FROM ingredients WHERE id=$1 FOR UPDATE', [item.ingredient_id]);
-    if (!ingredient.rowCount) continue;
-    const nextStock = number(ingredient.rows[0].current_stock) + number(item.quantity);
+    if (item.ingredient_id) {
+      const ingredient = await client.query('SELECT * FROM ingredients WHERE id=$1 FOR UPDATE', [item.ingredient_id]);
+      if (!ingredient.rowCount) continue;
+      const nextStock = number(ingredient.rows[0].current_stock) + number(item.quantity);
+      await client.query('UPDATE ingredients SET current_stock=$2, unit_cost=$3, updated_at=now() WHERE id=$1', [item.ingredient_id, nextStock, item.unit_cost]);
+    } else if (item.product_id) {
+      const product = await client.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [item.product_id]);
+      if (!product.rowCount) continue;
+      const nextStock = number(product.rows[0].current_stock) + number(item.quantity);
+      await client.query('UPDATE products SET current_stock=$2, purchase_cost=$3, updated_at=now() WHERE id=$1', [item.product_id, nextStock, item.unit_cost]);
+    } else continue;
+    const key = item.ingredient_id || item.product_id;
     await client.query(`
-      UPDATE ingredients
-      SET current_stock=$2, unit_cost=$3, updated_at=now()
-      WHERE id=$1
-    `, [item.ingredient_id, nextStock, item.unit_cost]);
-    await client.query(`
-      INSERT INTO stock_movements (id, ingredient_id, movement_type, quantity, unit, reason, reference, movement_date, created_by)
-      VALUES ($1,$2,'entrada',$3,$4,'compra',$5,$6,$7)
+      INSERT INTO stock_movements (id, ingredient_id, product_id, movement_type, quantity, unit, reason, reference, movement_date, created_by)
+      VALUES ($1,$2,$3,'entrada',$4,$5,'compra',$6,$7,$8)
       ON CONFLICT (id) DO NOTHING
-    `, [`mov-purchase-${purchase.id}-${item.ingredient_id}`, item.ingredient_id, item.quantity, item.unit, purchase.id, receivedAt, userId]);
+    `, [`mov-purchase-${purchase.id}-${key}`, item.ingredient_id || null, item.product_id || null, item.quantity, item.unit, purchase.id, receivedAt, userId]);
   }
 
   await client.query(`
@@ -147,6 +162,7 @@ export default async function purchasesRoutes(app) {
         COALESCE(json_agg(json_build_object(
           'id', pi.id,
           'ingredientId', pi.ingredient_id,
+          'productId', pi.product_id,
           'name', pi.name,
           'quantity', pi.quantity,
           'unit', pi.unit,
