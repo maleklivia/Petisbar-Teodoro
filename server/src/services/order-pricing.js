@@ -23,6 +23,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
   const drinkIds = { 'coca-cola': 'p-ref005', guarana: 'p-ref002', agua: 'p-agu001' };
   const sodaIds = { 'coca-cola': 'p-ref005', guarana: 'p-ref002', sprite: 'p-ref003' };
   const priceIds = [...new Set(requested.flatMap(item => [
+    ...(item.productId === 'p-pet001' && item.options?.size === 'G' ? ['p-pet006'] : []),
     ...(item.productId === 'p-pet002' && item.options?.size === 'G' ? ['p-pet007'] : []),
     ...(['p-drk010', 'p-drk011'].includes(item.productId) && item.options?.size === '700ml' ? ['p-drk011'] : []),
     ...(item.productId === 'p-pet002' && drinkIds[item.options?.drink] ? [drinkIds[item.options.drink]] : []),
@@ -36,6 +37,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
   const items = requested.map(item => {
     const product = products.get(item.productId);
     let unitPrice = Number(product.sale_price);
+    if (product.id === 'p-pet001' && item.options?.size === 'G') unitPrice = optionPrices.get('p-pet006');
     if (product.id === 'p-pet002' && item.options?.size === 'G') unitPrice = optionPrices.get('p-pet007');
     if (['p-drk010', 'p-drk011'].includes(product.id) && item.options?.size === '700ml') unitPrice = optionPrices.get('p-drk011');
     if (product.id === 'p-pet002' && drinkIds[item.options?.drink]) unitPrice += optionPrices.get(drinkIds[item.options.drink]);
