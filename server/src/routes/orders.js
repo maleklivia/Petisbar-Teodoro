@@ -38,6 +38,8 @@ function serializeOrder(row) {
     clientId: row.client_id,
     clientName: row.client_name,
     customerPhone: row.customer_phone,
+    customerAccountId: row.customer_account_id,
+    customerEmail: row.customer_email,
     status: row.status,
     subtotal: Number(row.subtotal),
     deliveryFee: Number(row.delivery_fee),
@@ -61,6 +63,7 @@ function serializeOrder(row) {
 
 const orderSelect = `
   SELECT o.*,
+    MAX(ca.email) AS customer_email,
     COALESCE(jsonb_agg(jsonb_build_object(
       'id',oi.id,'productId',oi.product_id,'name',oi.name,'quantity',oi.quantity,
       'unitPrice',oi.unit_price,'listUnitPrice',oi.list_unit_price,'promotionDiscount',oi.promotion_discount,
@@ -75,6 +78,7 @@ const orderSelect = `
       ELSE COALESCE((SELECT jsonb_agg(jsonb_build_object('code',c.code,'discount',cr.discount_amount) ORDER BY c.code)
         FROM coupon_redemptions cr JOIN coupons c ON c.id=cr.coupon_id WHERE cr.order_id=o.id),'[]'::jsonb) END AS applied_coupons
   FROM orders o
+  LEFT JOIN customer_accounts ca ON ca.id=o.customer_account_id
   LEFT JOIN order_items oi ON oi.order_id=o.id
 `;
 

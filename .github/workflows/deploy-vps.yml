@@ -22,9 +22,54 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-      - name: Atualizar aplicação
+      - name: Atualizar arquivos, migrar PostgreSQL e reiniciar API systemd
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh "$VPS_USER@$VPS_HOST" 'cd /opt/petisbar/Distrito-OS && git pull --ff-only origin main && docker compose build && docker compose up -d postgres && docker compose run --rm migrate && docker compose up -d && docker compose ps'
+          ssh -T "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -Eeuo pipefail
+          APP=/opt/petisbar/app
+          SERVICE=petisbar-api.service
+          git_app() { runuser -u petisbar -- git -C "$APP" "$@"; }
+          PREVIOUS="$(git_app rev-parse HEAD)"
+
+          rollback() {
+            status=$?
+            trap - ERR
+            git_app checkout --detach "$PREVIOUS" || true
+            runuser -u petisbar -- /usr/bin/npm ci --omit=dev --prefix "$APP/server" || true
+            systemctl restart "$SERVICE" || true
+            exit "$status"
+          }
+          trap rollback ERR
+
+          test "$(id -u)" -eq 0
+          test -z "$(git_app status --porcelain)"
+          git_app fetch --prune origin main
+          TARGET="$(git_app rev-parse origin/main)"
+          git_app checkout --detach "$TARGET"
+
+          runuser -u petisbar -- /usr/bin/npm ci --omit=dev --prefix "$APP/server"
+          systemd-run --quiet --wait --pipe --collect \
+            --unit="petisbar-migrate-$(date +%s)" \
+            --property=User=petisbar \
+            --property=WorkingDirectory="$APP/server" \
+            --property=EnvironmentFile=/etc/petisbar.env \
+            /usr/bin/node scripts/migrate.js
+          systemctl restart "$SERVICE"
+
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/api/v1/health >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo "A API não ficou pronta após a implantação." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test "$(git_app rev-parse HEAD)" = "$TARGET"
+          test -z "$(git_app status --porcelain)"
+          trap - ERR

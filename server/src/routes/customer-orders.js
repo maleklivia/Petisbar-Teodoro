@@ -18,7 +18,7 @@ export default async function customerOrderRoutes(app) {
     `, [request.params.id, request.customer.id]);
     if (!order.rowCount) return reply.code(404).send({ error: 'order_not_found' });
     const [items, history] = await Promise.all([
-      app.db.query('SELECT name,quantity,unit_price,subtotal,options FROM order_items WHERE order_id=$1 ORDER BY id', [request.params.id]),
+      app.db.query('SELECT product_id,name,quantity,unit_price,subtotal,options FROM order_items WHERE order_id=$1 ORDER BY id', [request.params.id]),
       app.db.query('SELECT status,previous_status,created_at,source FROM order_status_history WHERE order_id=$1 ORDER BY created_at,id', [request.params.id]),
     ]);
     return { data: { ...order.rows[0], items: items.rows, history: history.rows } };

@@ -4,6 +4,7 @@ import { setOrderReservationsStatus } from './order-stock-reservations.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
+const isTestOrder = order => String(order.notes || '').startsWith('[TESTE SEM ESTOQUE]');
 
 function businessError(code, statusCode = 409, details) {
   const error = new Error(code);
@@ -135,7 +136,7 @@ async function applyFinancialEntries(client, order, cmv) {
 async function applyEffects(client, order) {
   if (order.effects_applied_at && !order.effects_reversed_at) return;
   if (order.effects_reversed_at) throw businessError('order_effects_already_reversed');
-  if (order.source?.includes('(Teste)') || order.notes?.startsWith('[TESTE SEM ESTOQUE]')) {
+  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
     await setOrderReservationsStatus(client,order.id,'released');
     await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1',[order.id]);
     return;
@@ -151,7 +152,7 @@ async function reverseEffects(client, order) {
     await setOrderReservationsStatus(client,order.id,'released');
     return;
   }
-  if (order.source?.includes('(Teste)') || order.notes?.startsWith('[TESTE SEM ESTOQUE]')) {
+  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
     await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1',[order.id]);
     await setOrderReservationsStatus(client,order.id,'released');
     return;
