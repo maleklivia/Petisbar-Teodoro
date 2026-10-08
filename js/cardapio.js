@@ -167,6 +167,11 @@ const Cardapio = {
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.coupon=null;
       this.renderCatalog();this.renderCart();this.openCart(false);
       if(body.data.trackingToken) localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
+      if(body.data.trackingToken){
+        document.getElementById('order-confirmation-number').textContent=`Pedido #${body.data.orderNumber}`;
+        document.getElementById('order-confirmation').classList.remove('hidden');
+        document.getElementById('order-confirmation').scrollIntoView({behavior:'smooth',block:'center'});
+      }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
     }catch{

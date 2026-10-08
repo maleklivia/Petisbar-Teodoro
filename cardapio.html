@@ -7,15 +7,16 @@
   <meta name="description" content="Cardápio digital do Petisbar Teodoro. Faça seu pedido para retirada ou entrega.">
   <title>Peça online — Petisbar Teodoro</title>
   <link rel="stylesheet" href="./css/variables.css">
-  <link rel="stylesheet" href="./css/cardapio.css?v=20261007-4">
+  <link rel="stylesheet" href="./css/cardapio.css?v=20261008-5">
 </head>
 <body>
   <header class="store-header">
     <img src="./assets/petisbar-teodoro-logo.jpg" alt="Petisbar Teodoro" class="store-logo">
-    <div class="store-header-copy"><span class="store-eyebrow">Petisbar Teodoro</span><h1>Sabor para compartilhar.</h1><p>Escolha seus favoritos. Retirada ou entrega sob confirmação do estabelecimento.</p><div id="store-status" class="store-status" aria-live="polite"><span class="status-dot"></span><strong>Consultando horário…</strong></div></div>
+    <div class="store-header-copy"><span class="store-eyebrow">Petisbar Teodoro</span><h1>Sabor para compartilhar.</h1><p>Escolha seus favoritos. Retirada ou entrega sob confirmação do estabelecimento.</p><div id="store-status" class="store-status" aria-live="polite"><span class="status-dot"></span><strong>Consultando horário…</strong></div><a class="store-track-link" href="./pages/pedido.html">Acompanhar meu pedido</a></div>
   </header>
 
   <main class="store-main">
+    <section id="order-confirmation" class="store-panel hidden" role="status" aria-live="polite"><strong id="order-confirmation-number"></strong><span>Seu pedido foi registrado.</span><a href="./pages/pedido.html">Acompanhar pedido</a></section>
     <section class="store-highlights" aria-label="Informações da loja">
       <div><strong>Pedido mínimo</strong><span id="minimum-order">R$ 20,00</span></div>
       <div><strong>Entrega</strong><span id="delivery-time">30–60 min</span></div>
@@ -84,7 +85,7 @@
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20261008-4"></script>
+  <script src="./js/cardapio.js?v=20261008-5"></script>
 </body>
 </html>
 
