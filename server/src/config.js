@@ -21,6 +21,11 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().default(''),
   OPENAI_MODEL: z.string().min(1).default('gpt-5.6-luna'),
   RESEND_API_KEY: z.string().default(''),
+  MAIL_HOST: z.string().default('smtp.gmail.com'),
+  MAIL_PORT: z.coerce.number().int().positive().default(465),
+  MAIL_SECURE: z.string().default('true').transform(value => value === 'true'),
+  MAIL_USER: z.string().email().default(''),
+  MAIL_PASSWORD: z.string().default(''),
   MAIL_FROM: z.string().email().default('petisbarteodoro@gmail.com'),
 }).superRefine((value, context) => {
   if (value.IFOOD_ENABLED && (!value.IFOOD_CLIENT_ID || !value.IFOOD_CLIENT_SECRET || !value.IFOOD_MERCHANT_ID)) {
