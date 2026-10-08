@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { priceOrderItems, roundMoney } from '../services/order-pricing.js';
+import { priceOrderItems, pricesMatch, roundMoney } from '../services/order-pricing.js';
 
 const optionSchema = z.object({
   flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
@@ -11,7 +11,7 @@ const optionSchema = z.object({
   iceFlavor: z.enum(['coco', 'maracuja']).optional(),
   drink: z.enum(['none', 'coca-cola', 'guarana', 'agua']).optional(),
 }).default({});
-const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), flavoredIce: z.boolean().default(false), options: optionSchema });
+const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative().optional(), flavoredIce: z.boolean().default(false), options: optionSchema });
 const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).min(1).max(30) });
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
@@ -68,7 +68,8 @@ export default async function publicOrderRoutes(app) {
     promotions: [{ title: 'Promoções do dia', description: 'Confira as promoções disponíveis no cardápio.' }],
     whatsapp: '5521975816050',
   };
-  app.get('/public/storefront', async () => {
+  app.get('/public/storefront', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
@@ -82,9 +83,8 @@ export default async function publicOrderRoutes(app) {
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
     } };
   });
-  // Produto ativo no ERP é publicado; estoque zero não deve esconder o catálogo.
-  // A disponibilidade física será tratada no fechamento do pedido.
-  app.get('/public/catalog', async () => { const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url FROM products WHERE active=true ORDER BY category,name'); return {data:rows}; });
+  // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
+  app.get('/public/catalog', async (request, reply) => { reply.header('Cache-Control', 'no-store'); const {rows}=await app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock FROM products WHERE active=true ORDER BY category,name'); return {data:rows}; });
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});
@@ -93,6 +93,7 @@ export default async function publicOrderRoutes(app) {
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
     const priced=await priceOrderItems(app.db,parsed.data.items); if(!priced)return reply.code(409).send({error:'product_unavailable'});
+    if(!pricesMatch(parsed.data.items,priced))return reply.code(409).send({error:'catalog_changed'});
     return {data:{code:coupon.code,discount:discountFor(coupon,priced.subtotal),description:'10% de desconto (máximo R$ 10,00)'}};
   });
 
@@ -106,7 +107,13 @@ export default async function publicOrderRoutes(app) {
     try {
       await client.query('BEGIN');
       const priced=await priceOrderItems(client,input.items,{lock:true}); if(!priced){await client.query('ROLLBACK');return reply.code(409).send({error:'product_unavailable'});}
-      const minimumResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.minimumOrder'");
+      if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
+      const openResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.isOpen' FOR SHARE");
+      if(openResult.rows[0]?.value===false){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed'});}
+      const paymentResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.paymentMethods' FOR SHARE");
+      const paymentMethods=Array.isArray(paymentResult.rows[0]?.value)?paymentResult.rows[0].value:defaultStorefront.paymentMethods;
+      if(!paymentMethods.includes(input.paymentMethod)){await client.query('ROLLBACK');return reply.code(409).send({error:'payment_unavailable'});}
+      const minimumResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.minimumOrder' FOR SHARE");
       const minimumOrder=Number(minimumResult.rows[0]?.value ?? 20);
       if(priced.subtotal<minimumOrder){await client.query('ROLLBACK');return reply.code(422).send({error:'minimum_order_not_met',minimumOrder});}
       if(priced.items.some(item=>['Drinks','Cervejas'].includes(item.category))&&!input.adultConfirmed){await client.query('ROLLBACK');return reply.code(400).send({error:'adult_confirmation_required'});}
