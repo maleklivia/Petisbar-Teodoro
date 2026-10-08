@@ -56,7 +56,7 @@ function serializeOrder(row) {
 
 const orderSelect = `
   SELECT o.*,
-    ca.email AS customer_email,
+    MAX(ca.email) AS customer_email,
     COALESCE(jsonb_agg(jsonb_build_object(
       'id',oi.id,'productId',oi.product_id,'name',oi.name,'quantity',oi.quantity,
       'unitPrice',oi.unit_price,'subtotal',oi.subtotal,'options',oi.options
