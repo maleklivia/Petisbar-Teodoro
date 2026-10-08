@@ -209,6 +209,20 @@ export default async function migrationRoutes(app) {
         }
       }
 
+      if (collections.pedidos.length) {
+        // A importação preserva os números legados; o próximo pedido deve vir depois deles.
+        await client.query(`
+          SELECT setval(
+            'order_number_seq',
+            GREATEST(
+              COALESCE((SELECT MAX(order_number) FROM orders), 0) + 1,
+              (SELECT last_value + CASE WHEN is_called THEN 1 ELSE 0 END FROM order_number_seq)
+            ),
+            false
+          )
+        `);
+      }
+
       const counts = Object.fromEntries(Object.entries(collections).map(([key, records]) => [key, records.length]));
       await client.query('UPDATE import_batches SET summary = $1 WHERE id = $2', [counts, batchId]);
       await client.query(`
