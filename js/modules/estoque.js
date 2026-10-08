@@ -11,6 +11,7 @@ const EstoqueModule = {
   _serverMode: false,
   _canWrite: true,
   _ingredientes: [],
+  _produtos: [],
   _movimentacoes: [],
 
   async init() {
@@ -20,17 +21,22 @@ const EstoqueModule = {
       const el = document.getElementById('estoque-content');
       if (el) el.innerHTML = '<div class="empty-state"><p>Carregando estoque…</p></div>';
       try {
-        const [ingredientes, movimentacoes] = await Promise.all([
+        const [ingredientes, produtos, movimentacoes] = await Promise.all([
           API.getServerIngredients(),
+          API.getServerProducts(),
           API.getServerStockMovements(),
         ]);
         this._ingredientes = ingredientes;
+        this._produtos = produtos;
         this._movimentacoes = movimentacoes;
       } catch {
         UI.toast('Falha ao carregar estoque do servidor.', 'danger');
         this._ingredientes = [];
+        this._produtos = [];
         this._movimentacoes = [];
       }
+    } else {
+      this._produtos = Stores.produtos.get();
     }
     this._render();
     this._bindEvents();
@@ -43,6 +49,10 @@ const EstoqueModule = {
 
   _getMovimentacoes() {
     return this._serverMode ? this._movimentacoes : Stores.movimentacoes.get();
+  },
+
+  _getProdutos() {
+    return this._serverMode ? this._produtos : Stores.produtos.get();
   },
 
   _pontoPedido(item) {
@@ -88,6 +98,7 @@ const EstoqueModule = {
 
       <div class="module-tabs">
         <button class="tab-btn ${this._tab === 'ingredientes' ? 'active' : ''}" data-est-tab="ingredientes">Ingredientes</button>
+        <button class="tab-btn ${this._tab === 'produtos' ? 'active' : ''}" data-est-tab="produtos">Produtos</button>
         <button class="tab-btn ${this._tab === 'movimentacoes' ? 'active' : ''}" data-est-tab="movimentacoes">Movimentações</button>
         <button class="tab-btn ${this._tab === 'alertas' ? 'active' : ''}" data-est-tab="alertas">
           Alertas ${criticos > 0 ? `<span class="count-badge">${criticos}</span>` : ''}
@@ -101,9 +112,38 @@ const EstoqueModule = {
   },
 
   _renderTab(ings) {
+    if (this._tab === 'produtos') return this._renderProdutos();
     if (this._tab === 'movimentacoes') return this._renderMovimentacoes();
     if (this._tab === 'alertas')       return this._renderAlertas(ings);
     return this._renderIngredientes(ings);
+  },
+
+  _renderProdutos() {
+    let data = this._getProdutos().filter(p => p.ativo);
+    if (this._busca) {
+      const b = this._busca.toLowerCase();
+      data = data.filter(p => `${p.nome} ${p.categoria} ${p.descricao || ''}`.toLowerCase().includes(b));
+    }
+    if (this._filtroStatus === 'critico') data = data.filter(p => p.estoqueAtual !== null && Number(p.estoqueAtual) <= Number(p.estoqueMinimo || 0));
+    if (this._filtroStatus === 'ok') data = data.filter(p => p.estoqueAtual === null || Number(p.estoqueAtual) > Number(p.estoqueMinimo || 0));
+    return `
+      <div class="module-toolbar">
+        <input type="text" class="form-input toolbar-search" id="est-busca" placeholder="Buscar produto…" value="${Utils.escapeHtml(this._busca)}">
+        <select class="form-input toolbar-filter" id="est-status">
+          <option value="todos" ${this._filtroStatus === 'todos' ? 'selected' : ''}>Todos</option>
+          <option value="critico" ${this._filtroStatus === 'critico' ? 'selected' : ''}>Estoque crítico</option>
+          <option value="ok" ${this._filtroStatus === 'ok' ? 'selected' : ''}>Estoque OK</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Produto</th><th>Categoria</th><th>Descrição</th><th style="text-align:right">Estoque Atual</th><th>Status</th></tr></thead>
+        <tbody>${data.length ? data.map(p => {
+          const tracked = p.estoqueAtual !== null && p.estoqueAtual !== undefined;
+          const qty = tracked ? Number(p.estoqueAtual) : null;
+          const critical = tracked && qty <= Number(p.estoqueMinimo || 0);
+          return `<tr class="${critical ? 'row--alert' : ''}"><td style="font-weight:600">${Utils.escapeHtml(p.nome)}<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo || p.sku || '')}</div></td><td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td><td style="color:var(--text-muted);font-size:var(--text-sm)">${Utils.escapeHtml(p.descricao || '—')}</td><td style="text-align:right;font-weight:700;color:${critical ? 'var(--color-danger)' : 'var(--text-primary)'}">${tracked ? `${qty} un` : 'Sob demanda'}</td><td>${critical ? '<span class="badge badge-danger">Crítico</span>' : '<span class="badge badge-success">OK</span>'}</td></tr>`;
+        }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px">Nenhum produto encontrado.</td></tr>'}</tbody>
+      </table></div>`;
   },
 
   _renderIngredientes(ings) {
