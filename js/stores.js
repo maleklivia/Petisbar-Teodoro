@@ -215,7 +215,7 @@ const PRODUCT_PHOTOS_BY_CATEGORY = {
   Refrigerantes: '../assets/products/soda.jpg',
   'Águas': '../assets/products/water.jpg',
   'Energéticos': '../assets/products/energy-drink.jpg',
-  'Açaí': '../assets/products/acai.jpg',
+  'Açaí': '../assets/products/acai-joy.png',
   Petiscos: '../assets/products/petiscos-referencia.jpg',
   'Conveniência': '../assets/products/snacks.jpg',
   'BATATAS RECHEADAS': '../assets/products/batatas-recheadas-referencia.jpg',
