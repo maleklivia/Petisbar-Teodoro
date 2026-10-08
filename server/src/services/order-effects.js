@@ -195,5 +195,9 @@ export async function transitionOrderStatus(client, { orderId, nextStatus, userI
     INSERT INTO audit_logs (user_id,action,entity_type,entity_id,metadata,ip)
     VALUES ($1,'order.status','order',$2,$3,$4)
   `, [userId, orderId, { from: order.status, to: nextStatus, external }, ip]);
+  await client.query(`
+    INSERT INTO order_status_history (order_id,status,previous_status,changed_by,source,metadata)
+    VALUES ($1,$2,$3,$4,$5,$6)
+  `, [orderId, nextStatus, order.status, userId, external ? 'external' : 'admin', { external }]);
   return updated.rows[0];
 }
