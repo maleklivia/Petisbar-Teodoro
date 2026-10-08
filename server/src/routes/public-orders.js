@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { priceOrderItems, pricesMatch, roundMoney } from '../services/order-pricing.js';
+import { priceOrderItems, pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pricing.js';
 
 const optionSchema = z.object({
   flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
@@ -69,10 +69,11 @@ export default async function publicOrderRoutes(app) {
     paymentMethods: ['Pix', 'Dinheiro', 'Cartão na entrega'],
     promotions: [{ title: 'Promoções do dia', description: 'Confira as promoções disponíveis no cardápio.' }],
     whatsapp: '5521975816050',
+    allowOrdersWithoutStockForTesting: false,
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp'];
+    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     return { data: {
@@ -83,6 +84,7 @@ export default async function publicOrderRoutes(app) {
       paymentMethods: Array.isArray(values['storefront.paymentMethods']) ? values['storefront.paymentMethods'] : defaultStorefront.paymentMethods,
       promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
+      allowOrdersWithoutStockForTesting: values['storefront.allowOrdersWithoutStockForTesting'] === true,
     } };
   });
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
@@ -131,13 +133,17 @@ export default async function publicOrderRoutes(app) {
       const minimumOrder=Number(minimumResult.rows[0]?.value ?? 20);
       if(priced.subtotal<minimumOrder){await client.query('ROLLBACK');return reply.code(422).send({error:'minimum_order_not_met',minimumOrder});}
       if(priced.items.some(item=>['Drinks','Cervejas'].includes(item.category))&&!input.adultConfirmed){await client.query('ROLLBACK');return reply.code(400).send({error:'adult_confirmation_required'});}
-      if(priced.items.some(item=>item.currentStock!==null&&Number(item.currentStock)<item.quantity)){await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});}
+      const testStockResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.allowOrdersWithoutStockForTesting' FOR SHARE");
+      const testStockMode=testStockResult.rows[0]?.value===true;
+      if(!stockAllowsOrder(priced.items,testStockMode)){await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});}
       let coupon=null,discount=0;
       if(input.couponCode){coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}discount=discountFor(coupon,priced.subtotal);}
       const deliveryFee=input.fulfillmentType==='entrega'?config.DEFAULT_DELIVERY_FEE:0;
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
-      const source=input.tableNumber?'Mesa QR':'Cardápio Digital';const notes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
+      const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
+      const rawNotes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
+      const notes=testStockMode?`[TESTE SEM ESTOQUE] ${rawNotes}`.trim():rawNotes;
       await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address]);
       for(const item of priced.items)await client.query('INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,item.options]);
       if(coupon)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,discount]);

@@ -55,6 +55,20 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
   assert.match(element('catalog').innerHTML, /disabled.*aria-label="Adicionar"/);
 });
 
+test('modo de testes libera item com estoque zero e respeita limite do pedido', async () => {
+  const { client, element } = loadClient();
+  client.fetchPublic = async path => path.endsWith('storefront')
+    ? { isOpen: true, minimumOrder: 20, allowOrdersWithoutStockForTesting: true }
+    : [{ id: 'food', name: 'Comida', category: 'Petiscos', description: '', sale_price: 29.9, current_stock: 0 }];
+  await client.refresh();
+  assert.doesNotMatch(element('catalog').innerHTML, /Indisponível/);
+  assert.match(element('catalog').innerHTML, /aria-label="Adicionar">Adicionar/);
+  assert.match(element('service-notice').textContent, /MODO DE TESTES/);
+  assert.equal(client.stockLimit(client.products[0]), 20);
+  client.storefront.allowOrdersWithoutStockForTesting = false;
+  assert.equal(client.stockLimit(client.products[0]), 0);
+});
+
 test('preço de opção usa valor retornado pelo ERP', async () => {
   const { client } = loadClient();
   const batata = { id: 'p-pet002', sale_price: '27.90', option_prices: { G: 42, drinks: { 'coca-cola': 7.5 } } };
