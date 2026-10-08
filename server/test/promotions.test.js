@@ -17,15 +17,16 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
     if(sql.includes('SELECT * FROM promotions WHERE id=ANY'))return {rows:promotions.filter(promotion=>params[0].includes(promotion.id)).map(promotion=>({
       id:promotion.id,code:promotion.code,rule_type:promotion.rule_type,priority:promotion.priority,
       discount_percent:promotion.discount_percent,discount_amount:promotion.discount_amount,combo_price:promotion.combo_price,
+      cmv_estimate_percent:promotion.cmv_estimate_percent??null,
       stack_with_coupon:promotion.stack_with_coupon,active:true,starts_at:null,ends_at:null,
     }))};
     throw new Error(`Unexpected SQL: ${sql}`);
   }};
 }
 
-function promo(id,{code=id,rule_type='combo',priority=100,combo_price=18,discount_percent=null,discount_amount=null,stack_with_coupon=false,products:targetProducts=[],starts_at=null,ends_at=null}={}){
+function promo(id,{code=id,rule_type='combo',priority=100,combo_price=18,discount_percent=null,discount_amount=null,cmv_estimate_percent=null,stack_with_coupon=false,products:targetProducts=[],starts_at=null,ends_at=null}={}){
   return {id,code,name:code,description:'',rule_type,priority,combo_price,discount_percent,discount_amount,stack_with_coupon,
-    active:true,starts_at,ends_at,products:targetProducts};
+    cmv_estimate_percent,active:true,starts_at,ends_at,products:targetProducts};
 }
 
 function group(promotionId,{products:allowed=[{id:'beer',name:'Cerveja',category:'Cervejas',salePrice:10,surcharge:0,active:true,allowedOptions:{}}]}={}){
@@ -108,7 +109,7 @@ test('informa promoção automática expirada e bloqueia combo ainda não inicia
 });
 
 test('mantém duas opções da caipirinha como duas linhas com preços atuais distintos',async()=>{
-  const promotion=promo(comboId,{combo_price:30});
+  const promotion=promo(comboId,{combo_price:30.2,cmv_estimate_percent:35});
   const allowed={id:'p-drk001',name:'Caipirinha',category:'Drinks',salePrice:15.9,surcharge:0,active:true,
     allowedOptions:{flavor:['natural','morango','maracuja']}};
   const beerGroup={...group(comboId,{products:[allowed]}),allowed_options:{flavor:['natural','morango','maracuja']},required_quantity:2,max_quantity:2};
@@ -120,4 +121,22 @@ test('mantém duas opções da caipirinha como duas linhas com preços atuais di
   assert.equal(result.subtotal,32.8);
   assert.equal(result.items.length,2);
   assert.deepEqual(result.items.map(item=>item.listUnitPrice),[15.9,16.9]);
+  assert.equal(result.promotionDiscount,1.6);
+  assert.equal(result.promotions[0].price,31.2);
+  assert.equal(result.promotions[0].estimatedCmvPercent,36.79);
+});
+
+test('cobra acréscimo de substituição sem transformar o acréscimo em desconto',async()=>{
+  const premium={id:'premium',name:'Cerveja premium',category:'Cervejas',salePrice:12,surcharge:2,active:true,allowedOptions:{}};
+  const standard={id:'beer',name:'Cerveja comum',category:'Cervejas',salePrice:10,surcharge:0,active:true,allowedOptions:{}};
+  const promotion=promo(comboId,{combo_price:19});
+  const selectedGroup={...group(comboId,{products:[standard,premium]}),required_quantity:2,max_quantity:2};
+  const database=fakeDb({promotions:[promotion],groups:[selectedGroup],products:[beerProduct,{...beerProduct,id:'premium',name:'Cerveja premium',sale_price:'12.00'}],costs:[beerCost]});
+  const result=await calculatePromotions(database,[],[{promotionId:comboId,selections:[{groupId,items:[
+    {productId:'beer',quantity:1,options:{}},{productId:'premium',quantity:1,options:{}},
+  ]}]}]);
+  assert.equal(result.subtotal,22);
+  assert.equal(result.promotionDiscount,1);
+  assert.equal(result.promotions[0].price,21);
+  assert.deepEqual(result.items.map(item=>item.listUnitPrice),[10,12]);
 });

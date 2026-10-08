@@ -135,12 +135,17 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
         ? money(normalEstimate * (1 - Number(promotion.discount_percent) / 100))
         : promotion.rule_type === 'fixed' && promotion.discount_amount !== null
           ? money(Math.max(0, normalEstimate - Number(promotion.discount_amount))) : null;
+    const estimatedCost = costTotal === null && promotion.cmv_estimate_percent !== null && promotion.cmv_estimate_percent !== undefined
+      ? money(normalEstimate * Number(promotion.cmv_estimate_percent) / 100) : costTotal === null ? null : money(costTotal);
     return { ...promotion, stackWithCoupon: promotion.stack_with_coupon, groups: promoGroups, costComplete: costsComplete,
       missingCostProductIds: missingCosts, missingCostProductNames:missingCosts.map(id=>costById.get(id)?.name||id), normalPriceEstimate: money(normalEstimate),
-      marginBasis:promotion.rule_type==='combo'?'custo máximo considerando o máximo de escolhas de cada grupo':'uma unidade de cada produto; descontos fixos variam com o carrinho',
-      estimatedCost: costTotal === null ? null : money(costTotal),
-      estimatedMargin: costTotal === null || estimate === null ? null : money(estimate - costTotal),
-      marginPercent: costTotal === null || estimate === null || estimate === 0 ? null : money((estimate - costTotal) / estimate * 100) };
+      marginBasis:promotion.cmv_estimate_percent !== null && promotion.cmv_estimate_percent !== undefined && !costsComplete
+        ? `estimativa usando CMV de referência de ${Number(promotion.cmv_estimate_percent).toFixed(1)}% aplicado ao menor preço normal; custo real pendente`
+        : promotion.rule_type==='combo'?'custo máximo considerando o máximo de escolhas de cada grupo':'uma unidade de cada produto; descontos fixos variam com o carrinho',
+      estimatedCost,
+      estimatedMargin: estimatedCost === null || estimate === null ? null : money(estimate - estimatedCost),
+      marginPercent: estimatedCost === null || estimate === null || estimate === 0 ? null : money((estimate - estimatedCost) / estimate * 100),
+      estimatedCmvPercent: estimatedCost === null || estimate === null || estimate === 0 ? null : money(estimatedCost / estimate * 100) };
   });
 }
 
@@ -206,7 +211,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
         if (!optionsAllowed(item.options, group.allowedOptions) || !optionsAllowed(item.options, productAllowedOptions)) return { error: 'combo_options_not_allowed' };
         for (let unit=0; unit<item.quantity; unit++) {
           const line = { productId:item.productId, quantity:1, options:{...(item.options||{}),...(item.flavoredIce?{flavoredIce:true}:{})}, expectedUnitPrice:item.expectedUnitPrice,
-            comboPromotionId:promotion.id, comboInstanceToken:comboIndex, comboGroupId:group.id, comboGroupName:group.name, groupSurcharge:Number(allowedProduct.surcharge || 0), source:'combo' };
+          comboPromotionId:promotion.id, comboInstanceToken:comboIndex, comboGroupId:group.id, comboGroupName:group.name, groupSurcharge:Number(allowedProduct.surcharge || 0), source:'combo' };
           allLines.push(line);
           comboReservations.push({ promotion, group, lineIndex:allLines.length-1, comboInstanceToken:comboIndex });
         }
@@ -219,15 +224,10 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
   const priced = await priceOrderItems(db, allLines, { lock });
   if (!priced) return { error: 'product_unavailable' };
   const items = priced.items.map((item,index) => ({ ...item, listUnitPrice:item.unitPrice,
-    listSubtotal:item.subtotal, promotionDiscount:0, promotionId:null, promotionApplicationId:null,
+    listSubtotal:item.subtotal, optionSurcharge:money(Math.max(0,item.unitPrice - priced.basePrices.get(item.productId))), promotionDiscount:0, promotionId:null, promotionApplicationId:null,
     comboGroupId:allLines[index].comboGroupId || null, comboGroupName:allLines[index].comboGroupName || null,
     comboPromotionId:allLines[index].comboPromotionId || null, comboInstanceId:allLines[index].comboPromotionId || null,
     groupSurcharge:Number(allLines[index].groupSurcharge || 0) }));
-  for (const item of items) {
-    item.listUnitPrice = money(item.listUnitPrice + item.groupSurcharge);
-    item.listSubtotal = item.listUnitPrice;
-  }
-
   const promoRows = await db.query(`SELECT * FROM promotions WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
     [[...new Set([...requestedCombos.map(combo=>combo.promotionId),...eligiblePromos.filter(p=>p.rule_type!=='combo').map(p=>p.id)])]]);
   const locked = new Map(promoRows.rows.map(row => [row.id, row]));
@@ -252,7 +252,8 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       const lineIndexes = comboReservations.filter(row => row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>row.lineIndex);
       if (lineIndexes.some(index=>used.has(index))) { rejected.push({ promotionId:promo.id,code:promo.code,reason:'priority_conflict' }); continue; }
       const normal = money(lineIndexes.reduce((sum,index)=>sum+items[index].listSubtotal,0));
-      const total = Number(promo.combo_price);
+      const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
+      const total = money(Number(promo.combo_price) + selectedSurcharges);
       if (total > normal) {
         rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
         return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };
@@ -262,7 +263,8 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }
       applications.push({ id:appId,promotionId:promo.id,code:promo.code,name:promo.name,ruleType:'combo',
         discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:money(normal-total),items:alloc,stackWithCoupon:promo.stackWithCoupon,
-        comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})) });
+        comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})),
+        price:total, estimatedCmvPercent:promo.cmv_estimate_percent===null||promo.cmv_estimate_percent===undefined?null:money(Number(promo.cmv_estimate_percent)*normal/Math.max(total,0.01)) });
     } else {
       const selected = candidate.selected.filter(index=>!used.has(index));
       if (!selected.length) { rejected.push({promotionId:promo.id,code:promo.code,reason:'priority_conflict'}); continue; }

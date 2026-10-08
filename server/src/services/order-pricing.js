@@ -74,7 +74,8 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
       options,
     };
   });
-  return { items, subtotal: roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0)) };
+  return { items, subtotal: roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0)),
+    basePrices: new Map(result.rows.map(product=>[product.id,Number(product.sale_price)])) };
 }
 
 export { roundMoney };
