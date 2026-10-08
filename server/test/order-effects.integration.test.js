@@ -14,7 +14,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 async function migrate(client) {
   const directory = resolve(root, 'database', 'migrations');
   const files = (await readdir(directory)).filter(file => file.endsWith('.sql')).sort();
-  for (const file of files) await client.query(await readFile(resolve(directory, file), 'utf8'));
+  try { await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto'); } catch (error) { if (error.code !== '23505') throw error; }
+  for (const file of files) {
+    const source = (await readFile(resolve(directory, file), 'utf8')).replace(/CREATE EXTENSION IF NOT EXISTS pgcrypto;?/gi, '');
+    await client.query(source);
+  }
 }
 
 integrationTest('conclusão e cancelamento são atômicos e idempotentes', async () => {
