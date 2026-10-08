@@ -1,4 +1,5 @@
-import { hashToken, createToken, isProduction } from './auth.js';
+import { hashToken, createToken } from './auth.js';
+import { isProduction } from '../config.js';
 
 export const CUSTOMER_SESSION_COOKIE = 'petisbar_customer_session';
 export const customerCookieOptions = {
