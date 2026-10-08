@@ -1,9 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pricing.js';
 import { calculatePromotions, couponCanStack } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
+import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
 
 const optionSchema = z.object({
   flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
@@ -26,6 +27,7 @@ const orderSchema = z.object({
   couponCode: z.string().trim().max(40).default(''), adultConfirmed: z.boolean().default(false), website: z.string().max(0).optional(),
   idempotencyKey:z.string().uuid(), items: z.array(itemSchema).max(30).default([]), combos:z.array(comboSchema).max(10).default([]),
 }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
+const idempotencySchema = z.string().trim().min(16).max(200);
 
 const normalizePhone = value => {
   let digits = String(value || '').replace(/\D/g, '');
@@ -131,6 +133,10 @@ export default async function publicOrderRoutes(app) {
   app.post('/public/orders', {config:{rateLimit:{max:10,timeWindow:'1 minute'}}}, async (request,reply) => {
     const parsed=orderSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error',details:parsed.error.flatten()});
     const input=parsed.data; if(input.website)return reply.code(400).send({error:'invalid_request'});
+    await optionalCustomerAuthenticate(request);
+    const rawIdempotencyKey=request.headers['idempotency-key'];
+    const idempotencyKey=typeof rawIdempotencyKey==='string'&&idempotencySchema.safeParse(rawIdempotencyKey).success?rawIdempotencyKey:null;
+    const requestHash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
     const invalidOptions=input.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
     const invalidComboOptions=input.combos.flatMap(combo=>combo.selections.flatMap(group=>group.items)).find(optionError);if(invalidComboOptions)return reply.code(400).send({error:optionError(invalidComboOptions)});
     const phone=normalizePhone(input.customer.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
@@ -146,6 +152,16 @@ export default async function publicOrderRoutes(app) {
         if(previous.rows[0]?.request_hash!==requestHash){await client.query('ROLLBACK');return reply.code(409).send({error:'idempotency_key_reused'});}
         if(previous.rows[0]?.response){await client.query('COMMIT');return reply.code(201).send(previous.rows[0].response);}
         await client.query('ROLLBACK');return reply.code(409).send({error:'order_request_in_progress'});
+      }
+      if(idempotencyKey){
+        const existing=await client.query('SELECT request_hash,order_id FROM order_idempotency_keys WHERE idempotency_key_hash=$1 AND expires_at>now() FOR UPDATE',[hashToken(idempotencyKey)]);
+        if(existing.rowCount){
+          if(existing.rows[0].request_hash!==requestHash){await client.query('ROLLBACK');return reply.code(409).send({error:'idempotency_key_reused'});}
+          const previous=await client.query('SELECT response FROM public_order_idempotency WHERE order_id=$1',[existing.rows[0].order_id]);
+          await client.query('ROLLBACK');
+          if(!previous.rows[0]?.response)return reply.code(409).send({error:'idempotency_order_missing'});
+          return reply.code(201).send(previous.rows[0].response);
+        }
       }
       const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
@@ -170,7 +186,7 @@ export default async function publicOrderRoutes(app) {
       const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
       const rawNotes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
       const notes=testStockMode?`[TESTE SEM ESTOQUE] ${rawNotes}`.trim():rawNotes;
-      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null]);
+      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code,customer_account_id) VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",[id,orderNumber,source,input.customer.name,input.customer.phone,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null,request.customer?.id||null]);
       const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items,allowWithoutStock:testStockMode});
       if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}
       for(const application of priced.promotions){
@@ -179,9 +195,28 @@ export default async function publicOrderRoutes(app) {
       }
       for(const item of priced.items)await client.query(`INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options,list_unit_price,promotion_discount,promotion_application_id,combo_group_id,combo_group_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,item.options,item.listUnitPrice,item.promotionDiscount,item.promotionApplicationId,item.comboGroupId,item.comboGroupName]);
       if(coupon&&!testStockMode)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,couponDiscount]);
-      const response={data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount}))}};
+      await client.query(`INSERT INTO order_status_history (order_id,status,previous_status,changed_by,source,metadata) VALUES ($1,'Novo',NULL,NULL,'public',$2)`,[id,JSON.stringify({created:true})]);
+      const trackingToken=randomBytes(32).toString('hex');
+      await client.query(`INSERT INTO order_tracking_tokens (order_id,token_hash,expires_at) VALUES ($1,$2,now()+interval '30 days')`,[id,hashToken(trackingToken)]);
+      if(idempotencyKey)await client.query(`INSERT INTO order_idempotency_keys (idempotency_key_hash,request_hash,order_id,customer_account_id,expires_at) VALUES ($1,$2,$3,$4,now()+interval '30 days')`,[hashToken(idempotencyKey),requestHash,id,request.customer?.id||null]);
+      const response={data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
       await client.query('UPDATE public_order_idempotency SET order_id=$2,response=$3 WHERE idempotency_key=$1',[input.idempotencyKey,id,response]);
       await client.query('COMMIT'); return reply.code(201).send(response);
-    } catch(error){await client.query('ROLLBACK');if(error.code==='23505')return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
+    } catch(error){await client.query('ROLLBACK');if(error.code==='23505'&&error.constraint?.includes('coupon'))return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
+  });
+
+  app.get('/public/orders/track/:token', {config:{rateLimit:{max:30,timeWindow:'1 minute'}}}, async (request,reply) => {
+    const token=String(request.params.token||'');
+    if(!/^[a-f0-9]{32,128}$/i.test(token))return reply.code(404).send({error:'tracking_not_found'});
+    const result=await app.db.query(`SELECT o.id,o.order_number,o.status,o.created_at,o.subtotal,o.delivery_fee,o.discount,o.total,o.payment_method,o.fulfillment_type,ot.id AS token_id FROM order_tracking_tokens ot JOIN orders o ON o.id=ot.order_id WHERE ot.token_hash=$1 AND ot.revoked_at IS NULL AND ot.expires_at>now()`,[hashToken(token)]);
+    if(!result.rowCount)return reply.code(404).send({error:'tracking_not_found'});
+    const order=result.rows[0];
+    await app.db.query('UPDATE order_tracking_tokens SET last_used_at=now() WHERE id=$1',[order.token_id]);
+    const [items,history]=await Promise.all([
+      app.db.query('SELECT name,quantity,unit_price,subtotal,options FROM order_items WHERE order_id=$1 ORDER BY id',[order.id]),
+      app.db.query('SELECT status,previous_status,created_at FROM order_status_history WHERE order_id=$1 ORDER BY created_at,id',[order.id]),
+    ]);
+    delete order.token_id;
+    return {data:{...order,items:items.rows,history:history.rows}};
   });
 }

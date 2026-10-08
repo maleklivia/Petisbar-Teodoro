@@ -242,7 +242,7 @@ const Cardapio = {
       const payload=this.payload(form),error=this.validate(payload);
       if(error){this.toast(error);return}
       payload.idempotencyKey=await this.idempotencyKeyFor(payload);
-      const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
+      const response=await fetch(this.endpoint('/public/orders'),{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':payload.idempotencyKey},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
       const body=await response.json().catch(()=>({}));
       if(!response.ok){
         if(['catalog_changed','product_unavailable','insufficient_stock','payment_unavailable','minimum_order_not_met'].includes(body.error)){
@@ -254,6 +254,7 @@ const Cardapio = {
       }
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.combos.clear();this.coupon=null;this.quote=null;sessionStorage.removeItem('petisbar-pending-order');
       this.renderPromotions();this.renderCatalog();this.renderCart();this.openCart(false);
+      if(body.data.trackingToken)localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
     }catch{
