@@ -289,7 +289,8 @@ const EstoqueModule = {
 
   _bindEvents() {
     const el = document.getElementById('estoque-content');
-    if (!el) return;
+    if (!el || this._boundElement === el) return;
+    this._boundElement = el;
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-est-tab]');
@@ -306,11 +307,26 @@ const EstoqueModule = {
       }
     });
 
-    const busca = el.querySelector('#est-busca');
-    if (busca) busca.addEventListener('input', e => { this._busca = e.target.value; this._render(); this._bindEvents(); });
+    el.addEventListener('input', e => {
+      if (e.target.id !== 'est-busca') return;
+      this._busca = e.target.value;
+      this._atualizarResultadosBusca();
+    });
 
-    const sel = el.querySelector('#est-status');
-    if (sel) sel.addEventListener('change', e => { this._filtroStatus = e.target.value; this._render(); this._bindEvents(); });
+    el.addEventListener('change', e => {
+      if (e.target.id !== 'est-status') return;
+      this._filtroStatus = e.target.value;
+      this._atualizarResultadosBusca();
+    });
+  },
+
+  _atualizarResultadosBusca() {
+    const atual = document.querySelector('#est-tab-body .table-wrap');
+    if (!atual || !['produtos', 'ingredientes'].includes(this._tab)) return;
+    const proximo = document.createElement('div');
+    proximo.innerHTML = this._renderTab(this._getIngredientes());
+    const tabela = proximo.querySelector('.table-wrap');
+    if (tabela) atual.replaceWith(tabela);
   },
 
   _baixarListaCompras() {
