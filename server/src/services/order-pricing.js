@@ -1,5 +1,10 @@
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+export function pricesMatch(requested, priced) {
+  return requested.every((item, index) =>
+    Number.isFinite(item.expectedUnitPrice) && roundMoney(item.expectedUnitPrice) === priced.items[index]?.unitPrice);
+}
+
 export async function priceOrderItems(client, requested, { lock = false } = {}) {
   const ids = [...new Set(requested.map(item => item.productId))];
   const result = await client.query(`

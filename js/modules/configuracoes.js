@@ -5,10 +5,13 @@
 
 const ConfiguracoesModule = {
   _tab: 'restaurante',
+  _storefront: null,
+  _eventsBound: false,
 
   async init() {
-    if (window.Api?.serverMode) {
-      try { const remote = await Api.getServerSettings(); if (remote && Object.keys(remote).length) Stores.config.set({ ...Stores.config.get(), ...remote }); } catch (error) { console.warn('Configurações remotas indisponíveis', error); }
+    if (API.isServerMode() && API.hasPermission('settings.manage')) {
+      try { const remote = await API.getServerSettings(); this._storefront = remote; if (remote && Object.keys(remote).length) Stores.config.set({ ...Stores.config.get(), ...remote }); }
+      catch (error) { console.warn('Configurações remotas indisponíveis', error); }
     }
     this._render();
     this._bindEvents();
@@ -22,6 +25,7 @@ const ConfiguracoesModule = {
     el.innerHTML = `
       <div class="module-tabs">
         <button class="tab-btn ${this._tab === 'restaurante' ? 'active' : ''}" data-cfg-tab="restaurante">Restaurante</button>
+        <button class="tab-btn ${this._tab === 'cardapio' ? 'active' : ''}" data-cfg-tab="cardapio">Cardápio online</button>
         <button class="tab-btn ${this._tab === 'metas' ? 'active' : ''}" data-cfg-tab="metas">Metas</button>
         <button class="tab-btn ${this._tab === 'entrega' ? 'active' : ''}" data-cfg-tab="entrega">Entrega</button>
         <button class="tab-btn ${this._tab === 'horario' ? 'active' : ''}" data-cfg-tab="horario">Horário</button>
@@ -35,17 +39,66 @@ const ConfiguracoesModule = {
   },
 
   _persist(cfg) {
-    this._persist(cfg);
-    if (window.Api?.serverMode) Api.saveServerSettings(cfg).catch(error => { console.error(error); UI.toast('Não foi possível salvar no servidor.', 'error'); });
+    Stores.config.set(cfg);
+    if (API.isServerMode()) API.saveServerSettings(cfg).catch(error => { console.error(error); UI.toast('Não foi possível salvar no servidor.', 'error'); });
   },
 
   _renderTab(cfg) {
+    if (this._tab === 'cardapio')    return this._renderStorefront();
     if (this._tab === 'metas')       return this._renderMetas(cfg);
     if (this._tab === 'entrega')     return this._renderEntrega(cfg);
     if (this._tab === 'horario')     return this._renderHorario(cfg);
     if (this._tab === 'integracoes') return this._renderIntegracoes(cfg);
     if (this._tab === 'seguranca')   return this._renderSeguranca();
     return this._renderRestaurante(cfg);
+  },
+
+  _renderStorefront() {
+    if (!API.isServerMode()) return '<p>Abra o ERP no VPS para configurar o cardápio do cliente.</p>';
+    if (!API.hasPermission('settings.manage')) return '<p>Você não tem permissão para alterar o cardápio online.</p>';
+    const s = this._storefront;
+    if (!s) return '<p>Não foi possível carregar as configurações do VPS. Recarregue a página antes de editar.</p>';
+    const payment = s['storefront.paymentMethods'] || [];
+    const promotion = (s['storefront.promotions'] || [])[0] || {};
+    return `<form id="cfg-storefront" style="max-width:620px;display:flex;flex-direction:column;gap:var(--sp-4)">
+      <p>Estas informações são publicadas no cardápio do cliente. A aba aberta se atualiza automaticamente em até 15 segundos.</p>
+      <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Number(s['storefront.minimumOrder'] ?? 20)}"></label>
+      <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(s['storefront.deliveryTime'] || '')}"></label>
+      <label class="form-group">Horário exibido<input class="form-input" name="hours" maxlength="160" required value="${Utils.escapeHtml(s['storefront.hours'] || '')}"></label>
+      <label class="form-group"><input name="isOpen" type="checkbox" ${s['storefront.isOpen'] ? 'checked' : ''}> Aceitar pedidos agora</label>
+      <fieldset><legend>Formas de pagamento</legend>${['Pix','Dinheiro','Cartão na entrega'].map(method => `<label style="display:block"><input type="checkbox" data-payment="${method}" ${payment.includes(method) ? 'checked' : ''}> ${method}</label>`).join('')}</fieldset>
+      <label class="form-group">Texto da promoção<textarea class="form-input" name="promotion" rows="2" maxlength="500">${Utils.escapeHtml(promotion.description || '')}</textarea></label>
+      <label class="form-group">WhatsApp do estabelecimento<input class="form-input" name="whatsapp" inputmode="tel" pattern="[0-9]{10,15}" required value="${Utils.escapeHtml(s['storefront.whatsapp'] || '')}"></label>
+      <button class="btn btn-primary" type="submit">Salvar no VPS</button>
+    </form>`;
+  },
+
+  async _saveStorefront(form) {
+    if (!form.reportValidity()) return;
+    const payments = [...form.querySelectorAll('[data-payment]:checked')].map(input => input.dataset.payment);
+    if (!payments.length) { UI.toast('Selecione uma forma de pagamento.', 'error'); return; }
+    const data = new FormData(form);
+    const current = this._storefront || {};
+    const promotion = (current['storefront.promotions'] || [])[0] || {};
+    const settings = {
+      'storefront.minimumOrder': Number(data.get('minimumOrder')),
+      'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
+      'storefront.hours': String(data.get('hours')).trim(),
+      'storefront.isOpen': data.get('isOpen') === 'on',
+      'storefront.paymentMethods': payments,
+      'storefront.promotions': [{ ...promotion, description: String(data.get('promotion')).trim() }],
+      'storefront.whatsapp': String(data.get('whatsapp')).trim(),
+    };
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await API.saveServerSettings(settings);
+      this._storefront = { ...current, ...settings };
+      UI.toast('Configurações salvas no VPS.', 'success');
+    } catch (error) {
+      console.error(error);
+      UI.toast('Falha ao salvar no VPS. Os campos continuam nesta tela.', 'error');
+    } finally { button.disabled = false; }
   },
 
   _renderRestaurante(cfg) {
@@ -312,7 +365,14 @@ const ConfiguracoesModule = {
 
   _bindEvents() {
     const el = document.getElementById('config-content');
-    if (!el) return;
+    if (!el || this._eventsBound) return;
+    this._eventsBound = true;
+
+    el.addEventListener('submit', e => {
+      if (e.target.id !== 'cfg-storefront') return;
+      e.preventDefault();
+      this._saveStorefront(e.target);
+    });
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-cfg-tab]');

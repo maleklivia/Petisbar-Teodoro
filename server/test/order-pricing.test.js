@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { priceOrderItems, roundMoney } from '../src/services/order-pricing.js';
+import { priceOrderItems, pricesMatch, roundMoney } from '../src/services/order-pricing.js';
 
 test('recalcula preços no servidor e preserva somente opções permitidas', async () => {
   const client = {
@@ -27,4 +27,11 @@ test('retorna nulo quando algum produto não está disponível', async () => {
   const client = { query: async () => ({ rows: [] }) };
   assert.equal(await priceOrderItems(client, [{ productId: 'missing', quantity: 1 }]), null);
   assert.equal(roundMoney(10.005), 10.01);
+});
+
+test('recusa preço antigo e aceita o preço atual do banco', () => {
+  const priced = { items: [{ unitPrice: 21.9 }] };
+  assert.equal(pricesMatch([{ expectedUnitPrice: 21.9 }], priced), true);
+  assert.equal(pricesMatch([{ expectedUnitPrice: 19.9 }], priced), false);
+  assert.equal(pricesMatch([{ productId: 'legado' }], priced), false);
 });
