@@ -40,7 +40,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
     FROM products p LEFT JOIN technical_sheets ts ON ts.product_id=p.id
     LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id=ts.id
     LEFT JOIN ingredients i ON i.id=tsi.ingredient_id
-    GROUP BY p.id,ts.product_id,ts.yield
+    GROUP BY p.id,ts.id,ts.product_id,ts.yield
   `);
   const costById = new Map(costs.rows.map(row => [row.id, row]));
   const optionVariants = {
