@@ -259,6 +259,10 @@ const MarketingModule = {
   _bindEvents() {
     const el = document.getElementById('marketing-content');
     if (!el) return;
+    // The content is replaced during renders, but this container remains in
+    // place. Bind the delegated listener once so each click performs one write.
+    if (el.dataset.marketingEventsBound === 'true') return;
+    el.dataset.marketingEventsBound = 'true';
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-mkt-tab]');
