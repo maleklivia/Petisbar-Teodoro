@@ -73,6 +73,8 @@ const Cardapio = {
     this.bind();
     if(this.tableNumber){const pickup=document.querySelector('[name="fulfillment"][value="retirada"]');if(pickup)pickup.checked=true;document.querySelectorAll('[name="fulfillment"]').forEach(input=>input.disabled=true)}
     await this.refresh();
+    const reorder=localStorage.getItem('petisbar.reorderItems');
+    if(reorder){try{const items=JSON.parse(reorder);for(const item of items){const product=this.products.find(p=>p.id===item.productId);if(product){this.cart.set(product.id,Math.min(20,Number(item.quantity)||1));this.productOptions.set(product.id,item.options||{})}}}catch{}localStorage.removeItem('petisbar.reorderItems');this.renderCart()}
     setInterval(()=>{if(!document.hidden)this.refresh()},15000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)this.refresh()});
     window.addEventListener('focus',()=>this.refresh());
