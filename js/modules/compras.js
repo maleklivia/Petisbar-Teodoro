@@ -111,7 +111,7 @@ const ComprasModule = {
           ${STATUS_COMPRA.slice(0,-1).map(s => `<option value="${s}" ${this._filtroStatus === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
         <span style="flex:1"></span>
-        ${this._canWrite && !this._serverMode ? '<button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Cupom</button>' : ''}
+        ${this._canWrite ? '<button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Comprovante</button>' : ''}
         ${this._canWrite ? '<button class="btn btn-ghost" id="btn-gerar-automatico">⚡ Gerar Automático</button>' : ''}
         ${this._canWrite ? '<button class="btn btn-primary" id="btn-nova-compra">+ Nova Compra</button>' : ''}
       </div>
@@ -605,10 +605,6 @@ const ComprasModule = {
   },
 
   _importarCupom() {
-    if (this._serverMode) {
-      UI.toast('Importação de cupom por OCR ainda está disponível apenas no modo local.', 'info');
-      return;
-    }
     if (typeof OcrService === 'undefined') {
       UI.toast('OCR não disponível nesta página.', 'error');
       return;
@@ -659,7 +655,7 @@ const ComprasModule = {
       }
 
       // Auto-match ingredientes
-      const ings = Stores.ingredientes.get().filter(i => i.ativo);
+      const ings = this._getIngredientes().filter(i => i.ativo !== false);
       itens.forEach(it => {
         const match = OcrService.matchIngrediente(it.nome, ings);
         if (match) it.ingredienteId = match.id;
@@ -673,8 +669,8 @@ const ComprasModule = {
   },
 
   _mostrarRevisaoCupom(itens, total, fiscal = {}) {
-    const ings = Stores.ingredientes.get().filter(i => i.ativo);
-    const fornecedores = Stores.fornecedores.get().filter(f => f.ativo);
+    const ings = this._getIngredientes().filter(i => i.ativo !== false);
+    const fornecedores = this._getFornecedores().filter(f => f.ativo !== false);
     const somenteNumeros = value => String(value || '').replace(/\D/g, '');
     const cnpjFiscal = somenteNumeros(fiscal.cnpj);
     const fornecedorFiscal = cnpjFiscal
@@ -738,15 +734,17 @@ const ComprasModule = {
         <div class="form-row" style="margin-bottom:var(--sp-3)">
           <div class="form-group" style="flex:2">
             <label class="form-label">Fornecedor</label>
-            <select class="form-input" id="ocr-forn">
-              <option value="">Selecionar…</option>
-              ${fornecedores.map(f => `<option value="${f.id}" ${f.id === fornecedorFiscal?.id ? 'selected' : ''}>${Utils.escapeHtml(f.nome)}</option>`).join('')}
-            </select>
+            <input class="form-input" id="ocr-forn-nome" list="ocr-forn-list" value="${Utils.escapeHtml(fornecedorFiscal?.nome || '')}" placeholder="Ex.: Shopee / vendedor">
+            <datalist id="ocr-forn-list">${fornecedores.map(f => `<option value="${Utils.escapeHtml(f.nome)}">`).join('')}</datalist>
           </div>
           <div class="form-group">
             <label class="form-label">Data da Compra</label>
             <input type="date" class="form-input" id="ocr-data" value="${new Date().toISOString().slice(0,10)}">
           </div>
+        </div>
+        <div class="form-group" style="margin-bottom:var(--sp-3)">
+          <label class="form-label">Link do comprovante no Drive (opcional)</label>
+          <input type="url" class="form-input" id="ocr-drive-url" placeholder="Cole o link da pasta ou arquivo do Drive">
         </div>
       `,
       onConfirm: () => {
@@ -768,34 +766,48 @@ const ComprasModule = {
 
         if (!itensFinal.length) { UI.toast('Nenhum item válido para importar.', 'error'); return; }
 
-        const fornId   = document.getElementById('ocr-forn')?.value || '';
-        const forn     = fornecedores.find(f => f.id === fornId);
+        const fornNome = document.getElementById('ocr-forn-nome')?.value?.trim() || '';
+        const forn     = fornecedores.find(f => f.nome === fornNome);
+        const fornId   = forn?.id || '';
         const data     = document.getElementById('ocr-data')?.value || new Date().toISOString().slice(0,10);
+        const driveUrl = document.getElementById('ocr-drive-url')?.value?.trim() || '';
         const totalFinal = itensFinal.reduce((s, i) => s + i.subtotal, 0);
 
-        const compras  = Stores.compras.get();
+        const compras  = this._getCompras();
         const maxNum   = compras.reduce((m, c) => Math.max(m, c.numeroPedidoCompra || 0), 0);
         const novaCompra = {
           id: `cmp-ocr-${Date.now()}`,
           numeroPedidoCompra: maxNum + 1,
           fornecedorId: fornId,
-          fornecedorNome: forn?.nome || 'Importado via OCR',
-          status: 'Pedido',
-          tipo: 'manual',
+          fornecedorNome: fornNome || 'Fornecedor a confirmar',
+          status: 'Rascunho',
+          tipo: 'automatico',
           itens: itensFinal,
           total: totalFinal,
-          observacoes: fiscal.qr ? 'Importado via QR Code + leitura do cupom fiscal' : 'Importado via leitura do cupom fiscal',
+          observacoes: `${fiscal.qr ? 'Importado via QR Code + leitura do cupom fiscal' : 'Importado via leitura do comprovante'}${driveUrl ? ` · Comprovante no Drive: ${driveUrl}` : ''}`,
           dataCompra: data,
           dataRecebimento: '',
           notaFiscal: fiscal.chaveAcesso || '',
           formaPagamento: 'À vista',
         };
-        compras.unshift(novaCompra);
-        Stores.compras.set(compras);
-
-        // Confirmar recebimento imediatamente (atualiza estoque + financeiro)
-        this._confirmarRecebimento(novaCompra);
-        UI.toast(`${itensFinal.length} item(ns) importados do cupom. Estoque atualizado!`, 'success');
+        if (this._serverMode) {
+          API.createServerPurchase({
+            fornecedorId: fornId || null,
+            fornecedorNome: novaCompra.fornecedorNome,
+            tipo: 'automatico', status: 'Rascunho',
+            observacoes: novaCompra.observacoes,
+            dataCompra: data, notaFiscal: fiscal.chaveAcesso || '', formaPagamento: 'À vista',
+            itens: itensFinal,
+          }).then(saved => {
+            this._compras.unshift(saved);
+            this._render(); this._bindEvents();
+            UI.toast('Rascunho importado. Revise antes de aprovar ou receber.', 'success');
+          }).catch(error => UI.toast(error.message || 'Falha ao salvar o rascunho.', 'error'));
+        } else {
+          compras.unshift(novaCompra);
+          Stores.compras.set(compras);
+          UI.toast(`${itensFinal.length} item(ns) importados como rascunho.`, 'success');
+        }
       },
     });
 
