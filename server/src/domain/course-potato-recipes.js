@@ -5,7 +5,7 @@ export const COURSE_POTATO_RECIPES = [
     ['Batata Inglesa',1000,'g',''],['Manteiga',100,'g',''],['Água de cozimento',null,null,'Quantidade suficiente para cobrir; não quantificada.'],['Sal',null,null,'A gosto; quantidade não informada.'],['Louro e demais temperos',null,null,'A gosto; quantidades não informadas.'],
   ]},
   { id:'course-base-02',code:'BASE-02',type:'preparation',name:'Frango cremoso ao molho de tomate',status:'incomplete',yield:null,yieldUnit:'g',method:'Refogar cebola, alho e temperos; adicionar frango em cubos e dourar. Acrescentar passata, tampar e cozinhar na pressão por 7 a 10 minutos. Desligar, aguardar a retirada segura da pressão e desfiar.',pending:'Pesar o rendimento pronto. O exemplo de 1.100 g do capítulo de custos não é rendimento confirmado. Cebola e alho devem ser pesados; louro, coentro e tempero sabor frango estão sem quantidade. A gordura de refogado não foi quantificada; incluir somente se usada na produção.',items:[
-    ['Frango sassami ou filé de peito',1000,'g','O curso permite escolher sassami ou filé de peito; vincular ao ingrediente efetivamente comprado.'],['Cebola média/grande',1,'un','Pesar a unidade usada; peso não informado.'],['Alho',2,'dente','Pesar os dentes usados; peso não informado.'],['Passata de tomate',700,'g',''],['Louro, coentro e tempero sabor frango',null,null,'A quantidade está a definir.'],['Gordura de refogado (se utilizada)',null,null,'O material não quantifica; registrar somente se usada.'],
+    ['Frango sassami ou filé de peito',1000,'g',''],['Cebola média/grande',1,'un','Pesar a unidade usada; peso não informado.'],['Alho',2,'dente','Pesar os dentes usados; peso não informado.'],['Passata de tomate',700,'g',''],['Louro, coentro e tempero sabor frango',null,null,'A quantidade está a definir.'],['Gordura de refogado (se utilizada)',null,null,'O material não quantifica; registrar somente se usada.'],
   ]},
   { id:'course-base-03',code:'BASE-03',type:'preparation',name:'Iscas de carne ao molho de tomate',status:'incomplete',yield:null,yieldUnit:'g',method:'Refogar cebola, alho e temperos. Acrescentar as iscas e dourar. Adicionar passata e água; cozinhar na pressão por 5 a 10 minutos.',pending:'Pesar o rendimento pronto. Cebola e alho devem ser pesados; páprica defumada, chimichurri e tempero sabor carne estão sem quantidade. Incluir gordura de refogado caso utilizada. Esta é uma base ao molho de tomate, não ao molho branco.',items:[
     ['Carne magra e macia em iscas',1000,'g',''],['Cebola',1.5,'un','Pesar as unidades; peso não informado.'],['Alho',3,'dente','Pesar os dentes; peso não informado.'],['Passata de tomate',700,'g',''],['Água',100,'ml','Preservada em ml; não converter para g.'],['Páprica defumada, chimichurri e tempero sabor carne',null,null,'A quantidade está a definir.'],['Gordura de refogado (se utilizada)',null,null,'O material não quantifica; registrar somente se usada.'],
@@ -65,10 +65,15 @@ export async function seedCoursePotatoRecipes(client) {
         INSERT INTO recipe_card_items
           (id,recipe_id,sort_order,item_name,ingredient_id,preparation_id,quantity,unit,is_packaging,pending_note)
         VALUES ($1,$2,$3,$4,
-          CASE WHEN $5::text IS NULL AND (SELECT count(*) FROM ingredients WHERE lower(name)=lower($4))=1
+          CASE WHEN $2='course-base-02' AND $3=1 AND (SELECT count(*) FROM ingredients WHERE lower(name)='peito de frango')=1
+            THEN (SELECT id FROM ingredients WHERE lower(name)='peito de frango')
+          WHEN $2='course-base-02' AND $3=2 AND (SELECT count(*) FROM ingredients WHERE lower(name)='cebola')=1
+            THEN (SELECT id FROM ingredients WHERE lower(name)='cebola')
+          WHEN $5::text IS NULL AND (SELECT count(*) FROM ingredients WHERE lower(name)=lower($4))=1
             THEN (SELECT id FROM ingredients WHERE lower(name)=lower($4)) ELSE NULL END,
           (SELECT id FROM recipe_cards WHERE id=$5),$6,$7,$8,
-          CASE WHEN (SELECT count(*) FROM ingredients WHERE lower(name)=lower($4))<>1 AND $5::text IS NULL AND NOT $8
+          CASE WHEN $2='course-base-02' AND $3 IN (1,2) THEN $9
+          WHEN (SELECT count(*) FROM ingredients WHERE lower(name)=lower($4))<>1 AND $5::text IS NULL AND NOT $8
             THEN concat_ws(' ',NULLIF($9,''),'Vínculo ao ingrediente canônico pendente; correspondência exata ausente ou ambígua.')
             ELSE $9 END)
         ON CONFLICT (id) DO NOTHING
