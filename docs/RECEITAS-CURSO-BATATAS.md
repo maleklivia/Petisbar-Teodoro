@@ -9,7 +9,7 @@ O ERP importa o conteúdo transcrito dos e-books liberados do curso Batatona’s
 - Onze fichas de produtos, com quantidades confirmadas preservadas e pendências visíveis.
 - Materiais de venda em linhas separadas dos ingredientes.
 
-As receitas são preservadas em `recipe_cards` e `recipe_card_items`, com códigos de origem estáveis e importação idempotente executada junto às migrations. Essa organização interna mantém as preparações intermediárias e os rendimentos por lote sem alterar fichas de produtos já existentes. A interface as apresenta no editor padrão de fichas. O vínculo com um ingrediente só é feito quando há exatamente um nome igual no cadastro. Correspondências ausentes ou ambíguas ficam pendentes para revisão.
+As receitas são preservadas em `recipe_cards` e `recipe_card_items`, com códigos de origem estáveis e importação idempotente executada junto às migrations. Essa organização interna mantém as preparações intermediárias e os rendimentos por lote sem alterar fichas de produtos já existentes. A interface as apresenta no editor padrão de fichas. O ERP associa automaticamente os nomes que correspondem a um único insumo cadastrado; vínculos explícitos da transcrição também são preservados. Correspondências ausentes ou ambíguas ficam marcadas como pendência, sem pedir seleção manual nem calcular um custo presumido.
 
 ## Separação e segurança operacional
 

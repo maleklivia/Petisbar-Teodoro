@@ -123,10 +123,17 @@ export default async function recipeCardRoutes(app) {
       for(let index=0;index<card.items.length;index++){
         const item=card.items[index];
         const itemId=item.id||`${id}-item-edit-${Date.now()}-${index}`;
+        let ingredientId=item.ingredientId||null;
+        let preparationId=item.preparationId||null;
+        let isPackaging=item.isPackaging;
+        if(!ingredientId&&!preparationId){
+          const matches=await client.query('SELECT id,category FROM ingredients WHERE lower(name)=lower($1) AND active=true',[item.itemName]);
+          if(matches.rowCount===1){ingredientId=matches.rows[0].id;isPackaging=matches.rows[0].category?.toLocaleLowerCase('pt-BR')==='embalagens';}
+        }
         await client.query(`
           INSERT INTO recipe_card_items(id,recipe_id,sort_order,item_name,ingredient_id,preparation_id,quantity,unit,is_packaging,pending_note)
           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        `,[itemId,id,index+1,item.itemName,item.ingredientId||null,item.preparationId||null,item.quantity,item.unit||null,item.isPackaging,item.pendingNote]);
+        `,[itemId,id,index+1,item.itemName,ingredientId,preparationId,item.quantity,item.unit||null,isPackaging,item.pendingNote]);
       }
       await client.query('COMMIT');
       return {data:{id:updated.rows[0].id,updated:true}};

@@ -24,5 +24,37 @@ test('apresenta receita importada na navegação e no editor padrão de ficha t�
   module.selectCourseRecipe(card);
   assert.match(editor.innerHTML,/class="ficha-table"/);
   assert.match(editor.innerHTML,/Modo de preparo/);
-  assert.match(editor.innerHTML,/BASE-03 · Iscas ao molho de tomate/);
+  assert.match(editor.innerHTML,/Preparação: Iscas ao molho de tomate/);
+});
+
+test('fichas do curso exibem vínculos existentes sem pedir seleção manual',()=>{
+  const editor={innerHTML:'',dataset:{},addEventListener(){}};
+  const context=vm.createContext({
+    document:{getElementById:id=>id==='ficha-editor'?editor:null,querySelectorAll:()=>[]},
+    API:{isServerMode:()=>true,hasPermission:()=>true},
+    Storage:{getState:()=>({settings:{}})},Stores:{},
+    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`},
+    calcIngredienteCost:()=>null,
+  });
+  vm.runInContext(readFileSync(resolve(import.meta.dirname,'..','..','js','modules','fichas.js'),'utf8'),context);
+  const module=vm.runInContext('FichasModule',context);
+  const card={id:'course-base-02',code:'BASE-02',name:'Frango cremoso ao molho de tomate',recipeType:'preparation',status:'incomplete',outputUnit:'g',items:[
+    {id:'chicken',itemName:'Frango sassami ou filé de peito',ingredientId:'i-038',quantity:1000,unit:'g',isPackaging:false,pendingNote:''},
+    {id:'onion',itemName:'Cebola média/grande',ingredientId:'i-025',quantity:1,unit:'un',isPackaging:false,pendingNote:'Pesar a unidade usada; peso não informado.'},
+    {id:'garlic',itemName:'Alho',ingredientId:'i-024',quantity:2,unit:'dente',isPackaging:false,pendingNote:''},
+    {id:'passata',itemName:'Passata de tomate',quantity:700,unit:'g',isPackaging:false,pendingNote:'Vínculo ao ingrediente canônico pendente.'},
+  ],cost:{complete:false,notes:['Rendimento pendente']}};
+  module._serverMode=true;module._canWrite=true;module._receitasCurso=[card];module._ingredientes=[
+    {id:'i-038',nome:'Peito de Frango',unidade:'kg'},
+    {id:'i-025',nome:'Cebola',unidade:'kg'},
+    {id:'i-024',nome:'Alho',unidade:'kg'},
+  ];
+  module.selectCourseRecipe(card);
+  assert.match(editor.innerHTML,/Insumo: Peito de Frango/);
+  assert.match(editor.innerHTML,/Insumo: Cebola/);
+  assert.match(editor.innerHTML,/Insumo: Alho/);
+  assert.match(editor.innerHTML,/Sem vínculo no cadastro de estoque/);
+  assert.doesNotMatch(editor.innerHTML,/data-row-field="ingredientId"/);
+  assert.doesNotMatch(editor.innerHTML,/data-row-field="preparationId"/);
+  assert.doesNotMatch(editor.innerHTML,/type="checkbox"/);
 });
