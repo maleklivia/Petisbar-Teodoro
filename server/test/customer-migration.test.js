@@ -26,7 +26,15 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
       catch (error) { if (error.code !== '23505') throw error; }
     }
     const files = (await readdir(migrationsDir)).filter(name => name.endsWith('.sql')).sort();
-    for (const file of files) await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
+    for (const file of files) {
+      // The production catalog already owns this soda SKU; the empty migration
+      // schema needs a fixture so the combo migration can reference that row.
+      if (file === '023_combo_duas_batatas_refrigerante.sql') {
+        await client.query(`INSERT INTO ${schema}.products(id,sku,name,category,description,sale_price,active)
+          VALUES('p-ref001','REF001','Refrigerante lata','Refrigerantes','Refrigerante lata 350ml',5.00,true)`);
+      }
+      await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
+    }
 
     const legacy = await client.query(`
       SELECT o.id, o.status, oi.name AS item_name, p.name AS product_name, c.name AS client_name
