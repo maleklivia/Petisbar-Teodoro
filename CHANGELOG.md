@@ -7,6 +7,7 @@ Formato: [Semantic Versioning](https://semver.org/lang/pt-BR/)
 
 ## [Unreleased] — 2026-07-20
 
+- Integradas as receitas importadas à navegação lateral e ao editor padrão de fichas técnicas, com edição transacional no PostgreSQL e atualização de cache da página.
 - Criada fundação do backend com Node.js, Fastify e API versionada.
 - Criado esquema PostgreSQL para usuários, permissões, catálogo, estoque, pedidos, compras, financeiro e auditoria.
 - Implementados login com Argon2id, sessões seguras, limitação de tentativas e cinco perfis de acesso.

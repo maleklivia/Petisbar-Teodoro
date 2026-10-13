@@ -24,3 +24,5 @@ Cada aplicação registra código/nome/regra, subtotal normal, subtotal após pr
 Criação, edição e ativação/desativação geram `audit_logs`. Editar uma promoção ativa a desativa na mesma transação. Grupos antigos ficam preservados para manter os vínculos dos pedidos; suas escolhas também ficam no snapshot da aplicação.
 
 As quatro ofertas iniciais são criadas como rascunhos, sem preço fechado e inativas. Skol só aparece quando existir como produto ativo no catálogo.
+
+O combo de batatas recheadas oferece duas batatas (podem ser do mesmo sabor ou de sabores diferentes) e um refrigerante de 350 ml. Seu preço base de R$ 57,76 representa 5% de desconto sobre a combinação mais barata cadastrada (2 × R$ 27,90 + R$ 5,00 = R$ 60,80). Diferenças de sabor do refrigerante e batatas de maior preço são somadas ao preço base pelo cadastro canônico.

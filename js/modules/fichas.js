@@ -9,8 +9,10 @@ const FichasModule = {
   _fichas: [],
   _activeProdutoId: null,
   _activeProduto: null,
+  _activeCourseRecipeId: null,
   _cmvGoal: 35,
   _allProdutos: [],
+  _receitasCurso: [],
   _serverMode: false,
   _canWrite: true,
   _saveTimers: new Map(),
@@ -54,6 +56,9 @@ const FichasModule = {
     if (this._activeProdutoId) {
       const p = produtos.find(p => p.id === this._activeProdutoId);
       if (p) this.selectProduto(p);
+    } else if(this._activeCourseRecipeId){
+      const card=this._receitasCurso.find(item=>item.id===this._activeCourseRecipeId);
+      if(card)this.selectCourseRecipe(card);
     }
   },
 
@@ -65,9 +70,10 @@ const FichasModule = {
     this._fichas       = Stores.fichas.get();
   },
 
-  setData({ ingredientes, fichas } = {}) {
+  setData({ ingredientes, fichas, receitasCurso } = {}) {
     if (ingredientes) this._ingredientes = ingredientes;
     if (fichas) this._fichas = fichas;
+    if (receitasCurso) this._receitasCurso = receitasCurso;
   },
 
   getByProduto(produtoId) {
@@ -128,6 +134,7 @@ const FichasModule = {
   /* ── Seleção de produto ────────────────────────────────────── */
 
   selectProduto(produto) {
+    this._activeCourseRecipeId = null;
     this._activeProdutoId = produto.id;
     this._activeProduto   = produto;
     document.querySelectorAll('.ficha-produto-item').forEach(el => {
@@ -142,16 +149,18 @@ const FichasModule = {
     const container = document.getElementById('ficha-produto-list');
     if (!container) return;
 
+    const query=filter.trim().toLocaleLowerCase('pt-BR');
     const filtered = filter
-      ? produtos.filter(p => p.nome.toLowerCase().includes(filter.toLowerCase()))
+      ? produtos.filter(p => p.nome.toLocaleLowerCase('pt-BR').includes(query))
       : produtos;
+    const courseCards=this._serverMode?(this._receitasCurso||[]).filter(card=>!query||`${card.name} ${card.code}`.toLocaleLowerCase('pt-BR').includes(query)):[];
 
-    if (!filtered.length) {
+    if (!filtered.length&&!courseCards.length) {
       container.innerHTML = '<div style="padding:16px 12px;color:var(--text-muted);font-size:var(--text-sm)">Nenhum produto encontrado.</div>';
       return;
     }
 
-    container.innerHTML = filtered.map(p => `
+    container.innerHTML = `${filtered.map(p => `
       <div class="ficha-produto-item ${this._activeProdutoId === p.id ? 'active' : ''}" data-pid="${p.id}">
         ${Utils.productPhoto(p, 'product-photo-icon--small')}
         <div class="ficha-produto-item__info">
@@ -159,14 +168,19 @@ const FichasModule = {
           <div class="ficha-produto-item__cat">${Utils.escapeHtml(p.categoria)}</div>
         </div>
       </div>
-    `).join('');
+    `).join('')}${courseCards.length?`<div class="ficha-list-heading">Preparações e receitas</div>${courseCards.map(card=>`
+      <button type="button" class="ficha-produto-item ${this._activeCourseRecipeId===card.id?'active':''}" data-course-id="${Utils.escapeHtml(card.id)}">
+        <span class="ficha-course-icon">ƒ</span><span class="ficha-produto-item__info"><span class="ficha-produto-item__nome">${Utils.escapeHtml(card.name)}</span><span class="ficha-produto-item__cat">${Utils.escapeHtml(card.code)} · ${card.recipeType==='preparation'?'Preparação':'Produto'} · ${card.status==='ready'?'Completa':card.status==='draft'?'Rascunho':'Incompleta'}</span></span>
+      </button>`).join('')}`:''}`;
 
-    container.querySelectorAll('.ficha-produto-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const p = produtos.find(p => p.id === el.dataset.pid);
-        if (p) this.selectProduto(p);
-      });
-    });
+    container.querySelectorAll('[data-pid]').forEach(el => el.addEventListener('click', () => {
+      const p = produtos.find(p => p.id === el.dataset.pid);
+      if (p) this.selectProduto(p);
+    }));
+    container.querySelectorAll('[data-course-id]').forEach(el => el.addEventListener('click', () => {
+      const card=this._receitasCurso.find(item=>item.id===el.dataset.courseId);
+      if(card)this.selectCourseRecipe(card);
+    }));
   },
 
   _bindSearch(produtos) {
@@ -175,6 +189,89 @@ const FichasModule = {
     input.addEventListener('input', Utils.debounce(() => {
       this._renderProdutoList(produtos, input.value);
     }, 200));
+  },
+
+  selectCourseRecipe(card){
+    this._activeProdutoId=null;
+    this._activeProduto=null;
+    this._activeCourseRecipeId=card.id;
+    document.querySelectorAll('.ficha-produto-item').forEach(el=>el.classList.toggle('active',el.dataset.courseId===card.id));
+    this._renderCourseRecipeEditor(card);
+  },
+
+  _renderCourseRecipeEditor(card){
+    const container=document.getElementById('ficha-editor');
+    if(!container)return;
+    const items=card.items||[];
+    const cost=card.cost||{};
+    const disabled=this._canWrite?'':'disabled';
+    container.innerHTML=`<div class="ficha-editor__product-heading"><span class="ficha-course-icon ficha-course-icon--large">ƒ</span><div><div class="ficha-editor__title">${Utils.escapeHtml(card.name)}</div><div class="ficha-editor__sub">${Utils.escapeHtml(card.code)} · ${card.recipeType==='preparation'?'Preparação intermediária':'Receita de produto'} · ${card.status==='ready'?'Completa':card.status==='draft'?'Rascunho':'Incompleta'}</div></div></div>
+      <div class="ficha-course-meta"><label>Rendimento<input data-card-field="outputYield" type="number" min="0.001" step="any" value="${card.outputYield??''}" placeholder="Pesar rendimento" ${disabled}></label><label>Unidade<input data-card-field="outputUnit" value="${Utils.escapeHtml(card.outputUnit||'')}" placeholder="g, ml, un" ${disabled}></label><label>Capacidade da embalagem<input data-card-field="packagingCapacity" type="number" min="0.001" step="any" value="${card.packagingCapacity??''}" ${disabled}></label><label>Unidade da embalagem<input data-card-field="packagingCapacityUnit" value="${Utils.escapeHtml(card.packagingCapacityUnit||'')}" placeholder="ml" ${disabled}></label><label>Status<select data-card-field="status" ${disabled}><option value="incomplete" ${card.status==='incomplete'?'selected':''}>Incompleta</option><option value="draft" ${card.status==='draft'?'selected':''}>Rascunho</option><option value="ready" ${card.status==='ready'?'selected':''}>Completa</option></select></label></div>
+      <div class="ficha-table-wrap"><table class="ficha-table"><thead><tr><th style="width:40%">Ingrediente</th><th>Qtd.</th><th>Un.</th><th>Custo Unit.</th><th>Subtotal</th><th></th></tr></thead><tbody id="course-ficha-tbody">${items.map((item,index)=>this._renderCourseRecipeRow(card,item,index)).join('')}</tbody></table><button type="button" class="ficha-table__add" data-course-add-row ${this._canWrite?'':'disabled'}>+ Adicionar ingrediente</button></div>
+      <div class="ficha-preparo"><label class="form-label" for="course-ficha-method">Modo de preparo</label><textarea class="form-input ficha-preparo__input" id="course-ficha-method" rows="7" maxlength="10000" data-card-field="preparationMethod" ${this._canWrite?'':'disabled'}>${Utils.escapeHtml(card.preparationMethod||'')}</textarea><label class="form-label" for="course-ficha-notes">Pendências e observações</label><textarea class="form-input ficha-preparo__input" id="course-ficha-notes" rows="3" maxlength="5000" data-card-field="pendingNotes" ${this._canWrite?'':'disabled'}>${Utils.escapeHtml(card.pendingNotes||'')}</textarea><div class="ficha-preparo__feedback"><p class="ficha-preparo__status" data-course-save-status role="status">${cost.complete?'Custo completo':`Custo não final: ${Utils.escapeHtml((cost.notes||[]).join(' '))}`}</p><button type="button" class="btn btn-primary" data-course-save ${this._canWrite?'':'disabled'}>Salvar ficha técnica</button></div></div>`;
+    if(!container.dataset.courseEditorBound){
+      container.dataset.courseEditorBound='1';
+      container.addEventListener('click',event=>{
+        if(event.target.closest('[data-course-add-row]')){
+          const current=this._receitasCurso.find(item=>item.id===this._activeCourseRecipeId);if(!current)return;
+          const tbody=container.querySelector('#course-ficha-tbody');tbody.insertAdjacentHTML('beforeend',this._renderCourseRecipeRow(current,{itemName:'',quantity:null,unit:'',pendingNote:''},tbody.children.length));return;
+        }
+        const remove=event.target.closest('[data-course-remove-row]');
+        if(remove){remove.closest('[data-course-row]')?.remove();return;}
+        if(event.target.closest('[data-course-save]'))this._saveCourseRecipeEditor();
+      });
+      const refreshRow=event=>{if(event.target.closest('[data-course-row]'))this._updateCourseRecipeRowCost(event.target.closest('[data-course-row]'));};
+      container.addEventListener('input',refreshRow);
+      container.addEventListener('change',refreshRow);
+    }
+  },
+
+  _updateCourseRecipeRowCost(row){
+    const get=name=>row.querySelector(`[data-row-field="${name}"]`);
+    const ingredient=this._ingredientes.find(item=>item.id===get('ingredientId').value);
+    const preparation=this._receitasCurso.find(item=>item.id===get('preparationId').value);
+    const quantity=Number(get('quantity').value);
+    const unit=get('unit').value;
+    const unitCost=ingredient?calcIngredienteCost(ingredient,1,unit):preparation?.cost?.unit??null;
+    const subtotal=!(quantity>0)?null:ingredient?calcIngredienteCost(ingredient,quantity,unit):preparation?.cost?.unit!=null?preparation.cost.unit*quantity:null;
+    row.cells[3].textContent=unitCost==null?'—':Utils.currency(unitCost);
+    row.cells[4].textContent=subtotal==null?'—':Utils.currency(subtotal);
+  },
+
+  _renderCourseRecipeRow(card,item,index){
+    const ingredientOptions=this._ingredientes.map(ingredient=>`<option value="${Utils.escapeHtml(ingredient.id)}" ${ingredient.id===item.ingredientId?'selected':''}>${Utils.escapeHtml(ingredient.nome)} (${Utils.escapeHtml(ingredient.unidade)})</option>`).join('');
+    const prepOptions=this._receitasCurso.filter(preparation=>preparation.recipeType==='preparation'&&preparation.id!==card.id).map(preparation=>`<option value="${Utils.escapeHtml(preparation.id)}" ${preparation.id===item.preparationId?'selected':''}>${Utils.escapeHtml(preparation.code)} · ${Utils.escapeHtml(preparation.name)}</option>`).join('');
+    const ingredient=this._ingredientes.find(row=>row.id===item.ingredientId);
+    const preparation=this._receitasCurso.find(row=>row.id===item.preparationId);
+    const unitCost=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,1,item.unit):preparation?.cost?.unit??null;
+    const subtotal=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,item.quantity,item.unit):preparation&&item.quantity!==null&&preparation.cost?.unit!=null?preparation.cost.unit*item.quantity:null;
+    const disabled=this._canWrite?'':'disabled';
+    return `<tr data-course-row><td><input class="ficha-course-item-name" data-row-field="itemName" value="${Utils.escapeHtml(item.itemName||'')}" placeholder="Nome do item" ${disabled}><select class="ficha-ing-select" data-row-field="ingredientId" ${disabled}><option value="">— selecione um insumo —</option>${ingredientOptions}</select><select class="ficha-ing-select" data-row-field="preparationId" ${disabled}><option value="">— preparação intermediária —</option>${prepOptions}</select><input type="hidden" data-row-field="id" value="${Utils.escapeHtml(item.id||'')}"><label class="ficha-course-packaging"><input type="checkbox" data-row-field="isPackaging" ${item.isPackaging?'checked':''} ${disabled}> Material de venda/embalagem</label><input class="ficha-course-item-note" data-row-field="pendingNote" value="${Utils.escapeHtml(item.pendingNote||'')}" placeholder="Observação ou quantidade pendente" ${disabled}></td><td><input type="number" class="ficha-qty-input" data-row-field="quantity" value="${item.quantity??''}" min="0.001" step="any" placeholder="—" ${disabled}></td><td><input class="ficha-unit-select" data-row-field="unit" value="${Utils.escapeHtml(item.unit||'')}" placeholder="un" ${disabled}></td><td>${unitCost===null?'—':Utils.currency(unitCost)}</td><td>${subtotal===null?'—':Utils.currency(subtotal)}</td><td><button class="btn-icon" type="button" data-course-remove-row aria-label="Remover ingrediente" ${disabled}>×</button></td></tr>`;
+  },
+
+  async _saveCourseRecipeEditor(){
+    const container=document.getElementById('ficha-editor');
+    const card=this._receitasCurso.find(item=>item.id===this._activeCourseRecipeId);
+    if(!container||!card)return;
+    const button=container.querySelector('[data-course-save]');const status=container.querySelector('[data-course-save-status]');
+    const field=name=>container.querySelector(`[data-card-field="${name}"]`);
+    const value=name=>field(name)?.value||'';
+    const items=[...container.querySelectorAll('[data-course-row]')].map(row=>{
+      const get=name=>row.querySelector(`[data-row-field="${name}"]`);
+      const qty=get('quantity').value.trim();
+      return {id:get('id').value||undefined,itemName:get('itemName').value.trim(),ingredientId:get('ingredientId').value||null,preparationId:get('preparationId').value||null,quantity:qty===''?null:Number(qty),unit:get('unit').value.trim()||null,isPackaging:get('isPackaging').checked,pendingNote:get('pendingNote').value.trim()};
+    });
+    if(items.some(item=>!item.itemName||item.quantity===null&&!item.pendingNote)){
+      UI.toast('Informe o nome dos itens e registre a pendência quando a quantidade não for conhecida.','warning');return;
+    }
+    button.disabled=true;status.textContent='Salvando no ERP…';
+    try{
+      await API.saveServerRecipeCard({...card,status:value('status'),outputYield:value('outputYield')===''?null:Number(value('outputYield')),outputUnit:value('outputUnit').trim()||null,packagingCapacity:value('packagingCapacity')===''?null:Number(value('packagingCapacity')),packagingCapacityUnit:value('packagingCapacityUnit').trim()||null,preparationMethod:value('preparationMethod'),pendingNotes:value('pendingNotes'),items});
+      this._receitasCurso=await API.getServerRecipeCards();
+      this._renderProdutoList(this._allProdutos,document.getElementById('ficha-produto-search')?.value||'');
+      const saved=this._receitasCurso.find(item=>item.id===card.id);if(saved)this.selectCourseRecipe(saved);
+      UI.toast('Ficha técnica salva no ERP.','success');
+    }catch(error){button.disabled=false;status.textContent='Falha ao salvar. As alterações ainda estão na tela.';UI.toast('Não foi possível salvar a ficha técnica.','danger');}
   },
 
   /* ── Editor ────────────────────────────────────────────────── */

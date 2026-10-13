@@ -25,6 +25,7 @@ import reportsRoutes from './routes/reports.js';
 import settingsRoutes from './routes/settings.js';
 import accountingFiscalRoutes from './routes/accounting-fiscal.js';
 import promotionRoutes from './routes/promotions.js';
+import recipeCardRoutes from './routes/recipe-cards.js';
 import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
@@ -47,6 +48,7 @@ export async function buildApp() {
   await app.register(customerAuthRoutes, { prefix: '/api/v1' });
   await app.register(customerOrderRoutes, { prefix: '/api/v1' });
   await app.register(catalogRoutes, { prefix: '/api/v1' });
+  await app.register(recipeCardRoutes, { prefix: '/api/v1' });
   await app.register(migrationRoutes, { prefix: '/api/v1' });
   await app.register(publicOrderRoutes, { prefix: '/api/v1' });
   await app.register(ifoodRoutes, { prefix: '/api/v1' });

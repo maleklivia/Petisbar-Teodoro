@@ -24,14 +24,15 @@ const ProdutosModule = {
       const tbody = document.getElementById('tbody-cardapio');
       if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">Carregando catálogo…</td></tr>';
       try {
-        const [produtos, ingredientes, fichas] = await Promise.all([
+        const [produtos, ingredientes, fichas, receitasCurso] = await Promise.all([
           API.getServerProducts(),
           API.getServerIngredients(),
           API.getServerTechnicalSheets(),
+          API.getServerRecipeCards(),
         ]);
         this._items = produtos;
         IngredientesModule.setItems(ingredientes);
-        FichasModule.setData({ ingredientes, fichas });
+        FichasModule.setData({ ingredientes, fichas, receitasCurso });
       } catch (error) {
         UI.toast('Falha ao carregar catálogo do servidor.', 'danger');
         this._items = [];
@@ -281,6 +282,8 @@ const ProdutosModule = {
               placeholder="Descrição curta para o cardápio...">${Utils.escapeHtml(item?.descricao || '')}</textarea>
           </div>
 
+          <div class="form-group"><label class="form-label">Opções para o cliente</label><div id="product-option-groups"></div><button type="button" class="btn btn-secondary btn-sm" id="add-product-option-group">+ Grupo de opções</button><small style="display:block;margin-top:8px;color:var(--text-muted)">Preços usam o cadastro do produto escolhido no ERP. Escolha “Somar” para adicional ou “Substituir” para variação de preço.</small></div>
+
           <div class="form-group">
             <label style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer">
               <input type="checkbox" name="ativo" value="true"
@@ -293,6 +296,29 @@ const ProdutosModule = {
       confirmLabel: editing ? 'Salvar' : 'Cadastrar',
       onConfirm: () => this._submitForm(editing, item),
     });
+    this._drawOptionGroups(item?.optionGroups||[]);
+    document.getElementById('product-option-groups').addEventListener('click',event=>{
+      const button=event.target.closest('[data-option-action]');if(!button)return;
+      const groups=this._collectOptionGroups(),groupIndex=Number(button.dataset.group),optionIndex=Number(button.dataset.option),action=button.dataset.optionAction;
+      if(action==='add-group')groups.push({key:`grupo${groups.length+1}`,label:'Novo grupo',type:'radio',required:false,options:[{value:'opcao1',label:'Opção 1',priceMode:'base'}]});
+      if(action==='remove-group')groups.splice(groupIndex,1);
+      if(action==='add-option')groups[groupIndex]?.options.push({value:`opcao${groups[groupIndex].options.length+1}`,label:'Nova opção',priceMode:'base'});
+      if(action==='remove-option')groups[groupIndex]?.options.splice(optionIndex,1);
+      this._drawOptionGroups(groups);
+    });
+    document.getElementById('add-product-option-group').addEventListener('click',()=>{const groups=this._collectOptionGroups();groups.push({key:`grupo${groups.length+1}`,label:'Novo grupo',type:'radio',required:false,options:[{value:'opcao1',label:'Opção 1',priceMode:'base'}]});this._drawOptionGroups(groups)});
+  },
+
+  _collectOptionGroups(){return [...document.querySelectorAll('[data-option-group]')].map(group=>({
+    key:group.querySelector('[data-option-key]').value.trim(),label:group.querySelector('[data-option-label]').value.trim(),
+    type:group.querySelector('[data-option-type]').value,required:group.querySelector('[data-option-required]').checked,
+    options:[...group.querySelectorAll('[data-option-row]')].map(row=>({value:row.querySelector('[data-option-value]').value.trim(),label:row.querySelector('[data-option-text]').value.trim(),priceMode:row.querySelector('[data-option-price-mode]').value,stockMode:row.querySelector('[data-option-stock-mode]').value,priceProductId:row.querySelector('[data-option-product]').value||null})),
+  }))},
+
+  _drawOptionGroups(groups){
+    const container=document.getElementById('product-option-groups');if(!container)return;
+    const products=this._items;
+    container.innerHTML=groups.map((group,index)=>`<section class="product-option-group" data-option-group><header><strong>Grupo ${index+1}</strong><button type="button" class="btn btn-secondary btn-sm" data-option-action="remove-group" data-group="${index}">Remover grupo</button></header><div class="product-option-grid"><label>Identificador<input class="form-input" data-option-key value="${Utils.escapeHtml(group.key||'')}" placeholder="tamanho"></label><label>Nome exibido<input class="form-input" data-option-label value="${Utils.escapeHtml(group.label||'')}" placeholder="Escolha o tamanho"></label><label>Seleção<select class="form-select" data-option-type><option value="radio" ${group.type!=='checkbox'?'selected':''}>Uma opção</option><option value="checkbox" ${group.type==='checkbox'?'selected':''}>Várias opções</option></select></label><label class="product-option-required"><input type="checkbox" data-option-required ${group.required?'checked':''}> Obrigatório</label></div>${(group.options||[]).map((option,optionIndex)=>`<div class="product-option-row" data-option-row><label>Valor interno<input class="form-input" data-option-value value="${Utils.escapeHtml(option.value||'')}" placeholder="G"></label><label>Nome para cliente<input class="form-input" data-option-text value="${Utils.escapeHtml(option.label||'')}" placeholder="Grande"></label><label>Preço<select class="form-select" data-option-price-mode><option value="base" ${option.priceMode==='base'?'selected':''}>Preço base</option><option value="replace" ${option.priceMode==='replace'?'selected':''}>Substituir</option><option value="add" ${option.priceMode==='add'?'selected':''}>Somar</option></select></label><label>Produto de preço<select class="form-select" data-option-product><option value="">Sem produto</option>${products.map(product=>`<option value="${Utils.escapeHtml(product.id)}" ${option.priceProductId===product.id?'selected':''}>${Utils.escapeHtml(product.nome)} · ${Utils.currency(product.precoVenda)}${product.ativo?'':' (inativo)'}</option>`).join('')}</select></label><label>Estoque<select class="form-select" data-option-stock-mode><option value="none" ${(option.stockMode||'none')==='none'?'selected':''}>Sem alteração</option><option value="replace" ${option.stockMode==='replace'?'selected':''}>Substituir item/receita</option><option value="add" ${option.stockMode==='add'?'selected':''}>Consumir junto</option></select></label><button type="button" class="btn btn-secondary btn-sm" data-option-action="remove-option" data-group="${index}" data-option="${optionIndex}">×</button></div>`).join('')}<button type="button" class="btn btn-secondary btn-sm" data-option-action="add-option" data-group="${index}">+ Opção</button></section>`).join('');
   },
 
   async _submitForm(editing, original) {
@@ -303,6 +329,7 @@ const ProdutosModule = {
     const fd        = new FormData(form);
     const nome      = fd.get('nome').trim();
     const precoVenda = parseFloat(fd.get('precoVenda'));
+    const optionGroups=this._collectOptionGroups();
 
     if (!nome)              { UI.toast('Nome é obrigatório', 'danger'); return; }
     if (!precoVenda || precoVenda <= 0) { UI.toast('Preço deve ser maior que zero', 'danger'); return; }
@@ -315,6 +342,7 @@ const ProdutosModule = {
       codigo:       fd.get('codigo').trim(),
       descricao:    fd.get('descricao').trim(),
       precoVenda,
+      optionGroups,
       precoIfood:   parseFloat(fd.get('precoIfood')) || Math.ceil((precoVenda / 0.738) * 100) / 100,
       ativoIfood:   fd.get('ativoIfood') === 'true',
       tempoPreparo: parseFloat(fd.get('tempoPreparo')) || 0,

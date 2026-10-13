@@ -178,6 +178,29 @@ integrationTest('conclusão e cancelamento são atômicos e idempotentes', async
     assert.equal(Number(testEffects.rows[0].count),0);
     const testFinance=await client.query("SELECT count(*) FROM financial_entries WHERE reference_id='cardapio-teste'");
     assert.equal(Number(testFinance.rows[0].count),0);
+
+    await client.query(`INSERT INTO ingredients(id,name,category,unit,current_stock,minimum_stock,unit_cost)
+      VALUES('option-effect-ingredient','Ingrediente opção','Teste','kg',0.2,0,4)`);
+    await client.query(`INSERT INTO products(id,name,category,sale_price,current_stock) VALUES
+      ('option-effect-base','Base configurável','Teste',10,NULL),('option-effect-variant','Variação configurável','Teste',15,NULL),
+      ('option-effect-addon','Adicional configurável','Teste',1,1)`);
+    await client.query(`INSERT INTO technical_sheets(id,product_id,yield) VALUES('option-effect-sheet','option-effect-variant',1)`);
+    await client.query(`INSERT INTO technical_sheet_items(sheet_id,ingredient_id,quantity,unit) VALUES('option-effect-sheet','option-effect-ingredient',100,'g')`);
+    await client.query(`INSERT INTO orders(id,order_number,source,client_name,status,subtotal,total) VALUES('option-effect-order',900008,'Cardápio Digital','Teste','Pronto',16,16)`);
+    await client.query(`INSERT INTO order_items(order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES
+      ('option-effect-order','option-effect-base','Base configurável',1,16,16,
+       '{"_stockEffects":[{"productId":"option-effect-variant","mode":"replace","currentStock":null},{"productId":"option-effect-addon","mode":"add","currentStock":1}]}'::jsonb)`);
+    await client.query('BEGIN');
+    const optionReservation=await reserveOrderStock(client,{orderId:'option-effect-order',items:[{productId:'option-effect-base',name:'Base configurável',quantity:1,currentStock:null,options:{_stockEffects:[{productId:'option-effect-variant',mode:'replace',currentStock:null},{productId:'option-effect-addon',mode:'add',currentStock:1}]}}]});
+    assert.equal(optionReservation.reserved,true);
+    await transitionOrderStatus(client,{orderId:'option-effect-order',nextStatus:'Entregue'});
+    await client.query('COMMIT');
+    const optionStock=await client.query("SELECT current_stock FROM products WHERE id='option-effect-addon'");
+    assert.equal(Number(optionStock.rows[0].current_stock),0);
+    const optionIngredient=await client.query("SELECT current_stock FROM ingredients WHERE id='option-effect-ingredient'");
+    assert.equal(Number(optionIngredient.rows[0].current_stock),0.1);
+    const optionMovements=await client.query("SELECT count(*) FROM stock_movements WHERE reference='option-effect-order'");
+    assert.equal(Number(optionMovements.rows[0].count),2);
   } finally {
     await client.end();
   }

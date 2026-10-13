@@ -6,7 +6,7 @@ const money = value => roundMoney(Number(value || 0));
 
 export async function listPromotions(db, { publicOnly = false, activeOnly = false } = {}) {
   const promoRows = await db.query(`
-    SELECT p.*, COALESCE(json_agg(DISTINCT jsonb_build_object('id',pp.product_id,'name',pr.name,'salePrice',pr.sale_price))
+    SELECT p.*, COALESCE(json_agg(DISTINCT jsonb_build_object('id',pp.product_id,'name',pr.name,'salePrice',pr.sale_price,'optionGroups',pr.option_groups))
       FILTER (WHERE pp.product_id IS NOT NULL),'[]'::json) AS products
     FROM promotions p
     LEFT JOIN promotion_products pp ON pp.promotion_id=p.id
@@ -16,7 +16,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
   `);
   const groups = await db.query(`
     SELECT g.id,g.promotion_id,g.code,g.name,g.required_quantity,g.max_quantity,g.allow_same_product,g.allowed_options,
-      COALESCE(json_agg(jsonb_build_object('id',p.id,'name',p.name,'category',p.category,'salePrice',p.sale_price,
+      COALESCE(json_agg(jsonb_build_object('id',p.id,'name',p.name,'category',p.category,'salePrice',p.sale_price,'optionGroups',p.option_groups,
         'surcharge',gp.surcharge,'allowedOptions',gp.allowed_options,'active',p.active)
         ORDER BY p.category,p.name) FILTER (WHERE gp.product_id IS NOT NULL),'[]'::json) AS products
     FROM promotion_groups g LEFT JOIN promotion_group_products gp ON gp.group_id=g.id
@@ -70,6 +70,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
           if (!permitted || permitted.includes(value)) variantRefs.add(variantId);
         }
       }
+      for(const group of product?.optionGroups||[]){const permitted=constraints[group.key];for(const option of group.options||[])if((!permitted||permitted.includes(option.value))&&option.priceProductId)variantRefs.add(option.priceProductId);}
     }
     const missingCosts = [...new Set([...uniqueRefs, ...variantRefs])].filter(id => {
       const row = costById.get(id);
@@ -85,6 +86,8 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
     };
     const costsComplete = missingCosts.length === 0 && uniqueRefs.length > 0;
     const worstOptionCost = product => {
+      const custom=product.optionGroups||[];
+      if(custom.length){let total=productCost(product.id);if(total===null)return null;for(const group of custom){const permitted=product.allowedOptions?.[group.key],choices=(group.options||[]).filter(option=>!permitted||permitted.includes(option.value));const values=choices.map(option=>{if(option.priceMode==='replace')return productCost(option.priceProductId);if(option.priceMode==='add'){const cost=productCost(option.priceProductId);return cost===null?null:total+cost;}return total;});if(values.some(value=>value===null))return null;if(group.type==='checkbox'){if(choices.some(option=>option.priceMode==='replace'))return null;total+=choices.filter(option=>option.priceMode==='add').reduce((sum,option)=>sum+(productCost(option.priceProductId)||0),0);}else if(values.length)total=Math.max(...[...(group.required?[]:[total]),...values]);}return total;}
       const variants = optionVariants[product.id] || {};
       const allowed = product.allowedOptions || {};
       let total = productCost(product.id);
@@ -105,6 +108,8 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
       return total;
     };
     const lowestOptionPrice = product => {
+      const custom=product.optionGroups||[];
+      if(custom.length){let total=Number(costById.get(product.id)?.sale_price??product.salePrice??0);for(const group of custom){const permitted=product.allowedOptions?.[group.key],choices=(group.options||[]).filter(option=>!permitted||permitted.includes(option.value));const values=choices.map(option=>{const linked=option.priceProductId?Number(costById.get(option.priceProductId)?.sale_price):null;if(option.priceMode==='replace')return Number.isFinite(linked)?linked:null;if(option.priceMode==='add')return Number.isFinite(linked)?total+linked:null;return total;});if(values.some(value=>value===null))return null;if(group.type==='checkbox'){if(choices.some(option=>option.priceMode==='replace'))return null;if(group.required&&values.length)total=Math.min(...values);}else if(values.length)total=Math.min(...[...(group.required?[]:[total]),...values]);}return money(total+Number(product.surcharge||0));}
       const variants=optionVariants[product.id]||{},allowed=product.allowedOptions||{};
       const base=Number(costById.get(product.id)?.sale_price ?? product.salePrice ?? 0);
       let total=base;
@@ -122,7 +127,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
           const prices=group.products.filter(product=>product.active).map(product=>lowestOptionPrice({...product,allowedOptions:intersectOptions(group.allowedOptions,product.allowedOptions)})).filter(price=>price!==null);
           return sum+(prices.length?Math.min(...prices)*Number(group.requiredQuantity):0);
         },0)
-      : uniqueRefs.reduce((sum,id)=>sum+Number(promotion.products.find(product=>product.id===id)?.salePrice||0),0);
+      : uniqueRefs.reduce((sum,id)=>{const product=promotion.products.find(item=>item.id===id);return sum+Number(lowestOptionPrice(product)??product?.salePrice??0);},0);
     const costTotal = costsComplete ? promotion.rule_type==='combo'
       ? promoGroups.reduce((sum,group)=>sum+Math.max(0,...group.products.map(product=>worstOptionCost({...product,allowedOptions:intersectOptions(group.allowedOptions,product.allowedOptions)})))*Number(group.maxQuantity),0)
       : uniqueRefs.reduce((sum, id) => {
@@ -135,12 +140,17 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
         ? money(normalEstimate * (1 - Number(promotion.discount_percent) / 100))
         : promotion.rule_type === 'fixed' && promotion.discount_amount !== null
           ? money(Math.max(0, normalEstimate - Number(promotion.discount_amount))) : null;
+    const estimatedCost = costTotal === null && promotion.cmv_estimate_percent !== null && promotion.cmv_estimate_percent !== undefined
+      ? money(normalEstimate * Number(promotion.cmv_estimate_percent) / 100) : costTotal === null ? null : money(costTotal);
     return { ...promotion, stackWithCoupon: promotion.stack_with_coupon, groups: promoGroups, costComplete: costsComplete,
       missingCostProductIds: missingCosts, missingCostProductNames:missingCosts.map(id=>costById.get(id)?.name||id), normalPriceEstimate: money(normalEstimate),
-      marginBasis:promotion.rule_type==='combo'?'custo máximo considerando o máximo de escolhas de cada grupo':'uma unidade de cada produto; descontos fixos variam com o carrinho',
-      estimatedCost: costTotal === null ? null : money(costTotal),
-      estimatedMargin: costTotal === null || estimate === null ? null : money(estimate - costTotal),
-      marginPercent: costTotal === null || estimate === null || estimate === 0 ? null : money((estimate - costTotal) / estimate * 100) };
+      marginBasis:promotion.cmv_estimate_percent !== null && promotion.cmv_estimate_percent !== undefined && !costsComplete
+        ? `estimativa usando CMV de referência de ${Number(promotion.cmv_estimate_percent).toFixed(1)}% aplicado ao menor preço normal; custo real pendente`
+        : promotion.rule_type==='combo'?'custo máximo considerando o máximo de escolhas de cada grupo':'uma unidade de cada produto; descontos fixos variam com o carrinho',
+      estimatedCost,
+      estimatedMargin: estimatedCost === null || estimate === null ? null : money(estimate - estimatedCost),
+      marginPercent: estimatedCost === null || estimate === null || estimate === 0 ? null : money((estimate - estimatedCost) / estimate * 100),
+      estimatedCmvPercent: estimatedCost === null || estimate === null || estimate === 0 ? null : money(estimatedCost / estimate * 100) };
   });
 }
 
@@ -206,7 +216,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
         if (!optionsAllowed(item.options, group.allowedOptions) || !optionsAllowed(item.options, productAllowedOptions)) return { error: 'combo_options_not_allowed' };
         for (let unit=0; unit<item.quantity; unit++) {
           const line = { productId:item.productId, quantity:1, options:{...(item.options||{}),...(item.flavoredIce?{flavoredIce:true}:{})}, expectedUnitPrice:item.expectedUnitPrice,
-            comboPromotionId:promotion.id, comboInstanceToken:comboIndex, comboGroupId:group.id, comboGroupName:group.name, groupSurcharge:Number(allowedProduct.surcharge || 0), source:'combo' };
+          comboPromotionId:promotion.id, comboInstanceToken:comboIndex, comboGroupId:group.id, comboGroupName:group.name, groupSurcharge:Number(allowedProduct.surcharge || 0), source:'combo' };
           allLines.push(line);
           comboReservations.push({ promotion, group, lineIndex:allLines.length-1, comboInstanceToken:comboIndex });
         }
@@ -217,18 +227,14 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
   }
 
   const priced = await priceOrderItems(db, allLines, { lock });
+  if(priced?.error)return {error:priced.error};
   if (!priced) return { error: 'product_unavailable' };
   const items = priced.items.map((item,index) => ({ ...item, listUnitPrice:item.unitPrice,
-    listSubtotal:item.subtotal, promotionDiscount:0, promotionId:null, promotionApplicationId:null,
+    listSubtotal:item.subtotal, optionSurcharge:money(Math.max(0,item.unitPrice - priced.basePrices.get(item.productId))), promotionDiscount:0, promotionId:null, promotionApplicationId:null,
     comboGroupId:allLines[index].comboGroupId || null, comboGroupName:allLines[index].comboGroupName || null,
     comboPromotionId:allLines[index].comboPromotionId || null, comboInstanceId:allLines[index].comboPromotionId || null,
     groupSurcharge:Number(allLines[index].groupSurcharge || 0) }));
-  for (const item of items) {
-    item.listUnitPrice = money(item.listUnitPrice + item.groupSurcharge);
-    item.listSubtotal = item.listUnitPrice;
-  }
-
-  const promoRows = await db.query(`SELECT * FROM promotions WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
+  const promoRows = await db.query(`SELECT p.* FROM promotions p WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
     [[...new Set([...requestedCombos.map(combo=>combo.promotionId),...eligiblePromos.filter(p=>p.rule_type!=='combo').map(p=>p.id)])]]);
   const locked = new Map(promoRows.rows.map(row => [row.id, row]));
   if (requestedCombos.some(combo=>!locked.has(combo.promotionId))) return { error:'promotion_unavailable' };
@@ -252,7 +258,8 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       const lineIndexes = comboReservations.filter(row => row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>row.lineIndex);
       if (lineIndexes.some(index=>used.has(index))) { rejected.push({ promotionId:promo.id,code:promo.code,reason:'priority_conflict' }); continue; }
       const normal = money(lineIndexes.reduce((sum,index)=>sum+items[index].listSubtotal,0));
-      const total = Number(promo.combo_price);
+      const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
+      const total = money(Number(promo.combo_price) + selectedSurcharges);
       if (total > normal) {
         rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
         return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };
@@ -262,7 +269,8 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }
       applications.push({ id:appId,promotionId:promo.id,code:promo.code,name:promo.name,ruleType:'combo',
         discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:money(normal-total),items:alloc,stackWithCoupon:promo.stackWithCoupon,
-        comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})) });
+        comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})),
+        price:total, estimatedCmvPercent:promo.cmv_estimate_percent===null||promo.cmv_estimate_percent===undefined?null:money(Number(promo.cmv_estimate_percent)*normal/Math.max(total,0.01)) });
     } else {
       const selected = candidate.selected.filter(index=>!used.has(index));
       if (!selected.length) { rejected.push({promotionId:promo.id,code:promo.code,reason:'priority_conflict'}); continue; }

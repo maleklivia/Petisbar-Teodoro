@@ -161,6 +161,28 @@ const API = {
     return (await this._request('/technical-sheets')).data.map(this._mapServerTechnicalSheet);
   },
 
+  async getServerRecipeCards() {
+    return (await this._request('/recipe-cards')).data;
+  },
+
+  async saveServerRecipeCard(card) {
+    return (await this._request(`/recipe-cards/${encodeURIComponent(card.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: card.name, productId: card.productId || null, status: card.status,
+        outputYield: card.outputYield ?? null, outputUnit: card.outputUnit || null,
+        packagingCapacity: card.packagingCapacity ?? null,
+        packagingCapacityUnit: card.packagingCapacityUnit || null,
+        preparationMethod: card.preparationMethod || '', pendingNotes: card.pendingNotes || '',
+        items: (card.items || []).map(item => ({
+          id: item.id, itemName: item.itemName, ingredientId: item.ingredientId || null,
+          preparationId: item.preparationId || null, quantity: item.quantity ?? null,
+          unit: item.unit || null, isPackaging: !!item.isPackaging, pendingNote: item.pendingNote || '',
+        })),
+      }),
+    })).data;
+  },
+
   async saveServerTechnicalSheet(sheet) {
     return this._mapServerTechnicalSheet((await this._request(`/technical-sheets/${encodeURIComponent(sheet.produtoId)}`, {
       method: 'PUT',
@@ -297,6 +319,7 @@ const API = {
       estoqueAtual: product.current_stock === null || product.current_stock === undefined ? null : Number(product.current_stock),
       estoqueMinimo: product.minimum_stock === null || product.minimum_stock === undefined ? null : Number(product.minimum_stock),
       foto: product.photo_url || '',
+      optionGroups: Array.isArray(product.option_groups) ? product.option_groups : [],
       dataCadastro: product.created_at,
       dataAtualizacao: product.updated_at,
     };
