@@ -12,6 +12,7 @@ const OcrService = {
   async _carregarTesseract() {
     if (this._ready || typeof Tesseract !== 'undefined') { this._ready = true; return; }
     const fontes = [
+      '/js/vendor/tesseract/tesseract.min.js',
       'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
       'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
     ];
@@ -98,6 +99,9 @@ const OcrService = {
     await this._carregarTesseract();
     const imagemPreparada = await this.prepararImagem(file);
     const worker = await Tesseract.createWorker('por', 1, {
+      workerPath: '/js/vendor/tesseract/worker.min.js',
+      corePath: '/js/vendor/tesseract/tesseract-core.wasm.js',
+      langPath: '/js/vendor/tesseract',
       logger: m => {
         if (onProgress && m.status === 'recognizing text') {
           onProgress(Math.round(m.progress * 100));
