@@ -77,7 +77,8 @@ const Cardapio = {
     if(!available.length){el.classList.add('hidden');el.innerHTML='';return}
     el.classList.remove('hidden');el.innerHTML=available.map(p=>{
       const selected=[...this.combos.values()].filter(combo=>combo.promotion.id===p.id).length,groups=(p.groups||[]).map(group=>`${group.requiredQuantity} ${this.escape(group.name.toLowerCase())}`).join(' + ');
-      return `<article class="combo-card"><span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>A partir de ${this.money(Number(p.combo_price))}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
+      const image=p.code==='COMBO-BATATA-RECHEADA'?'<img class="combo-image" src="./assets/cardapio-cabecalho.webp" alt="Batatas recheadas em cumbucas com bebidas" loading="lazy">':'';
+      return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>A partir de ${this.money(Number(p.combo_price))}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
     }).join('');
   },
   categoryOrder: ['BATATAS RECHEADAS','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
