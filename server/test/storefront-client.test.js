@@ -142,3 +142,16 @@ test('Caipirinha aparece uma vez e aceita sabores diferentes no mesmo carrinho',
   assert.equal(client.cartData().length, 1);
   assert.equal(client.subtotal(), 15.9);
 });
+
+test('destaca o combo de batatas recheadas com foto do cardápio', () => {
+  const { client, element } = loadClient();
+  client.promotions = [{
+    id: 'combo-batata', code: 'COMBO-BATATA-RECHEADA', rule_type: 'combo',
+    name: 'Combo Duas Batatas Recheadas + Refrigerante', description: 'Duas batatas e refrigerante',
+    combo_price: 57.76, groups: [{ name: 'Batatas recheadas', requiredQuantity: 2 }, { name: 'Refrigerante', requiredQuantity: 1 }],
+  }];
+  client.renderPromotions();
+  assert.match(element('combo-catalog').innerHTML, /class="combo-image" src="\.\/assets\/cardapio-cabecalho\.webp"/);
+  assert.match(element('combo-catalog').innerHTML, /alt="Batatas recheadas em cumbucas com bebidas"/);
+  assert.match(element('combo-catalog').innerHTML, /Combo Duas Batatas Recheadas \+ Refrigerante/);
+});
