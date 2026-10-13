@@ -49,16 +49,26 @@ async function consumeIngredient(client, order, ingredient, quantity) {
 
 async function applyInventory(client, order) {
   const { rows: items } = await client.query(`
-    SELECT oi.product_id,oi.quantity,oi.options,p.name,p.current_stock,p.purchase_cost,
+    WITH components AS (
+      SELECT oi.id,oi.quantity,oi.options,
+        COALESCE((SELECT effect->>'productId' FROM jsonb_array_elements(COALESCE(oi.options->'_stockEffects','[]'::jsonb)) effect WHERE effect->>'mode'='replace' LIMIT 1),oi.product_id) AS stock_product_id,
+        oi.product_id AS order_product_id,true AS is_main
+      FROM order_items oi WHERE oi.order_id=$1
+      UNION ALL
+      SELECT oi.id,oi.quantity,'{}'::jsonb,effect->>'productId',oi.product_id,false
+      FROM order_items oi CROSS JOIN LATERAL jsonb_array_elements(COALESCE(oi.options->'_stockEffects','[]'::jsonb)) effect
+      WHERE oi.order_id=$1 AND effect->>'mode'='add'
+    )
+    SELECT c.order_product_id,c.stock_product_id AS product_id,c.quantity,CASE WHEN c.is_main THEN c.options ELSE '{}'::jsonb END AS options,p.name,p.current_stock,p.purchase_cost,
       ts.id AS sheet_id,ts.yield
-    FROM order_items oi
-    LEFT JOIN products p ON p.id=oi.product_id
+    FROM components c
+    LEFT JOIN products p ON p.id=c.stock_product_id
     LEFT JOIN technical_sheets ts ON ts.product_id=CASE
-      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='morango' THEN 'p-drk002'
-      WHEN oi.product_id='p-drk001' AND oi.options->>'flavor'='maracuja' THEN 'p-drk003'
-      ELSE oi.product_id END
-    WHERE oi.order_id=$1
-    ORDER BY oi.id
+      WHEN c.stock_product_id<>c.order_product_id THEN c.stock_product_id
+      WHEN c.order_product_id='p-drk001' AND c.options->>'flavor'='morango' THEN 'p-drk002'
+      WHEN c.order_product_id='p-drk001' AND c.options->>'flavor'='maracuja' THEN 'p-drk003'
+      ELSE c.stock_product_id END
+    ORDER BY c.id,c.is_main DESC
   `, [order.id]);
 
   let cmv = 0;

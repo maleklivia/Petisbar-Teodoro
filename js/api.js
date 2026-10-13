@@ -301,6 +301,7 @@ const API = {
       estoqueAtual: product.current_stock === null || product.current_stock === undefined ? null : Number(product.current_stock),
       estoqueMinimo: product.minimum_stock === null || product.minimum_stock === undefined ? null : Number(product.minimum_stock),
       foto: product.photo_url || '',
+      optionGroups: Array.isArray(product.option_groups) ? product.option_groups : [],
       dataCadastro: product.created_at,
       dataAtualizacao: product.updated_at,
     };

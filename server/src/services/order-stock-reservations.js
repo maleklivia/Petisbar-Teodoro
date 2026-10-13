@@ -15,8 +15,10 @@ export async function reserveOrderStock(client,{orderId,items,allowWithoutStock=
   if(allowWithoutStock)return {reserved:false,testMode:true};
   const productTotals=new Map();
   for(const item of items){
-    const current=productTotals.get(item.productId)||{name:item.name,quantity:0,currentStock:item.currentStock};
-    current.quantity+=Number(item.quantity);productTotals.set(item.productId,current);
+    const effects=item.options?._stockEffects||[],replacement=effects.find(effect=>effect.mode==='replace');
+    const mainId=replacement?.productId||item.productId,mainStock=replacement?.currentStock??item.currentStock;
+    const components=[{productId:mainId,currentStock:mainStock,name:item.name},...effects.filter(effect=>effect.mode==='add').map(effect=>({productId:effect.productId,currentStock:effect.currentStock,name:item.name}))];
+    for(const component of components){const current=productTotals.get(component.productId)||{name:component.name,quantity:0,currentStock:component.currentStock};current.quantity+=Number(item.quantity);productTotals.set(component.productId,current);}
   }
   for(const [productId,item] of productTotals){
     if(item.currentStock===null)continue;
@@ -26,20 +28,12 @@ export async function reserveOrderStock(client,{orderId,items,allowWithoutStock=
   }
   const ingredientTotals=new Map();
   for(const item of items){
-    const productId=sheetProductId(item);
-    const sheet=await client.query(`SELECT ts.id,ts.yield FROM technical_sheets ts WHERE ts.product_id=$1`,[productId]);
-    if(sheet.rowCount){
-      const recipe=await client.query(`SELECT tsi.ingredient_id,tsi.quantity,tsi.unit,i.name,i.unit AS stock_unit,i.active
-        FROM technical_sheet_items tsi JOIN ingredients i ON i.id=tsi.ingredient_id WHERE tsi.sheet_id=$1 ORDER BY i.id`,[sheet.rows[0].id]);
-      for(const ingredient of recipe.rows){
-        if(!ingredient.active)return {error:'stock_recipe_incomplete',item:ingredient.name};
-        let quantity;
-        try{quantity=convertQuantity(Number(ingredient.quantity)*Number(item.quantity)/Number(sheet.rows[0].yield||1),ingredient.unit,ingredient.stock_unit)}
-        catch{return {error:'stock_recipe_unit_invalid',item:ingredient.name};}
-        const current=ingredientTotals.get(ingredient.ingredient_id)||{name:ingredient.name,unit:ingredient.stock_unit,quantity:0};
-        current.quantity+=quantity;ingredientTotals.set(ingredient.ingredient_id,current);
-      }
-    }
+    const effects=item.options?._stockEffects||[],replacement=effects.find(effect=>effect.mode==='replace');
+    const productIds=[replacement?.productId||sheetProductId(item),...effects.filter(effect=>effect.mode==='add').map(effect=>effect.productId)];
+    for(const productId of [...new Set(productIds)]){const sheet=await client.query(`SELECT ts.id,ts.yield FROM technical_sheets ts WHERE ts.product_id=$1`,[productId]);if(sheet.rowCount){
+      const recipe=await client.query(`SELECT tsi.ingredient_id,tsi.quantity,tsi.unit,i.name,i.unit AS stock_unit,i.active FROM technical_sheet_items tsi JOIN ingredients i ON i.id=tsi.ingredient_id WHERE tsi.sheet_id=$1 ORDER BY i.id`,[sheet.rows[0].id]);
+      for(const ingredient of recipe.rows){if(!ingredient.active)return {error:'stock_recipe_incomplete',item:ingredient.name};let quantity;try{quantity=convertQuantity(Number(ingredient.quantity)*Number(item.quantity)/Number(sheet.rows[0].yield||1),ingredient.unit,ingredient.stock_unit)}catch{return {error:'stock_recipe_unit_invalid',item:ingredient.name};}const current=ingredientTotals.get(ingredient.ingredient_id)||{name:ingredient.name,unit:ingredient.stock_unit,quantity:0};current.quantity+=quantity;ingredientTotals.set(ingredient.ingredient_id,current);}
+    }}
     if(item.options?.flavoredIce){
       const ice=await client.query("SELECT id,name,unit,active FROM ingredients WHERE id='i-029'");
       if(!ice.rowCount||!ice.rows[0].active)return {error:'stock_recipe_incomplete',item:'Gelo saborizado'};

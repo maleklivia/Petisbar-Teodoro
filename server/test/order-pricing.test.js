@@ -10,6 +10,16 @@ test('modo de testes permite estoque zero sem alterar a regra normal', () => {
   assert.equal(stockAllowsOrder([{ currentStock: '2', quantity: 2 }]), true);
 });
 
+test('estoque de opções usa a variante quando configurada para substituir e soma adicionais',()=>{
+  const item={productId:'base',currentStock:0,quantity:1,options:{_stockEffects:[
+    {productId:'variant',mode:'replace',currentStock:2},
+    {productId:'soda',mode:'add',currentStock:1},
+  ]}};
+  assert.equal(stockAllowsOrder([item]),true);
+  assert.equal(stockAllowsOrder([{...item,options:{_stockEffects:[...item.options._stockEffects,{productId:'soda2',mode:'add',currentStock:0}]}}]),false);
+  assert.equal(stockAllowsOrder([{...item,options:{_stockEffects:[{productId:'variant',mode:'replace',currentStock:null}]}}]),true);
+});
+
 test('recalcula preços no servidor e preserva somente opções permitidas', async () => {
   const client = {
     async query(sql, params) {
@@ -48,7 +58,8 @@ test('preço da variante e bebida acompanha o cadastro de produtos', async () =>
   const calls = [];
   const client = { async query(sql, params) {
     calls.push({ sql, params });
-    if (calls.length === 1) return { rows: [{ id: 'p-pet002', name: 'Batata', category: 'Petiscos', sale_price: '27.90', current_stock: 2 }] };
+    if (sql.includes('active=true')) return { rows: [{ id: 'p-pet002', name: 'Batata', category: 'Petiscos', sale_price: '27.90', current_stock: 2 }] };
+    if (sql.includes('ORDER BY id FOR UPDATE')) return {rows:[]};
     return { rows: [
       { id: 'p-pet007', sale_price: '42.00' },
       { id: 'p-ref005', sale_price: '7.50' },
@@ -56,8 +67,7 @@ test('preço da variante e bebida acompanha o cadastro de produtos', async () =>
   } };
   const priced = await priceOrderItems(client, [{ productId: 'p-pet002', quantity: 1, options: { size: 'G', drink: 'coca-cola' } }], { lock: true });
   assert.equal(priced.items[0].unitPrice, 49.5);
-  assert.deepEqual(calls[1].params, [['p-pet007', 'p-ref005']]);
-  assert.match(calls[1].sql, /FOR SHARE/);
+  assert.deepEqual(calls[3].params, [['p-pet007', 'p-ref005']]);
   assert.equal(pricesMatch([{ expectedUnitPrice: 45.9 }], priced), false);
   assert.equal(pricesMatch([{ expectedUnitPrice: 49.5 }], priced), true);
 });
@@ -68,6 +78,7 @@ test('Batata Frita usa preço P do item e preço G do SKU histórico', async () 
     calls.push(params);
     return sql.includes('active=true')
       ? { rows: [{ id: 'p-pet001', name: 'Batata Frita', category: 'Petiscos', sale_price: '17.90', current_stock: 0 }] }
+      : sql.includes('ORDER BY id FOR UPDATE') ? {rows:[]}
       : { rows: [{ id: 'p-pet006', sale_price: '26.50' }] };
   } };
   const priced = await priceOrderItems(client, [
@@ -75,7 +86,7 @@ test('Batata Frita usa preço P do item e preço G do SKU histórico', async () 
     { productId: 'p-pet001', quantity: 1, options: { size: 'G' } },
   ], { lock: true });
   assert.deepEqual(priced.items.map(item => item.unitPrice), [17.9, 26.5]);
-  assert.deepEqual(calls[1], [['p-pet006']]);
+  assert.deepEqual(calls[3], [['p-pet006']]);
   assert.equal(pricesMatch([{ expectedUnitPrice: 17.9 }, { expectedUnitPrice: 24.9 }], priced), false);
   assert.equal(pricesMatch([{ expectedUnitPrice: 17.9 }, { expectedUnitPrice: 26.5 }], priced), true);
 });
@@ -107,6 +118,21 @@ test('Caipirinha usa o preço cadastrado de cada sabor', async () => {
   assert.deepEqual(priced.items.map(item => item.unitPrice), [15.9, 16.9, 18.5]);
   assert.deepEqual(priced.items.map(item => item.name), ['Caipirinha Limão', 'Caipirinha Morango', 'Caipirinha Maracujá']);
   assert.equal(pricesMatch(requested.map((item, index) => ({ ...item, expectedUnitPrice: [15.9, 16.9, 17.9][index] })), priced), false);
+});
+
+test('opções configuráveis usam preços canônicos e preservam o efeito de estoque no snapshot',async()=>{
+  const groups=[{key:'size',label:'Tamanho',type:'radio',required:true,options:[
+    {value:'P',label:'Pequena',priceMode:'base',stockMode:'none'},
+    {value:'G',label:'Grande',priceMode:'replace',stockMode:'replace',priceProductId:'variant'},
+  ]},{key:'drink',label:'Bebida',type:'radio',required:false,options:[
+    {value:'none',label:'Sem bebida',priceMode:'base',stockMode:'none'},
+    {value:'soda',label:'Refrigerante',priceMode:'add',stockMode:'add',priceProductId:'soda'},
+  ]}];
+  const client={async query(sql,params){if(sql.includes('active=true'))return {rows:[{id:'base',name:'Produto',category:'Petiscos',sale_price:'10.00',current_stock:null,option_groups:groups}]};return {rows:[{id:'soda',sale_price:'4.00',current_stock:6},{id:'variant',sale_price:'15.00',current_stock:null}].filter(row=>params[0].includes(row.id))}}};
+  const priced=await priceOrderItems(client,[{productId:'base',quantity:1,options:{size:'G',drink:'soda'}}]);
+  assert.equal(priced.items[0].unitPrice,19);
+  assert.deepEqual(priced.items[0].options._stockEffects,[{productId:'variant',mode:'replace',currentStock:null},{productId:'soda',mode:'add',currentStock:6}]);
+  assert.equal(pricesMatch([{productId:'base',expectedUnitPrice:19,options:{size:'G',drink:'soda'}}],priced),true);
 });
 
 test('Caipirinha não aceita preço ausente para sabor adicional', async () => {

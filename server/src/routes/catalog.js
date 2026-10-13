@@ -16,6 +16,18 @@ const productSchema = z.object({
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
   foto: z.string().max(500).nullable().optional(),
+  optionGroups: z.array(z.object({
+    key: z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),
+    label: z.string().trim().min(1).max(100),
+    type: z.enum(['radio','checkbox']).default('radio'),
+    required: z.boolean().default(false),
+    options: z.array(z.object({
+      value: z.string().trim().min(1).max(60), label: z.string().trim().min(1).max(120),
+      priceMode: z.enum(['base','replace','add']).default('base'),
+      stockMode: z.enum(['none','replace','add']).default('none'),
+      priceProductId: z.string().min(1).max(100).nullable().optional(),
+    })).min(1).max(40),
+  })).max(20).default([]),
 });
 
 const ingredientSchema = z.object({
@@ -66,29 +78,44 @@ export default async function catalogRoutes(app) {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
     const p = parsed.data;
+    if (new Set(p.optionGroups.map(group=>group.key)).size !== p.optionGroups.length || p.optionGroups.some(group=>new Set(group.options.map(option=>option.value)).size!==group.options.length))
+      return reply.code(400).send({error:'product_options_ambiguous'});
+    for(const group of p.optionGroups){
+      if(group.options.some(option=>option.priceMode==='replace')&&(group.type!=='radio'||group.options.some(option=>option.priceMode==='replace'&&!option.priceProductId)))return reply.code(400).send({error:'product_options_invalid'});
+      if(group.options.some(option=>(option.priceMode==='base')===Boolean(option.priceProductId)))return reply.code(400).send({error:'product_options_invalid'});
+      if(group.options.some(option=>option.stockMode!=='none'&&!option.priceProductId))return reply.code(400).send({error:'product_options_invalid'});
+    }
+    if(p.optionGroups.filter(group=>group.options.some(option=>option.priceMode==='replace')).length>1)return reply.code(400).send({error:'product_options_ambiguous'});
     const client=await app.db.connect();
     try {
     await client.query('BEGIN');
-    await client.query('SELECT id FROM products WHERE id=$1 FOR UPDATE',[p.id]);
+    const priceProductIds=[...new Set(p.optionGroups.flatMap(group=>group.options.map(option=>option.priceProductId).filter(Boolean)))];
+    const lockedIds=[...new Set([p.id,...priceProductIds])].sort();
+    await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[lockedIds]);
+    if(priceProductIds.length){const referenced=await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id',[priceProductIds]);if(referenced.rowCount!==priceProductIds.length){await client.query('ROLLBACK');return reply.code(409).send({error:'product_option_price_product_missing'});}}
     if (!p.ativo) {
       const referenced = await client.query(`SELECT 1 FROM promotions pr WHERE pr.active=true AND (
         EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
         OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)
       ) LIMIT 1`, [p.id]);
+      const configured=await client.query(`SELECT 1 FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
+        CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 LIMIT 1`,[p.id]);
       if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
+      if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options'});}
     }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
-        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT (id) DO UPDATE SET sku=EXCLUDED.sku, name=EXCLUDED.name, category=EXCLUDED.category,
         description=EXCLUDED.description, sale_price=EXCLUDED.sale_price, purchase_cost=EXCLUDED.purchase_cost,
         active=EXCLUDED.active, preparation_minutes=EXCLUDED.preparation_minutes,
         current_stock=EXCLUDED.current_stock, minimum_stock=EXCLUDED.minimum_stock,
-        photo_url=EXCLUDED.photo_url, ifood_price=EXCLUDED.ifood_price, ifood_active=EXCLUDED.ifood_active, updated_at=now()
+        photo_url=EXCLUDED.photo_url, ifood_price=EXCLUDED.ifood_price, ifood_active=EXCLUDED.ifood_active,
+        option_groups=EXCLUDED.option_groups, updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,p.optionGroups]);
     await client.query('COMMIT');
     return reply.code(201).send({ data: rows[0] });
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -106,6 +133,9 @@ export default async function catalogRoutes(app) {
       OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)
     ) LIMIT 1`, [id]);
     if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
+    const configured=await client.query(`SELECT 1 FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
+      CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 LIMIT 1`,[id]);
+    if(configured.rowCount){await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options'});}
     const { rows } = await client.query('UPDATE products SET active=false, updated_at=now() WHERE id=$1 RETURNING *', [id]);
     await client.query('COMMIT');
     return { data: rows[0] };

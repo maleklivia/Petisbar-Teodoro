@@ -80,6 +80,30 @@ test('preço de opção usa valor retornado pelo ERP', async () => {
   assert.equal(client.productUnitPrice({ id: 'p-pet002', sale_price: 19.99, option_prices: { drinks: { agua: 4.99 } } }, { size: 'P', drink: 'agua' }), 24.98);
 });
 
+test('mostra opções configuradas no ERP e mantém unidades do mesmo produto separadas por escolha',()=>{
+  const {client}=loadClient();
+  client.apiActive=true;
+  const product={id:'custom',name:'Porção',sale_price:20,current_stock:10,option_groups:[
+    {key:'size',label:'Escolha o tamanho',type:'radio',required:true,options:[
+      {value:'P',label:'Pequena',priceMode:'base'},
+      {value:'G',label:'Grande',priceMode:'replace',priceProductId:'custom-g'},
+    ]},
+    {key:'drink',label:'Bebida adicional',type:'radio',required:false,options:[
+      {value:'none',label:'Sem bebida',priceMode:'base'},
+      {value:'cola',label:'Cola',priceMode:'add',priceProductId:'cola'},
+    ]},
+  ]};
+  client.products=[product,{id:'custom-g',name:'Porção Grande',sale_price:30},{id:'cola',name:'Cola',sale_price:6}];
+  const config=client.customizationConfig(product);
+  assert.equal(config.groups[0].label,'Escolha o tamanho');
+  assert.match(config.groups[0].options[1][1],/R\$\s?30/);
+  assert.equal(client.productUnitPrice(product,{size:'G',drink:'cola'}),36);
+  client.change('custom',1,{size:'P',drink:'none'});
+  client.change('custom',1,{size:'G',drink:'cola'});
+  assert.equal(client.cartData().length,2);
+  assert.equal(client.subtotal(),56);
+});
+
 test('Batata Frita aparece uma vez e oferece P 300g e G 500g', async () => {
   const { client, element } = loadClient();
   client.fetchPublic = async path => path.endsWith('storefront')

@@ -13,7 +13,7 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
     if(sql.includes('FROM promotion_groups g'))return {rows:groups};
     if(sql.includes('LEFT JOIN technical_sheets'))return {rows:costs};
     if(sql.includes('SELECT id,name,category,sale_price,current_stock'))return {rows:products.filter(product=>params[0].includes(product.id))};
-    if(sql.includes('SELECT id,sale_price FROM products'))return {rows:variants.filter(product=>params[0].includes(product.id))};
+    if(sql.includes('SELECT id,sale_price,current_stock FROM products'))return {rows:variants.filter(product=>params[0].includes(product.id))};
     if(sql.includes('SELECT p.* FROM promotions p WHERE id=ANY')){
       assert.match(sql,/FROM promotions\s+p\s+WHERE[\s\S]*p\.active=true/);
       return {rows:promotions.filter(promotion=>params[0].includes(promotion.id)).map(promotion=>({
