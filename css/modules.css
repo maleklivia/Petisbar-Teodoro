@@ -198,6 +198,42 @@
   height: 24px;
 }
 
+.product-photo-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.product-photo-icon--editor {
+  width: 104px;
+  height: 104px;
+  border-radius: var(--radius-md);
+}
+
+.product-photo-editor__controls {
+  display: grid;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.product-photo-editor__controls small {
+  color: var(--text-muted);
+}
+
+.product-photo-editor__controls button {
+  justify-self: start;
+}
+
+@media (max-width: 520px) {
+  .product-photo-editor {
+    flex-direction: column;
+  }
+}
+
 /* ── Ficha Layout ────────────────────────────────────────────── */
 
 .ficha-layout {
