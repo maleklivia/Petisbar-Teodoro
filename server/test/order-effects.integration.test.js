@@ -186,7 +186,7 @@ integrationTest('conclusão e cancelamento são atômicos e idempotentes', async
       ('option-effect-addon','Adicional configurável','Teste',1,1)`);
     await client.query(`INSERT INTO technical_sheets(id,product_id,yield) VALUES('option-effect-sheet','option-effect-variant',1)`);
     await client.query(`INSERT INTO technical_sheet_items(sheet_id,ingredient_id,quantity,unit) VALUES('option-effect-sheet','option-effect-ingredient',100,'g')`);
-    await client.query(`INSERT INTO orders(id,order_number,source,client_name,status,subtotal,total) VALUES('option-effect-order',900008,'Cardápio Digital','Teste','Novo',16,16)`);
+    await client.query(`INSERT INTO orders(id,order_number,source,client_name,status,subtotal,total) VALUES('option-effect-order',900008,'Cardápio Digital','Teste','Pronto',16,16)`);
     await client.query(`INSERT INTO order_items(order_id,product_id,name,quantity,unit_price,subtotal,options) VALUES
       ('option-effect-order','option-effect-base','Base configurável',1,16,16,
        '{"_stockEffects":[{"productId":"option-effect-variant","mode":"replace","currentStock":null},{"productId":"option-effect-addon","mode":"add","currentStock":1}]}'::jsonb)`);
