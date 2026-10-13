@@ -98,10 +98,11 @@ const OcrService = {
   async processar(file, onProgress) {
     await this._carregarTesseract();
     const imagemPreparada = await this.prepararImagem(file);
+    const asset = nome => new URL(`/js/vendor/tesseract/${nome}`, window.location.origin).href;
     const worker = await Tesseract.createWorker('por', 1, {
-      workerPath: '/js/vendor/tesseract/worker.min.js',
-      corePath: '/js/vendor/tesseract/tesseract-core.wasm.js',
-      langPath: '/js/vendor/tesseract',
+      workerPath: asset('worker.min.js'),
+      corePath: asset('tesseract-core.wasm.js'),
+      langPath: new URL('/js/vendor/tesseract', window.location.origin).href,
       logger: m => {
         if (onProgress && m.status === 'recognizing text') {
           onProgress(Math.round(m.progress * 100));

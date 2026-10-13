@@ -664,7 +664,8 @@ const ComprasModule = {
       this._mostrarRevisaoCupom(itens, total, fiscal);
     } catch (err) {
       if (document.getElementById('ocr-overlay')) document.body.removeChild(overlay);
-      UI.toast('Erro ao processar imagem: ' + (err.message || 'desconhecido'), 'error');
+      const detalhe = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'erro desconhecido';
+      UI.toast('Erro ao processar imagem: ' + detalhe, 'error');
     }
   },
 
