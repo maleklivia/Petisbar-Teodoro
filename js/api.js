@@ -165,6 +165,24 @@ const API = {
     return (await this._request('/recipe-cards')).data;
   },
 
+  async saveServerRecipeCard(card) {
+    return (await this._request(`/recipe-cards/${encodeURIComponent(card.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: card.name, productId: card.productId || null, status: card.status,
+        outputYield: card.outputYield ?? null, outputUnit: card.outputUnit || null,
+        packagingCapacity: card.packagingCapacity ?? null,
+        packagingCapacityUnit: card.packagingCapacityUnit || null,
+        preparationMethod: card.preparationMethod || '', pendingNotes: card.pendingNotes || '',
+        items: (card.items || []).map(item => ({
+          id: item.id, itemName: item.itemName, ingredientId: item.ingredientId || null,
+          preparationId: item.preparationId || null, quantity: item.quantity ?? null,
+          unit: item.unit || null, isPackaging: !!item.isPackaging, pendingNote: item.pendingNote || '',
+        })),
+      }),
+    })).data;
+  },
+
   async saveServerTechnicalSheet(sheet) {
     return this._mapServerTechnicalSheet((await this._request(`/technical-sheets/${encodeURIComponent(sheet.produtoId)}`, {
       method: 'PUT',

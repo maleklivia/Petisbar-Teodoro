@@ -1,6 +1,6 @@
 # Receitas do curso de batatas recheadas
 
-O ERP importa o conteúdo transcrito dos e-books liberados do curso Batatona’s em uma área de conferência dentro de **Produtos → Fichas Técnicas**.
+O ERP importa o conteúdo transcrito dos e-books liberados do curso Batatona’s para consulta e edição em **Produtos → Fichas Técnicas**, usando a mesma lista lateral e tabela de ingredientes das demais fichas.
 
 ## O que é importado
 
@@ -9,7 +9,7 @@ O ERP importa o conteúdo transcrito dos e-books liberados do curso Batatona’s
 - Onze fichas de produtos, com quantidades confirmadas preservadas e pendências visíveis.
 - Materiais de venda em linhas separadas dos ingredientes.
 
-As fichas do curso ficam em `recipe_cards` e `recipe_card_items`, com códigos de origem estáveis e importação idempotente executada junto às migrations. O vínculo com um ingrediente só é feito quando há exatamente um nome igual no cadastro. Correspondências ausentes ou ambíguas ficam pendentes para revisão.
+As receitas são preservadas em `recipe_cards` e `recipe_card_items`, com códigos de origem estáveis e importação idempotente executada junto às migrations. Essa organização interna mantém as preparações intermediárias e os rendimentos por lote sem alterar fichas de produtos já existentes. A interface as apresenta no editor padrão de fichas. O vínculo com um ingrediente só é feito quando há exatamente um nome igual no cadastro. Correspondências ausentes ou ambíguas ficam pendentes para revisão.
 
 ## Separação e segurança operacional
 
@@ -25,4 +25,4 @@ A capacidade de 500 ml da cumbuca é exibida como capacidade da embalagem, sem t
 
 ## Como aplicar
 
-Na implantação futura, `server/scripts/migrate.js` aplica a migration PostgreSQL `020_course_recipe_cards.sql` e importa as fichas do curso dentro de uma transação repetível. Abrir **Produtos → Fichas Técnicas → Receitas do curso** permite revisar o conteúdo e as pendências. Nenhuma ativação automática ocorre.
+`server/scripts/migrate.js` aplica a migration PostgreSQL `020_course_recipe_cards.sql` e importa as fichas do curso dentro de uma transação repetível. Em **Produtos → Fichas Técnicas**, use a busca lateral para localizar as preparações e receitas importadas e editar/salvar seus dados. Nenhuma alteração ativa automaticamente um produto no cardápio.
