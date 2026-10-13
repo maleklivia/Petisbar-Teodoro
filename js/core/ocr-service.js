@@ -103,6 +103,7 @@ const OcrService = {
       workerPath: asset('worker.min.js'),
       corePath: asset('tesseract-core.wasm.js'),
       langPath: new URL('/js/vendor/tesseract', window.location.origin).href,
+      workerBlobURL: false,
       logger: m => {
         if (onProgress && m.status === 'recognizing text') {
           onProgress(Math.round(m.progress * 100));
