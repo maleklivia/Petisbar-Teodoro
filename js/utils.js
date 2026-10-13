@@ -115,7 +115,9 @@ const Utils = {
 
   productPhoto(product, modifier = '') {
     const photo = typeof product?.foto === 'string' ? product.foto : '';
-    const safeLocalPhoto = /^\.\.\/assets\/products\/[a-z0-9._-]+$/i.test(photo);
+    const safeLocalPhoto = /^\.\.\/assets\/products\/[a-z0-9._-]+$/i.test(photo)
+      || /^\/api\/v1\/public\/products\/(?:[a-z0-9._~-]|%[a-f0-9]{2})+\/photo(?:\?v=[a-f0-9]{64})?$/i.test(photo)
+      || (photo.length <= 1_400_000 && /^data:image\/jpeg;base64,[a-z0-9+/]+={0,2}$/i.test(photo));
     const className = `product-photo-icon${modifier ? ` ${modifier}` : ''}`;
     const label = `Foto de ${this.escapeHtml(product?.nome || 'produto')}`;
     const content = safeLocalPhoto
