@@ -26,7 +26,15 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
       catch (error) { if (error.code !== '23505') throw error; }
     }
     const files = (await readdir(migrationsDir)).filter(name => name.endsWith('.sql')).sort();
-    for (const file of files) await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
+    for (const file of files) {
+      // The production catalog already owns this soda SKU; the empty migration
+      // schema needs a fixture so the combo migration can reference that row.
+      if (file === '023_combo_duas_batatas_refrigerante.sql') {
+        await client.query(`INSERT INTO ${schema}.products(id,sku,name,category,description,sale_price,active)
+          VALUES('p-ref001','REF001','Refrigerante lata','Refrigerantes','Refrigerante lata 350ml',5.00,true)`);
+      }
+      await client.query(withoutTransaction(await readFile(join(migrationsDir, file), 'utf8')));
+    }
 
     const legacy = await client.query(`
       SELECT o.id, o.status, oi.name AS item_name, p.name AS product_name, c.name AS client_name
@@ -37,6 +45,37 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
       LIMIT 1
     `);
     assert.ok(legacy.rows.length >= 0);
+
+    const potatoCombo = await client.query(`
+      SELECT p.name,p.combo_price,
+        g.code,g.required_quantity,g.max_quantity,g.allow_same_product,
+        count(gp.product_id) FILTER (WHERE pr.active=true)::int AS active_products
+      FROM ${schema}.promotions p
+      JOIN ${schema}.promotion_groups g ON g.promotion_id=p.id AND g.active=true
+      LEFT JOIN ${schema}.promotion_group_products gp ON gp.group_id=g.id
+      LEFT JOIN ${schema}.products pr ON pr.id=gp.product_id
+      WHERE p.code='COMBO-BATATA-RECHEADA'
+      GROUP BY p.id,g.id ORDER BY g.code
+    `);
+    assert.equal(potatoCombo.rowCount, 2);
+    const potatoGroup = potatoCombo.rows.find(row => row.code === 'batata');
+    assert.equal(potatoGroup.required_quantity, 2);
+    assert.equal(potatoGroup.max_quantity, 2);
+    assert.equal(potatoGroup.allow_same_product, true);
+    assert.equal(potatoGroup.active_products, 5);
+    const sodaGroup = potatoCombo.rows.find(row => row.code === 'refrigerante');
+    assert.equal(sodaGroup.required_quantity, 1);
+    assert.equal(sodaGroup.max_quantity, 1);
+    assert.equal(sodaGroup.active_products, 1);
+    assert.equal(Number(potatoGroup.combo_price), 57.76);
+    const minimumNormal = await client.query(`
+      SELECT 2*MIN(sale_price) FILTER (WHERE category='BATATAS RECHEADAS')
+        + MIN(sale_price) FILTER (WHERE category='Refrigerantes') AS normal_price
+      FROM ${schema}.products WHERE active=true
+    `);
+    assert.equal(Number(minimumNormal.rows[0].normal_price), 60.8);
+    assert.equal(Math.round(Number(minimumNormal.rows[0].normal_price) * 0.95 * 100) / 100, 57.76);
+
     const tables = await client.query(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema=$1 AND table_name = ANY($2::text[])
