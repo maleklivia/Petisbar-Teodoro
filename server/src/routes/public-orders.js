@@ -6,15 +6,7 @@ import { calculatePromotions, couponCanStack } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
 import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
 
-const optionSchema = z.object({
-  flavor: z.enum(['natural', 'morango', 'maracuja']).optional(),
-  sodaFlavor: z.enum(['coca-cola', 'guarana', 'sprite']).optional(),
-  complement: z.array(z.enum(['leite-condensado', 'leite-em-po', 'granola', 'pacoca'])).max(4).optional(),
-  size: z.enum(['P', 'G', '500ml', '700ml']).optional(),
-  beverage: z.enum(['vodka', 'whisky']).optional(),
-  iceFlavor: z.enum(['coco', 'maracuja']).optional(),
-  drink: z.enum(['none', 'coca-cola', 'guarana', 'agua']).optional(),
-}).default({});
+const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
 const comboSchema = z.object({ promotionId:z.string().uuid(), selections:z.array(z.object({ groupId:z.string().uuid(), items:z.array(z.object({ productId:z.string().min(1).max(100),quantity:z.number().int().min(1).max(20),flavoredIce:z.boolean().default(false),options:optionSchema })).min(1).max(30) })).min(1).max(20) });
 const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).max(30), combos:z.array(comboSchema).max(10).default([]) }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
@@ -35,23 +27,6 @@ const normalizePhone = value => {
   return digits;
 };
 const validPhone = phone => phone.length === 10 || phone.length === 11;
-const optionError = item => {
-  const options = item.options || {};
-  if (item.productId === 'p-aca001' && !options.flavor) return 'product_options_required';
-  if (item.productId === 'p-ref001' && !options.sodaFlavor) return 'product_options_required';
-  if (['p-drk001','p-drk002','p-drk003','p-drk004','p-drk005','p-drk006'].includes(item.productId) && !options.flavor) return 'product_options_required';
-  if (['p-drk010','p-drk011'].includes(item.productId) && (!options.size || !options.beverage || !options.iceFlavor)) return 'product_options_required';
-  if (['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId) && !['P','G'].includes(options.size)) return 'product_options_required';
-  const validKeys={
-    'p-aca001':['flavor','complement'],'p-ref001':['sodaFlavor'],
-    'p-drk001':['flavor'],'p-drk004':['flavor'],'p-drk005':['flavor'],'p-drk006':['flavor'],
-    'p-drk010':['size','beverage','iceFlavor'],'p-drk011':['size','beverage','iceFlavor'],
-    'p-pet001':['size'],'p-pet002':['size','drink'],
-  }[item.productId]||[];
-  if(Object.keys(options).some(key=>!validKeys.includes(key)))return 'product_options_invalid';
-  return '';
-};
-
 async function findCoupon(db, code, lock = false) {
   const { rows } = await db.query(`SELECT id,code,discount_percent,max_discount,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
   return rows[0] || null;
@@ -102,12 +77,13 @@ export default async function publicOrderRoutes(app) {
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
   app.get('/public/catalog', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const [catalog, variants] = await Promise.all([
-      app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock FROM products WHERE active=true ORDER BY category,name'),
-      app.db.query("SELECT id,sale_price FROM products WHERE id=ANY($1::text[])", [['p-pet006','p-pet007','p-drk002','p-drk003','p-drk011','p-ref005','p-ref002','p-ref003','p-agu001']]),
-    ]);
+    const catalog=await app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock,option_groups FROM products WHERE active=true ORDER BY category,name');
+    const configuredIds=catalog.rows.flatMap(product=>(product.option_groups||[]).flatMap(group=>(group.options||[]).map(option=>option.priceProductId).filter(Boolean)));
+    const variantIds=[...new Set([...configuredIds,'p-pet006','p-pet007','p-drk002','p-drk003','p-drk011','p-ref005','p-ref002','p-ref003','p-agu001'])];
+    const variants=await app.db.query('SELECT id,sale_price FROM products WHERE id=ANY($1::text[])',[variantIds]);
     const prices = Object.fromEntries(variants.rows.map(row => [row.id, Number(row.sale_price)]));
     return {data:catalog.rows.map(product => ({...product,
+      option_groups:(product.option_groups||[]).map(group=>({...group,options:(group.options||[]).map(option=>({...option,priceProductPrice:option.priceProductId?prices[option.priceProductId]:null}))})),
       option_prices:product.id==='p-drk001' ? {flavors:{morango:prices['p-drk002'],maracuja:prices['p-drk003']}}
         : product.id==='p-pet001' ? {G:prices['p-pet006']}
         : product.id==='p-pet002' ? {G:prices['p-pet007'],drinks:{'coca-cola':prices['p-ref005'],guarana:prices['p-ref002'],agua:prices['p-agu001']}}
@@ -118,8 +94,6 @@ export default async function publicOrderRoutes(app) {
 
   app.post('/public/coupons/validate', { config:{rateLimit:{max:20,timeWindow:'1 minute'}} }, async (request,reply) => {
     const parsed=couponSchema.safeParse(request.body); if(!parsed.success)return reply.code(400).send({error:'validation_error'});
-    const invalidOptions=parsed.data.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
-    const invalidComboOptions=parsed.data.combos.flatMap(combo=>combo.selections.flatMap(group=>group.items)).find(optionError);if(invalidComboOptions)return reply.code(400).send({error:optionError(invalidComboOptions)});
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
@@ -137,8 +111,6 @@ export default async function publicOrderRoutes(app) {
     const rawIdempotencyKey=request.headers['idempotency-key'];
     const idempotencyKey=typeof rawIdempotencyKey==='string'&&idempotencySchema.safeParse(rawIdempotencyKey).success?rawIdempotencyKey:null;
     const requestHash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
-    const invalidOptions=input.items.find(optionError); if(invalidOptions)return reply.code(400).send({error:optionError(invalidOptions)});
-    const invalidComboOptions=input.combos.flatMap(combo=>combo.selections.flatMap(group=>group.items)).find(optionError);if(invalidComboOptions)return reply.code(400).send({error:optionError(invalidComboOptions)});
     const phone=normalizePhone(input.customer.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     if(input.fulfillmentType==='entrega'&&(!input.address.postalCode||!input.address.city||!input.address.street||!input.address.number||!input.address.district))return reply.code(400).send({error:'delivery_address_required'});
     const client=await app.db.connect();
