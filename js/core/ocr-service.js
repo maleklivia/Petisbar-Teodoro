@@ -11,13 +11,25 @@ const OcrService = {
 
   async _carregarTesseract() {
     if (this._ready || typeof Tesseract !== 'undefined') { this._ready = true; return; }
-    await new Promise((resolve, reject) => {
-      const s    = document.createElement('script');
-      s.src      = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      s.onload   = () => { this._ready = true; resolve(); };
-      s.onerror  = () => reject(new Error('Falha ao carregar Tesseract.js'));
-      document.head.appendChild(s);
-    });
+    const fontes = [
+      'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
+      'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
+    ];
+    let ultimoErro;
+    for (const src of fontes) {
+      try {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = () => reject(new Error(`Falha ao carregar OCR: ${src}`));
+          document.head.appendChild(s);
+        });
+        this._ready = true;
+        return;
+      } catch (error) { ultimoErro = error; }
+    }
+    throw new Error(`Falha ao carregar Tesseract.js${ultimoErro ? `: ${ultimoErro.message}` : ''}`);
   },
 
   async _carregarJsQR() {
