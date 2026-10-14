@@ -256,7 +256,8 @@ const OcrService = {
     if (!itens.length) {
       for (let i = 0; i < linhas.length; i++) {
         const linha = linhas[i];
-        const qtdMatch = linha.match(/^(.*?)\s+x\s*(\d+)\s*$/i);
+        const qtdMatch = linha.match(/^(.*?)\s+x\s*(\d+)\s*$/i)
+          || (linhas[i + 1] || '').match(/^x\s*(\d+)\s*$/i) && [null, linha, (linhas[i + 1] || '').match(/^x\s*(\d+)\s*$/i)[1]];
         if (!qtdMatch) continue;
         const nome = qtdMatch[1].replace(/\s+/g, ' ').trim();
         if (nome.length < 3 || /^(subtotal|total|frete|desconto|pedido)$/i.test(nome)) continue;
