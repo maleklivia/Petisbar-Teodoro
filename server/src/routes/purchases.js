@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 
@@ -156,6 +157,24 @@ async function applyReceipt(client, purchase, userId) {
 }
 
 export default async function purchasesRoutes(app) {
+  app.post('/purchases/ocr', { preHandler: requirePermission('purchases.manage') }, async (request, reply) => {
+    const apiKey = process.env.GOOGLE_VISION_API_KEY || (() => { try { return readFileSync('/etc/petisbar/google-vision-api-key', 'utf8').trim(); } catch { return ''; } })();
+    if (!apiKey) return reply.code(503).send({ error: 'ocr_not_configured' });
+    const body = request.body || {};
+    if (typeof body.imageBase64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(body.imageBase64)) {
+      return reply.code(400).send({ error: 'invalid_image' });
+    }
+    if (body.imageBase64.length > 8 * 1024 * 1024) return reply.code(413).send({ error: 'image_too_large' });
+    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ requests: [{ image: { content: body.imageBase64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return reply.code(502).send({ error: 'ocr_provider_error' });
+    const result = payload.responses?.[0] || {};
+    if (result.error) return reply.code(502).send({ error: 'ocr_provider_error' });
+    return { data: { text: result.fullTextAnnotation?.text || result.textAnnotations?.[0]?.description || '' } };
+  });
   app.get('/purchases', { preHandler: requirePermission('purchases.manage') }, async () => {
     const { rows } = await app.db.query(`
       SELECT p.*,

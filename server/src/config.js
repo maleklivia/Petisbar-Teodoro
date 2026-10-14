@@ -27,6 +27,7 @@ const schema = z.object({
   MAIL_USER: z.union([z.string().email(), z.literal('')]).default(''),
   MAIL_PASSWORD: z.string().default(''),
   MAIL_FROM: z.string().email().default('petisbarteodoro@gmail.com'),
+  GOOGLE_VISION_API_KEY: z.string().default(''),
 }).superRefine((value, context) => {
   if (value.IFOOD_ENABLED && (!value.IFOOD_CLIENT_ID || !value.IFOOD_CLIENT_SECRET || !value.IFOOD_MERCHANT_ID)) {
     context.addIssue({ code: 'custom', message: 'Credenciais do iFood são obrigatórias quando IFOOD_ENABLED=true' });

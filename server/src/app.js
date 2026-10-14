@@ -29,7 +29,7 @@ import recipeCardRoutes from './routes/recipe-cards.js';
 import { startIfoodWorker } from './services/ifood-worker.js';
 
 export async function buildApp() {
-  const app = Fastify({ logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
+  const app = Fastify({ bodyLimit: 10 * 1024 * 1024, logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
   app.decorate('db', db);
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cookie, { secret: config.COOKIE_SECRET, hook: 'onRequest' });

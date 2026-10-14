@@ -637,7 +637,7 @@ const ComprasModule = {
       const qr = await OcrService.lerQr(file).catch(() => null);
       const statusEl = document.getElementById('ocr-status');
       if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
-      const texto = await OcrService.processar(file, pct => {
+      const texto = await this._processarOcrServidor(file, pct => {
         const bar = document.getElementById('ocr-bar');
         const pctEl = document.getElementById('ocr-pct');
         if (bar) bar.style.width = pct + '%';
@@ -667,6 +667,18 @@ const ComprasModule = {
       const detalhe = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'erro desconhecido';
       UI.toast('Erro ao processar imagem: ' + detalhe, 'error');
     }
+  },
+
+  async _processarOcrServidor(file, onProgress) {
+    onProgress?.(10);
+    const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
+    const imageBase64 = String(dataUrl).split(',')[1] || '';
+    onProgress?.(25);
+    const response = await fetch('../api/v1/purchases/ocr', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ imageBase64 }) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error === 'ocr_not_configured' ? 'OCR do servidor ainda não configurado' : payload.error || 'Falha no OCR do servidor');
+    onProgress?.(100);
+    return payload.data?.text || '';
   },
 
   _mostrarRevisaoCupom(itens, total, fiscal = {}) {
