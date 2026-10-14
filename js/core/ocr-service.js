@@ -120,7 +120,7 @@ const OcrService = {
       const imagemParaOCR = imagemPreparada.toDataURL('image/png');
       const resultado = await Promise.race([
         worker.recognize(imagemParaOCR),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('OCR demorou mais de 90 segundos')), 90000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('OCR não respondeu em 15 segundos; use Nova Compra para cadastrar este comprovante')), 15000)),
       ]);
       return resultado.data.text;
     } finally {
