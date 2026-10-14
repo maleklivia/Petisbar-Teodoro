@@ -115,8 +115,11 @@ const OcrService = {
           }
         },
       });
+      // Enviar uma string/data URL evita que o canvas seja transferido como
+      // objeto complexo para o Web Worker em navegadores com CSP restritivo.
+      const imagemParaOCR = imagemPreparada.toDataURL('image/png');
       const resultado = await Promise.race([
-        worker.recognize(imagemPreparada),
+        worker.recognize(imagemParaOCR),
         new Promise((_, reject) => setTimeout(() => reject(new Error('OCR demorou mais de 90 segundos')), 90000)),
       ]);
       return resultado.data.text;
