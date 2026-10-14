@@ -83,7 +83,9 @@ const OcrService = {
   },
 
   async prepararImagem(file) {
-    const { canvas, ctx } = await this._desenharImagem(file);
+    // 1600 px é suficiente para texto de cupom/print e evita travar o worker
+    // em imagens grandes de celular ou capturas de tela.
+    const { canvas, ctx } = await this._desenharImagem(file, 1600);
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = image.data;
     for (let i = 0; i < pixels.length; i += 4) {
@@ -98,21 +100,29 @@ const OcrService = {
   async processar(file, onProgress) {
     await this._carregarTesseract();
     const imagemPreparada = await this.prepararImagem(file);
+    onProgress?.(1);
     const asset = nome => new URL(`/js/vendor/tesseract/${nome}`, window.location.origin).href;
-    const worker = await Tesseract.createWorker('por', 1, {
-      workerPath: asset('worker.min.js'),
-      corePath: asset('tesseract-core.wasm.js'),
-      langPath: new URL('/js/vendor/tesseract', window.location.origin).href,
-      workerBlobURL: false,
-      logger: m => {
-        if (onProgress && m.status === 'recognizing text') {
-          onProgress(Math.round(m.progress * 100));
-        }
-      },
-    });
-    const { data: { text } } = await worker.recognize(imagemPreparada);
-    await worker.terminate();
-    return text;
+    let worker;
+    try {
+      worker = await Tesseract.createWorker('por', 1, {
+        workerPath: asset('worker.min.js'),
+        corePath: asset('tesseract-core.wasm.js'),
+        langPath: new URL('/js/vendor/tesseract', window.location.origin).href,
+        workerBlobURL: false,
+        logger: m => {
+          if (onProgress && m.status === 'recognizing text') {
+            onProgress(Math.max(1, Math.round(m.progress * 100)));
+          }
+        },
+      });
+      const resultado = await Promise.race([
+        worker.recognize(imagemPreparada),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('OCR demorou mais de 90 segundos')), 90000)),
+      ]);
+      return resultado.data.text;
+    } finally {
+      await worker?.terminate().catch(() => {});
+    }
   },
 
   parsearCupom(texto) {
