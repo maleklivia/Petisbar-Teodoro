@@ -2,6 +2,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { db } from '../db.js';
 import { config, isProduction } from '../config.js';
 
+// Mantém compatibilidade com versões do middleware de autenticação que importam
+// isProduction deste módulo.
+export { isProduction };
+
 export const SESSION_COOKIE = 'petisbar_session';
 export const hashToken = token => createHash('sha256').update(token).digest('hex');
 export const createToken = () => randomBytes(32).toString('base64url');
