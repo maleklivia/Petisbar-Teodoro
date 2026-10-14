@@ -253,7 +253,7 @@ const OcrService = {
 
     // Pedido online (Shopee): a tela traz descrição, "xN" e valores em linhas separadas.
     // Não exige QR Code nem formato fiscal; o Vision apenas fornece o texto da página.
-    if (!itens.length && /shopee|pedido criado|preparando o pedido/i.test(texto)) {
+    if (!itens.length && /shopee|pedido criado|preparando o pedido|subtotal dos produtos|endereço de entrega/i.test(texto)) {
       for (let i = 0; i < linhas.length; i++) {
         const linha = linhas[i];
         const qtdMatch = linha.match(/^(.*?)\s+x\s*(\d+)\s*$/i);
