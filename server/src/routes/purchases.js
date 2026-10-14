@@ -165,14 +165,31 @@ export default async function purchasesRoutes(app) {
       return reply.code(400).send({ error: 'invalid_image' });
     }
     if (body.imageBase64.length > 8 * 1024 * 1024) return reply.code(413).send({ error: 'image_too_large' });
-    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ requests: [{ image: { content: body.imageBase64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let response;
+    try {
+      response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ requests: [{ image: { content: body.imageBase64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      request.log.error({ err: error }, 'Cloud Vision request failed');
+      return reply.code(502).send({ error: error?.name === 'AbortError' ? 'ocr_provider_timeout' : 'ocr_provider_unavailable' });
+    } finally {
+      clearTimeout(timeout);
+    }
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return reply.code(502).send({ error: 'ocr_provider_error' });
+    if (!response.ok) {
+      request.log.error({ status: response.status, providerError: payload?.error?.status || payload?.error?.message }, 'Cloud Vision returned an error');
+      return reply.code(502).send({ error: 'ocr_provider_error' });
+    }
     const result = payload.responses?.[0] || {};
-    if (result.error) return reply.code(502).send({ error: 'ocr_provider_error' });
+    if (result.error) {
+      request.log.error({ providerError: result.error }, 'Cloud Vision response contained an error');
+      return reply.code(502).send({ error: 'ocr_provider_error' });
+    }
     return { data: { text: result.fullTextAnnotation?.text || result.textAnnotations?.[0]?.description || '' } };
   });
   app.get('/purchases', { preHandler: requirePermission('purchases.manage') }, async () => {
