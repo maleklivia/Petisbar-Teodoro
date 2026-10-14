@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 
 const purchaseItemSchema = z.object({
-  ingredienteId: z.string().min(1).max(100).optional(),
-  produtoId: z.string().min(1).max(100).optional(),
+  ingredienteId: z.string().max(100).optional().transform(value => value || undefined),
+  produtoId: z.string().max(100).optional().transform(value => value || undefined),
   nome: z.string().min(1).max(200).optional(),
   quantidade: z.number().positive(),
   unidade: z.string().min(1).max(20),
