@@ -112,7 +112,6 @@ const ComprasModule = {
         </select>
         <span style="flex:1"></span>
         ${this._canWrite ? '<button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Comprovante</button>' : ''}
-        ${this._canWrite ? '<button class="btn btn-ghost" id="btn-gerar-automatico">⚡ Gerar Automático</button>' : ''}
         ${this._canWrite ? '<button class="btn btn-primary" id="btn-nova-compra">+ Nova Compra</button>' : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
