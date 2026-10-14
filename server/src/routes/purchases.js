@@ -182,7 +182,7 @@ export default async function purchasesRoutes(app) {
     }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      request.log.error({ status: response.status, providerError: payload?.error?.status || payload?.error?.message }, 'Cloud Vision returned an error');
+      request.log.error({ status: response.status, providerError: payload?.error?.status, providerMessage: payload?.error?.message }, 'Cloud Vision returned an error');
       return reply.code(502).send({ error: 'ocr_provider_error' });
     }
     const result = payload.responses?.[0] || {};
