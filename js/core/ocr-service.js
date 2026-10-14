@@ -8,6 +8,18 @@
 const OcrService = {
   _ready: false,
   _qrReady: false,
+  _ocradReady: false,
+
+  async _carregarOcrad() {
+    if (this._ocradReady || typeof OCRAD !== 'undefined') { this._ocradReady = true; return; }
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = '/js/vendor/ocrad/ocrad.js';
+      script.onload = () => { this._ocradReady = true; resolve(); };
+      script.onerror = () => reject(new Error('Falha ao carregar OCR local'));
+      document.head.appendChild(script);
+    });
+  },
 
   async _carregarTesseract() {
     if (this._ready || typeof Tesseract !== 'undefined') { this._ready = true; return; }
@@ -98,9 +110,16 @@ const OcrService = {
   },
 
   async processar(file, onProgress) {
-    await this._carregarTesseract();
     const imagemPreparada = await this.prepararImagem(file);
     onProgress?.(1);
+    // OCRAD é local e não usa Web Worker/WASM; funciona como caminho rápido
+    // para prints de lojas e comprovantes online.
+    try {
+      await this._carregarOcrad();
+      const textoLocal = OCRAD(imagemPreparada);
+      if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
+    } catch (_) { /* tenta Tesseract como segunda opção */ }
+    await this._carregarTesseract();
     const asset = nome => new URL(`/js/vendor/tesseract/${nome}`, window.location.origin).href;
     let worker;
     try {
