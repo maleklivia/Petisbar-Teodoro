@@ -27,7 +27,7 @@ const purchaseSchema = z.object({
   for (let index = 0; index < purchase.itens.length; index += 1) {
     const item = purchase.itens[index];
     const itemId = item.produtoId || item.ingredienteId;
-    if (!itemId) {
+    if (!itemId && !item.nome) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe um ingrediente ou produto', path: ['itens', index] });
       continue;
     }
@@ -101,16 +101,18 @@ async function fetchPurchase(client, id) {
 
 async function insertPurchaseItems(client, purchaseId, items) {
   for (const item of items) {
-    const source = item.produtoId ? 'products' : 'ingredients';
+    const source = item.produtoId ? 'products' : item.ingredienteId ? 'ingredients' : null;
     const sourceId = item.produtoId || item.ingredienteId;
-    const sourceRow = await client.query(`SELECT name, ${source === 'products' ? "'un'" : 'unit'} AS unit, ${source === 'products' ? 'sale_price' : 'unit_cost'} AS cost FROM ${source} WHERE id=$1`, [sourceId]);
-    if (!sourceRow.rowCount) throw new Error(`Item não encontrado: ${sourceId}`);
+    const sourceRow = source
+      ? await client.query(`SELECT name, ${source === 'products' ? "'un'" : 'unit'} AS unit FROM ${source} WHERE id=$1`, [sourceId])
+      : { rowCount: 0, rows: [] };
+    if (source && !sourceRow.rowCount) throw new Error(`Item não encontrado: ${sourceId}`);
     const name = item.nome || sourceRow.rows[0].name;
     const subtotal = item.quantidade * item.custoUnitario;
     await client.query(`
       INSERT INTO purchase_items (purchase_id, ingredient_id, product_id, name, quantity, unit, unit_cost, subtotal)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    `, [purchaseId, item.ingredienteId || null, item.produtoId || null, name, item.quantidade, item.unidade || sourceRow.rows[0].unit, item.custoUnitario, subtotal]);
+    `, [purchaseId, item.ingredienteId || null, item.produtoId || null, name, item.quantidade, item.unidade || sourceRow.rows[0]?.unit || 'un', item.custoUnitario, subtotal]);
   }
 }
 
