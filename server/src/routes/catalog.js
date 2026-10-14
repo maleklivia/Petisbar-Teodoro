@@ -151,7 +151,7 @@ export default async function catalogRoutes(app) {
         option_groups=EXCLUDED.option_groups, updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,p.precoIfood??null,p.ativoIfood,p.optionGroups]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups)]);
     if(photoInput.bytes){
       await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256)
         VALUES($1,$2,$3) ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,

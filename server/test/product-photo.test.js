@@ -31,6 +31,7 @@ test('salva a foto junto do produto, entrega o JPEG público e remove a foto ao 
       if (sql.startsWith('SELECT id FROM products WHERE id=ANY')) return { rows: [], rowCount: 0 };
       if (sql.includes('INSERT INTO products')) {
         const product = { id: params[0], photo_url: params[11] };
+        product.option_groups = params[14];
         products.set(product.id, product);
         return { rows: [product], rowCount: 1 };
       }
@@ -69,6 +70,7 @@ test('salva a foto junto do produto, entrega o JPEG público e remove a foto ao 
   const product = { id: 'p-photo-test', nome: 'Produto teste', categoria: 'Petiscos', precoVenda: 10, foto: dataUrl, optionGroups: [] };
   const saved = await save.handler({ body: product }, reply);
   assert.equal(statusCode, 201);
+  assert.equal(saved.data.option_groups, '[]', 'optionGroups vazio deve chegar como JSON array ao PostgreSQL');
   assert.equal(saved.data.photo_url, `/api/v1/public/products/${product.id}/photo?v=${photos.get(product.id).sha256}`);
   assert.deepEqual(photos.get(product.id).image_bytes, jpeg);
   const productInsert = calls.findIndex(sql => sql.includes('INSERT INTO products'));
