@@ -255,8 +255,9 @@ const FichasModule = {
     const preparation=this._receitasCurso.find(item=>item.id===(nameChanged?'':row.dataset.preparationId));
     const quantity=Number(get('quantity').value);
     const unit=get('unit').value;
-    const unitCost=ingredient?calcIngredienteCost(ingredient,1,unit):preparation?.cost?.unit??null;
-    const subtotal=!(quantity>0)?null:ingredient?calcIngredienteCost(ingredient,quantity,unit):preparation?.cost?.unit!=null?preparation.cost.unit*quantity:null;
+    const preparationUnitCost=preparation?(preparation.cost?.complete?preparation.cost.unit:preparation.cost?.partialUnit):null;
+    const unitCost=ingredient?calcIngredienteCost(ingredient,1,unit):preparationUnitCost;
+    const subtotal=!(quantity>0)?null:ingredient?calcIngredienteCost(ingredient,quantity,unit):preparationUnitCost!=null?preparationUnitCost*quantity:null;
     row.cells[3].textContent=unitCost==null?'—':Utils.currencyCost(unitCost);
     row.cells[4].textContent=subtotal==null?'—':Utils.currencyCost(subtotal);
   },
@@ -264,12 +265,13 @@ const FichasModule = {
   _renderCourseRecipeRow(card,item,index){
     const ingredient=this._ingredientes.find(row=>row.id===item.ingredientId);
     const preparation=this._receitasCurso.find(row=>row.id===item.preparationId);
-    const unitCost=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,1,item.unit):preparation?.cost?.unit??null;
-    const subtotal=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,item.quantity,item.unit):preparation&&item.quantity!==null&&preparation.cost?.unit!=null?preparation.cost.unit*item.quantity:null;
+    const preparationUnitCost=preparation?(preparation.cost?.complete?preparation.cost.unit:preparation.cost?.partialUnit):null;
+    const unitCost=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,1,item.unit):preparationUnitCost;
+    const subtotal=ingredient&&item.quantity!==null?calcIngredienteCost(ingredient,item.quantity,item.unit):preparation&&item.quantity!==null&&preparationUnitCost!=null?preparationUnitCost*item.quantity:null;
     const disabled=this._canWrite?'':'disabled';
     const relation=ingredient?`<span class="ficha-course-link">Insumo: ${Utils.escapeHtml(ingredient.nome)} (${Utils.escapeHtml(ingredient.unidade)})</span>`:preparation?`<span class="ficha-course-link">Preparação: ${Utils.escapeHtml(preparation.name)}</span>`:'<span class="ficha-course-link ficha-course-link--pending">Sem vínculo no cadastro de estoque</span>';
     const packaging=item.isPackaging?'<span class="ficha-course-link">Material de venda/embalagem</span>':'';
-    return `<tr data-course-row data-original-item-name="${Utils.escapeHtml(item.itemName||'')}" data-ingredient-id="${Utils.escapeHtml(item.ingredientId||'')}" data-preparation-id="${Utils.escapeHtml(item.preparationId||'')}" data-is-packaging="${item.isPackaging?'true':'false'}"><td><input class="ficha-course-item-name" data-row-field="itemName" value="${Utils.escapeHtml(item.itemName||'')}" placeholder="Nome do item" ${disabled}><input type="hidden" data-row-field="id" value="${Utils.escapeHtml(item.id||'')}">${relation}${packaging}<input class="ficha-course-item-note" data-row-field="pendingNote" value="${Utils.escapeHtml(item.pendingNote||'')}" placeholder="Observação ou quantidade pendente" ${disabled}></td><td><input type="number" class="ficha-qty-input" data-row-field="quantity" value="${item.quantity??''}" min="0.001" step="any" placeholder="—" ${disabled}></td><td><input class="ficha-unit-select" data-row-field="unit" value="${Utils.escapeHtml(item.unit||'')}" placeholder="un" ${disabled}></td><td>${unitCost===null?'—':Utils.currency(unitCost)}</td><td>${subtotal===null?'—':Utils.currency(subtotal)}</td><td><button class="btn-icon" type="button" data-course-remove-row aria-label="Remover ingrediente" ${disabled}>×</button></td></tr>`;
+    return `<tr data-course-row data-original-item-name="${Utils.escapeHtml(item.itemName||'')}" data-ingredient-id="${Utils.escapeHtml(item.ingredientId||'')}" data-preparation-id="${Utils.escapeHtml(item.preparationId||'')}" data-is-packaging="${item.isPackaging?'true':'false'}"><td><input class="ficha-course-item-name" data-row-field="itemName" value="${Utils.escapeHtml(item.itemName||'')}" placeholder="Nome do item" ${disabled}><input type="hidden" data-row-field="id" value="${Utils.escapeHtml(item.id||'')}">${relation}${preparation&&!preparation.cost?.complete?'<span class="ficha-course-link ficha-course-link--pending">Custo parcial</span>':''}${packaging}<input class="ficha-course-item-note" data-row-field="pendingNote" value="${Utils.escapeHtml(item.pendingNote||'')}" placeholder="Observação ou quantidade pendente" ${disabled}></td><td><input type="number" class="ficha-qty-input" data-row-field="quantity" value="${item.quantity??''}" min="0.001" step="any" placeholder="—" ${disabled}></td><td><input class="ficha-unit-select" data-row-field="unit" value="${Utils.escapeHtml(item.unit||'')}" placeholder="un" ${disabled}></td><td>${unitCost===null?'—':Utils.currencyCost(unitCost)}</td><td>${subtotal===null?'—':Utils.currencyCost(subtotal)}</td><td><button class="btn-icon" type="button" data-course-remove-row aria-label="Remover ingrediente" ${disabled}>×</button></td></tr>`;
   },
 
   async _saveCourseRecipeEditor(){

@@ -52,6 +52,23 @@ test('produto calcula o componente pronto e não soma novamente os ingredientes 
   assert.equal(result.total,2.0625);
 });
 
+test('propaga custo parcial de preparação vinculada sem declarar custo completo',()=>{
+  const ingredients=new Map([['i-meat',{unit:'g',unitCost:.05,active:true}]]);
+  const base={id:'base',code:'BASE',recipeType:'preparation',status:'incomplete',outputYield:1000,items:[
+    {itemName:'Carne',ingredientId:'i-meat',preparationId:null,quantity:1000,unit:'g',isPackaging:false,pendingNote:''},
+    {itemName:'Tempero',ingredientId:null,preparationId:null,quantity:null,unit:null,isPackaging:false,pendingNote:'A gosto.'},
+  ],ingredientsById:ingredients};
+  const stroganoff={id:'stroganoff',code:'PEND-STROG',recipeType:'preparation',status:'draft',outputYield:1200,items:[
+    {itemName:'Iscas prontas',ingredientId:null,preparationId:'base',quantity:1000,unit:'g',isPackaging:false,pendingNote:''},
+  ],ingredientsById:ingredients};
+  const result=calculateRecipeCardCosts([base,stroganoff])[1].cost;
+  assert.equal(result.complete,false);
+  assert.equal(result.total,null);
+  assert.equal(result.partialTotal,50);
+  assert.equal(result.partialUnit,50/1200);
+  assert.ok(result.notes.some(note=>note.includes('Tempero')));
+});
+
 test('transcrição mantém embalagens separadas, capacidade em ml e ingredientes pendentes explícitos',()=>{
   const potato=byCode('BASE-01');
   assert.equal(potato.items.find(item=>item[0]==='Manteiga')[1],100);

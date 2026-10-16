@@ -94,7 +94,7 @@ export function calculateRecipeCardCosts(cards) {
       if(item.isPackaging&&!item.ingredientId){complete=false;notes.push(item.pendingNote||`${item.itemName}: embalagem ou custo pendente.`);continue;}
       if(item.quantity===null){complete=false;notes.push(item.pendingNote||`${item.itemName}: quantidade pendente.`);continue;}
       let unitCost=null;
-      if(item.preparationId){const prep=byId.get(item.preparationId);if(prep){const nested=cost(prep,next);unitCost=nested.unit;if(!nested.complete)notes.push(...nested.notes.map(n=>`${prep.name}: ${n}`));}}
+      if(item.preparationId){const prep=byId.get(item.preparationId);if(prep){const nested=cost(prep,next);unitCost=nested.complete?nested.unit:nested.partialUnit;if(!nested.complete)notes.push(...nested.notes.map(n=>`${prep.name}: ${n}`));}}
       else if(item.ingredientId){const ingredient=card.ingredientsById.get(item.ingredientId); if(ingredient){
         const factors={g:{g:1,kg:.001},kg:{g:1000,kg:1},ml:{ml:1,L:.001},L:{ml:1000,L:1}};
         const factor=item.unit===ingredient.unit?1:factors[item.unit]?.[ingredient.unit];
