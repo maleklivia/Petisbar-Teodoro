@@ -62,7 +62,7 @@ const EstoqueModule = {
   },
 
   _precisaComprar(item) {
-    return Number(item.estoqueAtual) <= this._pontoPedido(item);
+    return Number(item.estoqueAtual) < this._pontoPedido(item);
   },
 
   _render() {
