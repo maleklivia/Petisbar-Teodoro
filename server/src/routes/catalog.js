@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
+import { config } from '../config.js';
+import { resolveIfoodPrice } from '../domain/ifood-pricing.js';
 import { requirePermission } from '../middleware/auth.js';
 
 const uploadedPhotoUrl = (productId, version = '') => `/api/v1/public/products/${encodeURIComponent(productId)}/photo${version?`?v=${version}`:''}`;
@@ -123,6 +125,14 @@ export default async function catalogRoutes(app) {
     const priceProductIds=[...new Set(p.optionGroups.flatMap(group=>group.options.map(option=>option.priceProductId).filter(Boolean)))];
     const lockedIds=[...new Set([p.id,...priceProductIds])].sort();
     await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[lockedIds]);
+    const existingPrice = await client.query('SELECT sale_price,ifood_price FROM products WHERE id=$1',[p.id]);
+    const existing = existingPrice.rows[0];
+    const ifoodPrice = resolveIfoodPrice({
+      newSalePrice: p.precoVenda,
+      submittedIfoodPrice: p.precoIfood,
+      currentSalePrice: existing?.sale_price,
+      currentIfoodPrice: existing?.ifood_price,
+    }, config.IFOOD_TOTAL_FEE_PERCENT);
     if(priceProductIds.length){const referenced=await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id',[priceProductIds]);if(referenced.rowCount!==priceProductIds.length){await client.query('ROLLBACK');return reply.code(409).send({error:'product_option_price_product_missing'});}}
     if (!p.ativo) {
       const referenced = await client.query(`SELECT 1 FROM promotions pr WHERE pr.active=true AND (
@@ -152,7 +162,7 @@ export default async function catalogRoutes(app) {
         option_groups=EXCLUDED.option_groups, updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups)]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,ifoodPrice,p.ativoIfood,JSON.stringify(p.optionGroups)]);
     if(photoInput.bytes){
       await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256)
         VALUES($1,$2,$3) ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,
