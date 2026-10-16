@@ -19,7 +19,8 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
   const groups = await db.query(`
     SELECT g.id,g.promotion_id,g.code,g.name,g.required_quantity,g.max_quantity,g.allow_same_product,g.allowed_options,
       COALESCE(json_agg(jsonb_build_object('id',p.id,'name',p.name,'category',p.category,'salePrice',p.sale_price,'optionGroups',p.option_groups,
-        'surcharge',gp.surcharge,'allowedOptions',gp.allowed_options,'active',p.active)
+        'surcharge',GREATEST(0,ROUND((p.sale_price-(SELECT MIN(base.sale_price) FROM promotion_group_products base_gp JOIN products base ON base.id=base_gp.product_id WHERE base_gp.group_id=gp.group_id))::numeric,2)),
+        'allowedOptions',gp.allowed_options,'active',p.active)
         ORDER BY p.category,p.name) FILTER (WHERE gp.product_id IS NOT NULL),'[]'::json) AS products
     FROM promotion_groups g LEFT JOIN promotion_group_products gp ON gp.group_id=g.id
     LEFT JOIN products p ON p.id=gp.product_id
