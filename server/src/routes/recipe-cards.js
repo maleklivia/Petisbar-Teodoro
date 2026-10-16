@@ -1,5 +1,6 @@
 import { requirePermission } from '../middleware/auth.js';
 import { calculateRecipeCardCosts } from '../domain/course-potato-recipes.js';
+import { resolveRecipeComponentLink } from '../domain/recipe-card-linking.js';
 import { z } from 'zod';
 
 const itemSchema=z.object({
@@ -127,8 +128,14 @@ export default async function recipeCardRoutes(app) {
         let preparationId=item.preparationId||null;
         let isPackaging=item.isPackaging;
         if(!ingredientId&&!preparationId){
-          const matches=await client.query('SELECT id,category FROM ingredients WHERE lower(name)=lower($1) AND active=true',[item.itemName]);
-          if(matches.rowCount===1){ingredientId=matches.rows[0].id;isPackaging=matches.rows[0].category?.toLocaleLowerCase('pt-BR')==='embalagens';}
+          const [ingredients,preparations]=await Promise.all([
+            client.query('SELECT id,name,category FROM ingredients WHERE lower(btrim(name))=lower(btrim($1)) AND active=true',[item.itemName]),
+            client.query("SELECT id,name FROM recipe_cards WHERE recipe_type='preparation' AND lower(btrim(name))=lower(btrim($1))",[item.itemName]),
+          ]);
+          const linked=resolveRecipeComponentLink(item,{ingredients:ingredients.rows,preparations:preparations.rows});
+          ingredientId=linked.ingredientId||null;
+          preparationId=linked.preparationId||null;
+          isPackaging=linked.isPackaging;
         }
         await client.query(`
           INSERT INTO recipe_card_items(id,recipe_id,sort_order,item_name,ingredient_id,preparation_id,quantity,unit,is_packaging,pending_note)

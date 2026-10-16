@@ -257,8 +257,8 @@ const FichasModule = {
     const unit=get('unit').value;
     const unitCost=ingredient?calcIngredienteCost(ingredient,1,unit):preparation?.cost?.unit??null;
     const subtotal=!(quantity>0)?null:ingredient?calcIngredienteCost(ingredient,quantity,unit):preparation?.cost?.unit!=null?preparation.cost.unit*quantity:null;
-    row.cells[3].textContent=unitCost==null?'—':Utils.currency(unitCost);
-    row.cells[4].textContent=subtotal==null?'—':Utils.currency(subtotal);
+    row.cells[3].textContent=unitCost==null?'—':Utils.currencyCost(unitCost);
+    row.cells[4].textContent=subtotal==null?'—':Utils.currencyCost(subtotal);
   },
 
   _renderCourseRecipeRow(card,item,index){
@@ -448,10 +448,10 @@ const FichasModule = {
           </select>
         </td>
         <td style="color:var(--text-muted);font-size:var(--text-sm)">
-          ${ing ? `${Utils.currency(ing.custoUnitario)}/${ing.unidade}` : prep?.cost?.partialUnit != null ? `${Utils.currency(prep.cost.partialUnit)}/${Utils.escapeHtml(prep.outputUnit||'un')}${prep.cost.complete?'':' · parcial'}` : '—'}
+          ${ing ? `${Utils.currencyCost(ing.custoUnitario)}/${ing.unidade}` : prep?.cost?.partialUnit != null ? `${Utils.currencyCost(prep.cost.partialUnit)}/${Utils.escapeHtml(prep.outputUnit||'un')}${prep.cost.complete?'':' · parcial'}` : '—'}
         </td>
         <td style="font-weight:600;font-size:var(--text-sm)">
-          ${custo !== null ? `${Utils.currency(custo)}${prep&&!prep.cost?.complete?'*':''}` : '—'}
+          ${custo !== null ? `${Utils.currencyCost(custo)}${prep&&!prep.cost?.complete?'*':''}` : '—'}
         </td>
         <td>
           <button class="btn-icon btn-icon--danger" data-action="remove-item" data-idx="${idx}" title="Remover" ${this._canWrite ? '' : 'disabled'}>

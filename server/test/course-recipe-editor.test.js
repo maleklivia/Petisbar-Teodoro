@@ -11,7 +11,7 @@ test('apresenta receita importada na navegação e no editor padrão de ficha t�
     document:{getElementById:id=>id==='ficha-produto-list'?sidebar:editor,querySelectorAll:()=>[]},
     API:{isServerMode:()=>true,hasPermission:()=>true},
     Storage:{getState:()=>({settings:{}})},Stores:{},
-    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),productPhoto:()=>'',currency:value=>`R$ ${value}`},
+    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),productPhoto:()=>'',currency:value=>`R$ ${value}`,currencyCost:value=>`R$ ${value}`},
     calcIngredienteCost:()=>null,
   });
   vm.runInContext(readFileSync(resolve(import.meta.dirname,'..','..','js','modules','fichas.js'),'utf8'),context);
@@ -33,7 +33,7 @@ test('fichas do curso exibem vínculos existentes sem pedir seleção manual',()
     document:{getElementById:id=>id==='ficha-editor'?editor:null,querySelectorAll:()=>[]},
     API:{isServerMode:()=>true,hasPermission:()=>true},
     Storage:{getState:()=>({settings:{}})},Stores:{},
-    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`},
+    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`,currencyCost:value=>`R$ ${value}`},
     calcIngredienteCost:()=>null,
   });
   vm.runInContext(readFileSync(resolve(import.meta.dirname,'..','..','js','modules','fichas.js'),'utf8'),context);
@@ -64,7 +64,7 @@ test('ficha do produto vendável aceita preparação-base e marca custo parcial'
     document:{getElementById:()=>null,querySelectorAll:()=>[]},
     API:{isServerMode:()=>true,hasPermission:()=>true},
     Storage:{getState:()=>({settings:{}})},Stores:{},
-    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`},
+    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`,currencyCost:value=>`R$ ${value}`},
     UNIDADES:['g','kg','ml','L','un'],
     calcIngredienteCost:(ingredient,quantity,unit)=>ingredient.unidade===unit?quantity*ingredient.custoUnitario:null,
   });

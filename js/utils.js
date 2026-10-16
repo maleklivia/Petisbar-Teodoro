@@ -13,6 +13,15 @@ const Utils = {
     }).format(value || 0);
   },
 
+  currencyCost(value) {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(value || 0);
+  },
+
   pct(ratio) {
     return `${Math.round((ratio || 0) * 100)}%`;
   },
