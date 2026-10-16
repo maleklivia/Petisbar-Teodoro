@@ -17,6 +17,7 @@ const ProdutosModule = {
   _photoDraft: null,
   _photoRemove: false,
   _photoPreviewUrl: null,
+  _ifoodPriceManualEdit: false,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
@@ -157,7 +158,7 @@ const ProdutosModule = {
           </td>
           <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
-          <td><strong>${Utils.currency(p.precoIfood ?? Math.ceil((p.precoVenda / 0.738) * 100) / 100)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
+          <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
@@ -249,8 +250,8 @@ const ProdutosModule = {
             <div class="form-group">
               <label class="form-label">Preço no iFood — Plano Entrega (R$)</label>
               <input class="form-input" name="precoIfood" type="number" step="0.01" min="0.01"
-                value="${item?.precoIfood ?? (item?.precoVenda ? Math.ceil((item.precoVenda / 0.738) * 100) / 100 : '')}">
-              <small style="color:var(--text-muted)">Sugestão para preservar o valor líquido após 23% + 3,2%. Mensalidade não incluída.</small>
+                value="${item?.precoIfood ?? ''}">
+              <small id="ifood-price-hint" style="color:var(--text-muted)">A sugestão acompanha o preço de venda. Edite este campo para definir um preço manual; mensalidade não incluída.</small>
             </div>
             <label style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer"><input type="checkbox" name="ativoIfood" value="true" ${item?.ativoIfood ? 'checked' : ''}><span class="form-label" style="margin:0">Disponível no iFood após ativar a integração</span></label>
           </div>
@@ -315,6 +316,7 @@ const ProdutosModule = {
       confirmLabel: editing ? 'Salvar' : 'Cadastrar',
       onConfirm: () => this._submitForm(editing, item),
     });
+    this._bindIfoodPriceEditor(item);
     this._bindProductPhotoEditor(item);
     this._drawOptionGroups(item?.optionGroups||[]);
     document.getElementById('product-option-groups').addEventListener('click',event=>{
@@ -334,6 +336,48 @@ const ProdutosModule = {
     type:group.querySelector('[data-option-type]').value,required:group.querySelector('[data-option-required]').checked,
     options:[...group.querySelectorAll('[data-option-row]')].map(row=>({value:row.querySelector('[data-option-value]').value.trim(),label:row.querySelector('[data-option-text]').value.trim(),priceMode:row.querySelector('[data-option-price-mode]').value,stockMode:row.querySelector('[data-option-stock-mode]').value,priceProductId:row.querySelector('[data-option-product]').value||null})),
   }))},
+
+  _bindIfoodPriceEditor(item) {
+    const saleInput = document.querySelector('#form-produto [name="precoVenda"]');
+    const ifoodInput = document.querySelector('#form-produto [name="precoIfood"]');
+    const hint = document.getElementById('ifood-price-hint');
+    if (!saleInput || !ifoodInput) return;
+
+    this._ifoodPriceManualEdit = false;
+    let followsSuggestion = !item || item.precoIfood == null || item.precoVenda == null;
+    let requestSequence = 0;
+    const money = value => Math.round(Number(value) * 100);
+    const modeReady = item?.precoIfood != null && Number(item.precoVenda) > 0
+      ? API.previewServerIfoodPrice(Number(item.precoVenda)).then(preview => {
+          followsSuggestion = money(item.precoIfood) === money(preview.ifoodPrice);
+          if (hint) hint.textContent = followsSuggestion
+            ? `Atualiza automaticamente conforme o preço de venda (taxa configurada: ${preview.totalFeePercent}%). Edite para fixar um valor manual; mensalidade não incluída.`
+            : `Preço manual preservado (taxa atual: ${preview.totalFeePercent}%). Mensalidade não incluída.`;
+        }).catch(() => { followsSuggestion = false; })
+      : Promise.resolve();
+
+    if (ifoodInput.value && followsSuggestion && hint) {
+      hint.textContent = 'A sugestão acompanha o preço de venda. Edite este campo para definir um preço manual; mensalidade não incluída.';
+    }
+    ifoodInput.addEventListener('input', () => {
+      this._ifoodPriceManualEdit = true;
+      requestSequence++;
+      if (hint) hint.textContent = 'Preço manual: será mantido ao alterar o preço de venda.';
+    });
+    saleInput.addEventListener('input', () => {
+      const sequence = ++requestSequence;
+      const saleValue = saleInput.value;
+      void modeReady.then(async () => {
+        if (!followsSuggestion || this._ifoodPriceManualEdit) return;
+        const amount = Number(saleValue);
+        if (!(amount > 0)) { ifoodInput.value = ''; return; }
+        const preview = await API.previewServerIfoodPrice(amount);
+        if (sequence !== requestSequence || saleInput.value !== saleValue || this._ifoodPriceManualEdit || !followsSuggestion) return;
+        ifoodInput.value = Number(preview.ifoodPrice).toFixed(2);
+        if (hint) hint.textContent = `Sugestão automática com ${preview.totalFeePercent}% de taxas. Edite este campo para fixar manualmente; mensalidade não incluída.`;
+      }).catch(() => {});
+    });
+  },
 
   _releaseProductPhotoPreview() {
     if (this._photoPreviewUrl) URL.revokeObjectURL(this._photoPreviewUrl);
@@ -432,7 +476,7 @@ const ProdutosModule = {
       descricao:    fd.get('descricao').trim(),
       precoVenda,
       optionGroups,
-      precoIfood:   parseFloat(fd.get('precoIfood')) || Math.ceil((precoVenda / 0.738) * 100) / 100,
+      precoIfood:   this._ifoodPriceManualEdit ? parseFloat(fd.get('precoIfood')) : undefined,
       ativoIfood:   fd.get('ativoIfood') === 'true',
       tempoPreparo: parseFloat(fd.get('tempoPreparo')) || 0,
       peso:         parseFloat(fd.get('peso')) || 0,

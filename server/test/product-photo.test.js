@@ -29,8 +29,12 @@ test('salva a foto junto do produto, entrega o JPEG público e remove a foto ao 
       calls.push(sql);
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.includes('pg_advisory_xact_lock')) return { rows: [], rowCount: 0 };
       if (sql.startsWith('SELECT id FROM products WHERE id=ANY')) return { rows: [], rowCount: 0 };
+      if (sql.startsWith('SELECT sale_price,ifood_price FROM products WHERE id=$1')) {
+        const current = products.get(params[0]);
+        return { rows: current ? [{ sale_price: current.sale_price, ifood_price: current.ifood_price }] : [], rowCount: current ? 1 : 0 };
+      }
       if (sql.includes('INSERT INTO products')) {
-        const product = { id: params[0], photo_url: params[11] };
+        const product = { id: params[0], sale_price: params[5], photo_url: params[11], ifood_price: params[12] };
         product.option_groups = params[14];
         products.set(product.id, product);
         return { rows: [product], rowCount: 1 };

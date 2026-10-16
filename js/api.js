@@ -131,6 +131,13 @@ const API = {
     return (await this._request('/products')).data.map(this._mapServerProduct);
   },
 
+  async previewServerIfoodPrice(price) {
+    return (await this._request('/integrations/ifood/pricing-preview', {
+      method: 'POST',
+      body: JSON.stringify({ price }),
+    })).data;
+  },
+
   async saveServerProduct(product) {
     return this._mapServerProduct((await this._request('/products', {
       method: 'POST',
