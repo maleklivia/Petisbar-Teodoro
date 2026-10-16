@@ -90,7 +90,7 @@ const IngredientesModule = {
           <td style="color:var(--text-muted)">${Utils.escapeHtml(i.categoria)}</td>
           <td>${i.unidade}</td>
           <td>
-            <div>${Utils.currency(i.custoUnitario)}/${i.unidade}</div>
+            <div>${Utils.currencyCost(i.custoUnitario)}/${i.unidade}</div>
             ${i.precoStatus ? `<div style="font-size:var(--text-xs);color:${i.precoStatus === 'provisório' ? 'var(--color-warning)' : 'var(--text-muted)'}">${Utils.escapeHtml(i.precoStatus)} · ${i.precoRevisadoEm ? Utils.formatDate(i.precoRevisadoEm) : ''}</div>` : ''}
             ${i.fontePreco ? `<a href="${Utils.escapeHtml(i.fontePreco)}" target="_blank" rel="noopener" style="font-size:var(--text-xs)">ver fonte</a>` : ''}
           </td>
@@ -197,8 +197,9 @@ const IngredientesModule = {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)">
             <div class="form-group">
               <label class="form-label">Custo Unitário (R$) *</label>
-              <input class="form-input" name="custoUnitario" type="number" step="0.01" min="0" required
+              <input class="form-input" name="custoUnitario" type="number" step="0.000001" min="0" required
                 placeholder="0,00" value="${item?.custoUnitario ?? ''}">
+              <small class="form-hint">Aceita até seis casas decimais para custos unitários muito baixos, como água.</small>
             </div>
             <div class="form-group">
               <label class="form-label">Estoque Atual *</label>
