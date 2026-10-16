@@ -1,39 +1,35 @@
-# Checklist para começar a usar o Petisbar Teodoro
+# Auditoria operacional e entrada em operação
 
-## Estado atual
+## Estado confirmado em 16/10/2026
 
-O sistema está pronto para configurar e testar o cardápio, as fichas e o estoque em um único navegador. Os dados ainda ficam no `localStorage`, sem login real, banco central ou backup automático. Portanto, a versão do GitHub Pages não deve ser usada como sistema operacional definitivo nem para guardar dados pessoais de clientes.
+- ERP implantado na VPS, servido por HTTPS e conectado ao PostgreSQL.
+- As telas administrativas do domínio VPS usam API autenticada; o catálogo administrativo sem sessão responde `401`.
+- API vinculada a `127.0.0.1:3000`, atrás do Caddy. A porta 3000 não deve ser acessível diretamente pela internet.
+- Backup diário local ativo. O dump mais recente precisa ter uma restauração integral testada; cópia fora da VPS ainda é critério pendente.
+- Testes de servidor executados em PostgreSQL temporário isolado: todos devem passar antes de cada implantação.
+- iFood desligado e sem credenciais de lojista. A implementação atual cobre cálculo de preço e recebimento de eventos/pedidos; não publica/sincroniza catálogo.
+- Integração 99 não implementada.
 
-## Ordem recomendada
+Este estado descreve evidências de infraestrutura e testes, não comprova operação real diária ponta a ponta. Não criar pedidos de teste no cardápio público: ele usa o banco de produção.
 
-1. Revisar produtos, preços, fotos e fichas técnicas.
-2. Cadastrar ingredientes, estoque mínimo, consumo diário, prazo de reposição e quantidade por pacote.
-3. Preencher os dados reais do restaurante, horários, taxas e zonas de entrega.
-4. Fazer um teste completo: compra, entrada no estoque, pedido, produção, entrega, baixa de estoque e financeiro.
-5. Homologar o backend já preparado com API, autenticação e permissões.
-6. Subir o PostgreSQL e executar a migração dos dados do navegador.
-7. Registrar um domínio próprio.
-8. Contratar a VPS somente quando o backend estiver pronto para implantação.
-9. Configurar servidor Linux, firewall, atualizações automáticas, Docker, proxy HTTPS e variáveis secretas.
-10. Configurar backups automáticos fora da VPS e testar uma restauração.
-11. Preparar política de privacidade, retenção e acesso aos dados conforme a LGPD.
-12. Fazer homologação por alguns dias e só então iniciar a operação real.
-13. Revisar preços do Plano Entrega e homologar a integração conforme `docs/IFOOD.md`.
+## Auditoria antes de ativar canais externos
 
-## Critérios mínimos antes de operar
+1. Confirmar catálogo, preços, fotos, opções, horários, formas de pagamento, entrega/retirada e taxas.
+2. Revisar fichas técnicas, ingredientes, unidades e rendimento; testar baixa de estoque e estorno em ambiente isolado.
+3. Revisar permissões individuais, senha, sessão e acesso administrativo.
+4. Testar fluxo de pedido interno sem criar transações reais nem pagamentos.
+5. Conferir logs, espaço em disco, monitoramento, backups, restauração e plano de rollback.
+6. Fazer um período de operação assistida no canal próprio, com pedidos reais autorizados pela operação, conferindo produção, entrega, estoque e financeiro.
+7. Só então cadastrar e homologar cada marketplace separadamente, mantendo os demais desligados.
 
-- Login individual funcionando, sem senha salva no navegador.
-- HTTPS ativo no domínio próprio.
-- Banco de dados não exposto diretamente à internet.
-- Backup diário automatizado e cópia fora da VPS.
-- Restauração de backup testada.
-- Monitoramento de disponibilidade, espaço em disco e erros.
-- Atualizações de segurança e firewall configurados.
-- Exportação dos dados e plano de contingência disponíveis.
+## Critérios pendentes antes de considerar pronto para operação plena
 
-## Referências
+- Restauração real de backup em banco isolado e documentada.
+- Cópia de backup fora da VPS com retenção definida.
+- Revisão de segurança e monitoramento/alertas operacionais.
+- Teste acompanhado de ponta a ponta pelo canal próprio, sem confundir teste com pedido real.
+- Aprovação do catálogo e dos procedimentos do restaurante.
 
-- Limitações do GitHub Pages: https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits
-- HTTPS automático com Caddy: https://caddyserver.com/docs/automatic-https
-- Backup e restauração do PostgreSQL: https://www.postgresql.org/docs/current/backup.html
-- Guia de segurança para pequenos agentes da ANPD: https://www.gov.br/anpd/pt-br/centrais-de-conteudo/materiais-educativos-e-publicacoes/guia-vf.pdf
+## iFood e 99
+
+Não habilitar até a Lívia concluir a auditoria e confirmar o cadastro do restaurante. Consultar `docs/IFOOD.md` para o escopo atual do iFood. Para 99, primeiro identificar API oficial, credenciais e requisitos vigentes; não assumir compatibilidade com iFood.
