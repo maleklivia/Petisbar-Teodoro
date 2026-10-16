@@ -16,19 +16,16 @@ ALTER TABLE technical_sheet_items
   ADD COLUMN preparation_id text REFERENCES recipe_cards(id) ON DELETE RESTRICT;
 
 CREATE UNIQUE INDEX technical_sheet_items_ingredient_unique
-  ON technical_sheet_items(sheet_id,ingredient_id)
-  WHERE ingredient_id IS NOT NULL;
+  ON technical_sheet_items(sheet_id,ingredient_id);
 
 CREATE UNIQUE INDEX technical_sheet_items_preparation_unique
-  ON technical_sheet_items(sheet_id,preparation_id)
-  WHERE preparation_id IS NOT NULL;
+  ON technical_sheet_items(sheet_id,preparation_id);
 
 ALTER TABLE technical_sheet_items
   ADD CONSTRAINT technical_sheet_items_one_component
-  CHECK ((ingredient_id IS NOT NULL)::integer + (preparation_id IS NOT NULL)::integer = 1);
+  CHECK ((ingredient_id IS NOT NULL) <> (preparation_id IS NOT NULL));
 
 CREATE INDEX technical_sheet_items_preparation_idx
-  ON technical_sheet_items(preparation_id)
-  WHERE preparation_id IS NOT NULL;
+  ON technical_sheet_items(preparation_id);
 
 COMMIT;
