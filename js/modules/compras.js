@@ -186,6 +186,10 @@ const ComprasModule = {
   _bindEvents() {
     const el = document.getElementById('compras-content');
     if (!el) return;
+    // The view is re-rendered frequently. Keep one delegated listener per
+    // container; otherwise each refresh makes a click execute N times.
+    if (this._boundComprasEvents === el) return;
+    this._boundComprasEvents = el;
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-cmp-tab]');
