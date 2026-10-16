@@ -198,17 +198,18 @@ const RelatoriosModule = {
           </thead>
           <tbody>
             ${rows.length ? rows.map(r => {
-              const sobre = r.cmvPct > meta;
-              const margem = r.precoVenda > 0 ? ((r.precoVenda - r.custo) / r.precoVenda * 100).toFixed(1) : 0;
+              const sobre = r.cmvPct !== null && r.cmvPct > meta;
+              const custo = r.custoCompleto ? Utils.currency(r.custo) : `Parcial · ${Utils.currency(r.custoParcial || 0)}`;
+              const margem = r.cmvPct !== null && r.precoVenda > 0 ? ((r.precoVenda - r.custo) / r.precoVenda * 100).toFixed(1) : null;
               return `
                 <tr>
                   <td style="font-weight:600">${Utils.escapeHtml(r.nome)}</td>
                   <td style="font-size:var(--text-sm);color:var(--text-muted)">${Utils.escapeHtml(r.categoria)}</td>
                   <td style="text-align:right">${Utils.currency(r.precoVenda)}</td>
-                  <td style="text-align:right">${Utils.currency(r.custo)}</td>
-                  <td style="text-align:right;font-weight:700;color:${sobre ? 'var(--color-danger)' : 'var(--color-success)'}">${r.cmvPct.toFixed(1)}%</td>
-                  <td style="text-align:right">${margem}%</td>
-                  <td>${sobre ? '<span class="badge badge-danger">Acima da meta</span>' : '<span class="badge badge-success">OK</span>'}</td>
+                  <td style="text-align:right">${custo}</td>
+                  <td style="text-align:right;font-weight:700;color:${sobre ? 'var(--color-danger)' : 'var(--color-success)'}">${r.cmvPct === null ? '—' : `${r.cmvPct.toFixed(1)}%`}</td>
+                  <td style="text-align:right">${margem === null ? '—' : `${margem}%`}</td>
+                  <td>${!r.custoCompleto ? '<span class="badge badge-warning">Ficha incompleta</span>' : sobre ? '<span class="badge badge-danger">Acima da meta</span>' : '<span class="badge badge-success">OK</span>'}</td>
                 </tr>
               `;
             }).join('') :

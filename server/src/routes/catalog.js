@@ -65,10 +65,11 @@ const technicalSheetSchema = z.object({
   rendimento: z.number().positive().default(1),
   modoPreparo: z.string().max(10000).optional(),
   itens: z.array(z.object({
-    ingredienteId: z.string().min(1).max(100),
+    ingredienteId: z.string().min(1).max(100).nullable().optional(),
+    preparacaoId: z.string().min(1).max(100).nullable().optional(),
     quantidade: z.number().positive(),
     unidade: z.string().min(1).max(20),
-  })).default([]),
+  }).refine(item => Boolean(item.ingredienteId) !== Boolean(item.preparacaoId), { message: 'exactly_one_component_required' })).default([]),
 });
 
 function sheetRows(rows) {
@@ -231,12 +232,14 @@ export default async function catalogRoutes(app) {
       SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
         COALESCE(json_agg(json_build_object(
           'ingredientId', tsi.ingredient_id,
+          'preparationId', tsi.preparation_id,
           'quantity', tsi.quantity,
           'unit', tsi.unit
-        ) ORDER BY i.name) FILTER (WHERE tsi.ingredient_id IS NOT NULL), '[]'::json) AS items
+        ) ORDER BY COALESCE(i.name,rc.code)) FILTER (WHERE tsi.ingredient_id IS NOT NULL OR tsi.preparation_id IS NOT NULL), '[]'::json) AS items
       FROM technical_sheets ts
       LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
       LEFT JOIN ingredients i ON i.id = tsi.ingredient_id
+      LEFT JOIN recipe_cards rc ON rc.id = tsi.preparation_id
       GROUP BY ts.id
       ORDER BY ts.product_id
     `);
@@ -248,12 +251,13 @@ export default async function catalogRoutes(app) {
     const parsed = technicalSheetSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
 
-    const uniqueIngredientIds = new Set();
+    const uniqueComponentIds = new Set();
     for (const item of parsed.data.itens) {
-      if (uniqueIngredientIds.has(item.ingredienteId)) {
-        return reply.code(400).send({ error: 'duplicate_ingredient' });
+      const componentId = item.ingredienteId ? `ingredient:${item.ingredienteId}` : `preparation:${item.preparacaoId}`;
+      if (uniqueComponentIds.has(componentId)) {
+        return reply.code(400).send({ error: 'duplicate_component' });
       }
-      uniqueIngredientIds.add(item.ingredienteId);
+      uniqueComponentIds.add(componentId);
     }
 
     const client = await app.db.connect();
@@ -265,11 +269,21 @@ export default async function catalogRoutes(app) {
         return reply.code(404).send({ error: 'product_not_found' });
       }
 
-      if (uniqueIngredientIds.size) {
-        const ingredients = await client.query('SELECT id FROM ingredients WHERE id = ANY($1::text[])', [[...uniqueIngredientIds]]);
-        if (ingredients.rowCount !== uniqueIngredientIds.size) {
+      const ingredientIds = [...new Set(parsed.data.itens.map(item => item.ingredienteId).filter(Boolean))];
+      if (ingredientIds.length) {
+        const ingredients = await client.query('SELECT id FROM ingredients WHERE id = ANY($1::text[])', [ingredientIds]);
+        if (ingredients.rowCount !== ingredientIds.length) {
           await client.query('ROLLBACK');
           return reply.code(400).send({ error: 'ingredient_not_found' });
+        }
+      }
+
+      const preparationIds = [...new Set(parsed.data.itens.map(item => item.preparacaoId).filter(Boolean))];
+      if (preparationIds.length) {
+        const preparations = await client.query("SELECT id FROM recipe_cards WHERE id=ANY($1::text[]) AND recipe_type='preparation'", [preparationIds]);
+        if (preparations.rowCount !== preparationIds.length) {
+          await client.query('ROLLBACK');
+          return reply.code(400).send({ error: 'preparation_not_found' });
         }
       }
 
@@ -285,21 +299,23 @@ export default async function catalogRoutes(app) {
       await client.query('DELETE FROM technical_sheet_items WHERE sheet_id=$1', [sheet.rows[0].id]);
       for (const item of parsed.data.itens) {
         await client.query(`
-          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, quantity, unit)
-          VALUES ($1,$2,$3,$4)
-        `, [sheet.rows[0].id, item.ingredienteId, item.quantidade, item.unidade]);
+          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, preparation_id, quantity, unit)
+          VALUES ($1,$2,$3,$4,$5)
+        `, [sheet.rows[0].id, item.ingredienteId || null, item.preparacaoId || null, item.quantidade, item.unidade]);
       }
 
       const { rows } = await client.query(`
         SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
           COALESCE(json_agg(json_build_object(
             'ingredientId', tsi.ingredient_id,
+            'preparationId', tsi.preparation_id,
             'quantity', tsi.quantity,
             'unit', tsi.unit
-          ) ORDER BY i.name) FILTER (WHERE tsi.ingredient_id IS NOT NULL), '[]'::json) AS items
+          ) ORDER BY COALESCE(i.name,rc.code)) FILTER (WHERE tsi.ingredient_id IS NOT NULL OR tsi.preparation_id IS NOT NULL), '[]'::json) AS items
         FROM technical_sheets ts
         LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
         LEFT JOIN ingredients i ON i.id = tsi.ingredient_id
+        LEFT JOIN recipe_cards rc ON rc.id = tsi.preparation_id
         WHERE ts.product_id=$1
         GROUP BY ts.id
       `, [productId]);

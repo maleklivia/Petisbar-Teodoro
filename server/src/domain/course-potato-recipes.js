@@ -90,6 +90,7 @@ export function calculateRecipeCardCosts(cards) {
     if(stack.has(card.id))return {total:null,unit:null,complete:false,notes:['Ciclo entre preparações.']};
     const next=new Set(stack).add(card.id); let total=0,complete=true; const notes=[];
     for(const item of card.items){
+      if(item.pendingNote?.trim()){complete=false;notes.push(`${item.itemName}: ${item.pendingNote}`);}
       if(item.isPackaging&&!item.ingredientId){complete=false;notes.push(item.pendingNote||`${item.itemName}: embalagem ou custo pendente.`);continue;}
       if(item.quantity===null){complete=false;notes.push(item.pendingNote||`${item.itemName}: quantidade pendente.`);continue;}
       let unitCost=null;
@@ -97,14 +98,15 @@ export function calculateRecipeCardCosts(cards) {
       else if(item.ingredientId){const ingredient=card.ingredientsById.get(item.ingredientId); if(ingredient){
         const factors={g:{g:1,kg:.001},kg:{g:1000,kg:1},ml:{ml:1,L:.001},L:{ml:1000,L:1}};
         const factor=item.unit===ingredient.unit?1:factors[item.unit]?.[ingredient.unit];
-        if(factor!==undefined && Number(ingredient.unitCost)>0)unitCost=Number(ingredient.unitCost)*factor;
+        if(factor!==undefined && ingredient.active!==false && Number(ingredient.unitCost)>0)unitCost=Number(ingredient.unitCost)*factor;
       }}
       if(unitCost===null){complete=false;notes.push(item.pendingNote||`${item.itemName}: custo ou unidade incompatível pendente.`);continue;}
       total += Number(item.quantity)*unitCost;
     }
     if(card.recipeType==='preparation' && !(Number(card.outputYield)>0)){complete=false;notes.push('Rendimento pronto ainda não pesado.');}
     if(card.status!=='ready'){complete=false;notes.push('Ficha em rascunho ou incompleta; validar antes de considerar custo final.');}
-    const result={total:complete?total:null,partialTotal:total,unit:card.recipeType==='preparation'&&Number(card.outputYield)>0&&complete?total/Number(card.outputYield):null,complete,notes:[...new Set(notes)]};
+    const partialUnit=card.recipeType==='preparation'&&Number(card.outputYield)>0?total/Number(card.outputYield):null;
+    const result={total:complete?total:null,partialTotal:total,unit:complete?partialUnit:null,partialUnit,complete,notes:[...new Set(notes)]};
     memo.set(card.id,result);return result;
   }
   return cards.map(card=>({...card,cost:cost(card)}));

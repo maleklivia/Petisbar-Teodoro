@@ -58,3 +58,22 @@ test('fichas do curso exibem vínculos existentes sem pedir seleção manual',()
   assert.doesNotMatch(editor.innerHTML,/data-row-field="preparationId"/);
   assert.doesNotMatch(editor.innerHTML,/type="checkbox"/);
 });
+
+test('ficha do produto vendável aceita preparação-base e marca custo parcial',()=>{
+  const context=vm.createContext({
+    document:{getElementById:()=>null,querySelectorAll:()=>[]},
+    API:{isServerMode:()=>true,hasPermission:()=>true},
+    Storage:{getState:()=>({settings:{}})},Stores:{},
+    Utils:{escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currency:value=>`R$ ${value}`},
+    UNIDADES:['g','kg','ml','L','un'],
+    calcIngredienteCost:(ingredient,quantity,unit)=>ingredient.unidade===unit?quantity*ingredient.custoUnitario:null,
+  });
+  vm.runInContext(readFileSync(resolve(import.meta.dirname,'..','..','js','modules','fichas.js'),'utf8'),context);
+  const module=vm.runInContext('FichasModule',context);
+  module._ingredientes=[];
+  module._receitasCurso=[{id:'course-base-01',code:'BASE-01',name:'Batata amassada',recipeType:'preparation',status:'incomplete',outputUnit:'g',cost:{unit:null,partialUnit:0.01,complete:false}}];
+  const row=module._renderRow({preparacaoId:'course-base-01',quantidade:250,unidade:'g'},0);
+  assert.match(row,/value="preparation:course-base-01" selected/);
+  assert.match(row,/R\$ 0.01\/g · parcial/);
+  assert.match(row,/R\$ 2.5\*/);
+});
