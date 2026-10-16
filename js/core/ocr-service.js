@@ -251,6 +251,28 @@ const OcrService = {
       }
     }
 
+    // Pedido online (Shopee): a tela traz descrição, "xN" e valores em linhas separadas.
+    // Não exige QR Code nem formato fiscal; o Vision apenas fornece o texto da página.
+    if (!itens.length) {
+      for (let i = 0; i < linhas.length; i++) {
+        const linha = linhas[i];
+        const qtdMatch = linha.match(/^(.*?)\s+x\s*(\d+)\s*$/i)
+          || (linhas[i + 1] || '').match(/^x\s*(\d+)\s*$/i) && [null, linha, (linhas[i + 1] || '').match(/^x\s*(\d+)\s*$/i)[1]];
+        if (!qtdMatch) continue;
+        const nome = qtdMatch[1].replace(/\s+/g, ' ').trim();
+        if (nome.length < 3 || /^(subtotal|total|frete|desconto|pedido)$/i.test(nome)) continue;
+        let preco = NaN;
+        for (const candidata of linhas.slice(i, Math.min(linhas.length, i + 8))) {
+          const valores = candidata.match(/(?:R\$\s*)?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g) || [];
+          if (valores.length) { preco = this._parseBR(valores[valores.length - 1].replace(/R\$\s*/i, '')); break; }
+        }
+        if (this._itemValido(nome, Number(qtdMatch[2]), preco) && !vistos.has(nome)) {
+          vistos.add(nome);
+          itens.push({ nome, quantidade: Number(qtdMatch[2]), unidade: 'un', custoUnitario: preco, subtotal: Number(qtdMatch[2]) * preco, ingredienteId: '' });
+        }
+      }
+    }
+
     // Fallback: extração simples quando nenhum padrão estruturado funcionou
     if (!itens.length) {
       for (const l of linhas) {

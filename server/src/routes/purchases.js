@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 
 const purchaseItemSchema = z.object({
-  ingredienteId: z.string().min(1).max(100).optional(),
-  produtoId: z.string().min(1).max(100).optional(),
+  ingredienteId: z.string().max(100).optional().transform(value => value || undefined),
+  produtoId: z.string().max(100).optional().transform(value => value || undefined),
   nome: z.string().min(1).max(200).optional(),
   quantidade: z.number().positive(),
   unidade: z.string().min(1).max(20),
@@ -26,7 +27,7 @@ const purchaseSchema = z.object({
   for (let index = 0; index < purchase.itens.length; index += 1) {
     const item = purchase.itens[index];
     const itemId = item.produtoId || item.ingredienteId;
-    if (!itemId) {
+    if (!itemId && !item.nome) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe um ingrediente ou produto', path: ['itens', index] });
       continue;
     }
@@ -100,16 +101,18 @@ async function fetchPurchase(client, id) {
 
 async function insertPurchaseItems(client, purchaseId, items) {
   for (const item of items) {
-    const source = item.produtoId ? 'products' : 'ingredients';
+    const source = item.produtoId ? 'products' : item.ingredienteId ? 'ingredients' : null;
     const sourceId = item.produtoId || item.ingredienteId;
-    const sourceRow = await client.query(`SELECT name, ${source === 'products' ? "'un'" : 'unit'} AS unit, ${source === 'products' ? 'sale_price' : 'unit_cost'} AS cost FROM ${source} WHERE id=$1`, [sourceId]);
-    if (!sourceRow.rowCount) throw new Error(`Item não encontrado: ${sourceId}`);
+    const sourceRow = source
+      ? await client.query(`SELECT name, ${source === 'products' ? "'un'" : 'unit'} AS unit FROM ${source} WHERE id=$1`, [sourceId])
+      : { rowCount: 0, rows: [] };
+    if (source && !sourceRow.rowCount) throw new Error(`Item não encontrado: ${sourceId}`);
     const name = item.nome || sourceRow.rows[0].name;
     const subtotal = item.quantidade * item.custoUnitario;
     await client.query(`
       INSERT INTO purchase_items (purchase_id, ingredient_id, product_id, name, quantity, unit, unit_cost, subtotal)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    `, [purchaseId, item.ingredienteId || null, item.produtoId || null, name, item.quantidade, item.unidade || sourceRow.rows[0].unit, item.custoUnitario, subtotal]);
+    `, [purchaseId, item.ingredienteId || null, item.produtoId || null, name, item.quantidade, item.unidade || sourceRow.rows[0]?.unit || 'un', item.custoUnitario, subtotal]);
   }
 }
 
@@ -156,6 +159,41 @@ async function applyReceipt(client, purchase, userId) {
 }
 
 export default async function purchasesRoutes(app) {
+  app.post('/purchases/ocr', { preHandler: requirePermission('purchases.manage') }, async (request, reply) => {
+    const apiKey = process.env.GOOGLE_VISION_API_KEY || (() => { try { return readFileSync('/etc/petisbar/google-vision-api-key', 'utf8').trim(); } catch { return ''; } })();
+    if (!apiKey) return reply.code(503).send({ error: 'ocr_not_configured' });
+    const body = request.body || {};
+    if (typeof body.imageBase64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(body.imageBase64)) {
+      return reply.code(400).send({ error: 'invalid_image' });
+    }
+    if (body.imageBase64.length > 8 * 1024 * 1024) return reply.code(413).send({ error: 'image_too_large' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let response;
+    try {
+      response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ requests: [{ image: { content: body.imageBase64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      request.log.error({ err: error }, 'Cloud Vision request failed');
+      return reply.code(502).send({ error: error?.name === 'AbortError' ? 'ocr_provider_timeout' : 'ocr_provider_unavailable' });
+    } finally {
+      clearTimeout(timeout);
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      request.log.error({ status: response.status, providerError: payload?.error?.status, providerMessage: payload?.error?.message }, 'Cloud Vision returned an error');
+      return reply.code(502).send({ error: 'ocr_provider_error' });
+    }
+    const result = payload.responses?.[0] || {};
+    if (result.error) {
+      request.log.error({ providerError: result.error }, 'Cloud Vision response contained an error');
+      return reply.code(502).send({ error: 'ocr_provider_error' });
+    }
+    return { data: { text: result.fullTextAnnotation?.text || result.textAnnotations?.[0]?.description || '' } };
+  });
   app.get('/purchases', { preHandler: requirePermission('purchases.manage') }, async () => {
     const { rows } = await app.db.query(`
       SELECT p.*,

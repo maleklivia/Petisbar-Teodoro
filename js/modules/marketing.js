@@ -302,7 +302,7 @@ const MarketingModule = {
       const costLabel=unitCost!=null?`Custo de compra ${Utils.currency(Number(unitCost))}`:product.has_sheet&&product.sheet_items?`${product.sheet_items} ingrediente(s) na ficha`:'Custo/ficha incompleto';
       return `<label class="promo-product-choice"><input type="checkbox" data-group-product value="${this._esc(product.id)}" ${value?'checked':''}>
         <span><strong>${this._esc(product.name)}</strong><small>${this._esc(product.category)} · ${Utils.currency(Number(product.sale_price))} · ${this._esc(costLabel)}</small></span>
-        <span class="form-group promo-surcharge"><small>Acréscimo</small><input class="form-input" data-group-surcharge type="number" min="0" step="0.01" value="${Number(value?.surcharge||0)}" aria-label="Acréscimo em ${this._esc(product.name)}"></span></label>`;
+        <span class="form-group promo-surcharge"><small>Acréscimo automático</small><input class="form-input" data-group-surcharge type="number" min="0" step="0.01" value="${Number(value?.surcharge||0)}" aria-label="Acréscimo automático em ${this._esc(product.name)}" readonly></span></label>`;
     }).join('');
     return `<fieldset class="promo-group" data-promo-group><legend>Grupo de escolha</legend>
       <div class="form-row"><div class="form-group" style="flex:2"><label class="form-label">Nome do grupo</label><input class="form-input" data-group-name maxlength="100" value="${this._esc(group.name||'')}" placeholder="Ex.: Bebidas" required></div>
@@ -340,7 +340,22 @@ const MarketingModule = {
     dialog.querySelector('[data-promo-rule]')?.addEventListener('change',()=>this._syncPromotionForm(dialog));
     dialog.querySelector('#promo-add-group')?.addEventListener('click',()=>{dialog.querySelector('#promo-groups').insertAdjacentHTML('beforeend',this._renderPromotionGroup());});
     dialog.querySelector('#promo-groups')?.addEventListener('click',event=>{if(event.target.closest('[data-group-remove]'))event.target.closest('[data-promo-group]').remove();});
+    dialog.querySelector('#promo-groups')?.addEventListener('change',event=>{if(event.target.matches('[data-group-product]'))this._syncPromotionSurcharges(event.target.closest('[data-promo-group]'));});
+    dialog.querySelectorAll('[data-promo-group]').forEach(group=>this._syncPromotionSurcharges(group));
     this._syncPromotionForm(dialog);
+  },
+
+  _syncPromotionSurcharges(group){
+    if(!group)return;
+    const prices=new Map(this._promotionProducts.map(product=>[String(product.id),Number(product.sale_price)]));
+    const selected=[...group.querySelectorAll('[data-group-product]:checked')];
+    const base=Math.min(...selected.map(input=>prices.get(String(input.value))).filter(Number.isFinite));
+    selected.forEach(input=>{
+      const price=prices.get(String(input.value));
+      const surcharge=Number.isFinite(base)&&Number.isFinite(price)?Math.max(0,Math.round((price-base)*100)/100):0;
+      input.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value=surcharge.toFixed(2);
+    });
+    group.querySelectorAll('[data-group-product]:not(:checked)').forEach(input=>{input.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value='0.00';});
   },
 
   _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value;dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==type);dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==type);},

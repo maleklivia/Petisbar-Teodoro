@@ -30,8 +30,9 @@ const promotionSchema = z.object({
 
 async function savePromotion(client, input, { id=null, userId, ip }) {
   const productIds=[...new Set([...input.productIds,...input.groups.flatMap(group=>group.products.map(product=>product.productId))])];
-  const products=productIds.length?await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) AND active=true ORDER BY id FOR UPDATE',[productIds]):{rows:[]};
+  const products=productIds.length?await client.query('SELECT id,sale_price FROM products WHERE id=ANY($1::text[]) AND active=true ORDER BY id FOR UPDATE',[productIds]):{rows:[]};
   if(products.rowCount!==productIds.length)throw Object.assign(new Error('promotion_product_inactive_or_missing'),{statusCode:409,code:'promotion_product_inactive_or_missing'});
+  const salePriceById=new Map(products.rows.map(product=>[product.id,Number(product.sale_price)]));
   let promotionId=id;
   if(id){
     const current=await client.query('SELECT id,active,code FROM promotions WHERE id=$1 FOR UPDATE',[id]);
@@ -58,7 +59,12 @@ async function savePromotion(client, input, { id=null, userId, ip }) {
       required_quantity=EXCLUDED.required_quantity,max_quantity=EXCLUDED.max_quantity,allow_same_product=EXCLUDED.allow_same_product,
       allowed_options=EXCLUDED.allowed_options,active=true RETURNING id`,[promotionId,group.code,group.name,group.requiredQuantity,group.maxQuantity,group.allowSameProduct,group.allowedOptions]);
     await client.query('DELETE FROM promotion_group_products WHERE group_id=$1',[inserted.rows[0].id]);
-    for(const product of group.products)await client.query('INSERT INTO promotion_group_products(group_id,product_id,surcharge,allowed_options) VALUES($1,$2,$3,$4)',[inserted.rows[0].id,product.productId,product.surcharge,product.allowedOptions]);
+    const groupPrices=group.products.map(product=>salePriceById.get(product.productId));
+    const basePrice=Math.min(...groupPrices);
+    for(const product of group.products){
+      const automaticSurcharge=Math.max(0,roundMoney(salePriceById.get(product.productId)-basePrice));
+      await client.query('INSERT INTO promotion_group_products(group_id,product_id,surcharge,allowed_options) VALUES($1,$2,$3,$4)',[inserted.rows[0].id,product.productId,automaticSurcharge,product.allowedOptions]);
+    }
   }
   await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip)
     VALUES($1,$2,'promotion',$3,$4,$5)`,[userId,id?'promotion.update':'promotion.create',promotionId,{code:input.code,ruleType:input.ruleType,productIds,groups:input.groups.length,cmvEstimatePercent:input.cmvEstimatePercent??null},ip]);
