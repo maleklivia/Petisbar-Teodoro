@@ -453,7 +453,16 @@ const ProdutosModule = {
         UI.closeModal();
         this._render();
       } catch (error) {
-        UI.toast(error.code === 'validation_error' ? 'Revise os campos do produto.' : 'Não foi possível salvar o produto.', 'danger');
+        const messages = {
+          validation_error: 'Revise os campos do produto.',
+          product_used_by_active_promotion: 'Este produto está em uma promoção ativa. Encerre a promoção antes de desativá-lo.',
+          product_used_by_product_options: 'Este produto está vinculado às opções de outro produto. Remova o vínculo antes de desativá-lo.',
+          product_option_price_product_missing: 'Uma opção do produto aponta para um cadastro inexistente. Revise os grupos de opções.',
+          product_photo_invalid: 'A imagem não foi aceita. Escolha uma foto JPG, PNG ou WebP e tente novamente.',
+        };
+        const message = messages[error.code]
+          || (error.status ? `Não foi possível salvar o produto (erro ${error.status}${error.code ? `: ${error.code}` : ''}).` : 'Não foi possível salvar o produto. Verifique a conexão e tente novamente.');
+        UI.toast(message, 'danger');
       }
       return;
     }
