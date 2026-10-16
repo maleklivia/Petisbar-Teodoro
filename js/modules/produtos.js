@@ -217,6 +217,7 @@ const ProdutosModule = {
 
     UI.openModal({
       title: editing ? 'Editar Produto' : 'Novo Produto',
+      size: 'wide',
       body: `
         <form id="form-produto" autocomplete="off">
           <input type="hidden" name="id" value="${item?.id || ''}">
@@ -437,8 +438,11 @@ const ProdutosModule = {
             UI.closeModal();
             UI.toast('Produto inativado', 'info');
             this._render();
-          } catch {
-            UI.toast('Não foi possível inativar o produto.', 'danger');
+          } catch (error) {
+            const details=error.details||{};
+            const promotions=details.promotions||[],products=details.products||[];
+            const links=[...promotions.map(name=>`Promoção: ${Utils.escapeHtml(name)}`),...products.map(name=>`Produto: ${Utils.escapeHtml(name)}`)];
+            UI.openModal({title:'Produto ainda está vinculado',size:'small',body:`<p>Não é possível excluir <strong>${Utils.escapeHtml(item.nome)}</strong> porque ele ainda é usado em:</p><ul class="product-dependency-list">${links.length?links.map(link=>`<li>${link}</li>`).join(''):'<li>outro cadastro do sistema</li>'}</ul><p class="form-hint">Remova o vínculo indicado e tente novamente.</p>`,confirmLabel:'Fechar',onConfirm:()=>UI.closeModal()});
           }
           return;
         }
