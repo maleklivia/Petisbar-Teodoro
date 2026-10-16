@@ -201,11 +201,17 @@ export default async function migrationRoutes(app) {
         `, [text(f.id),text(f.produtoId),Math.max(0.001,number(f.rendimento,1)),f.modoPreparo == null ? null : text(f.modoPreparo).slice(0,10000)]);
         await client.query('DELETE FROM technical_sheet_items WHERE sheet_id = $1', [text(f.id)]);
         for (const item of array(f.itens)) {
-          if (!ingredientIds.has(text(item.ingredienteId))) continue;
+          const ingredientId=ingredientIds.has(text(item.ingredienteId))?text(item.ingredienteId):null;
+          const preparationId=text(item.preparacaoId)||null;
+          if(!ingredientId&&!preparationId)continue;
+          if(preparationId){
+            const preparation=await client.query("SELECT id FROM recipe_cards WHERE id=$1 AND recipe_type='preparation'",[preparationId]);
+            if(!preparation.rowCount)continue;
+          }
           await client.query(`
-            INSERT INTO technical_sheet_items (sheet_id,ingredient_id,quantity,unit)
-            VALUES ($1,$2,$3,$4) ON CONFLICT (sheet_id,ingredient_id) DO UPDATE SET quantity=EXCLUDED.quantity,unit=EXCLUDED.unit
-          `, [text(f.id),text(item.ingredienteId),number(item.quantidade),text(item.unidade)]);
+            INSERT INTO technical_sheet_items (sheet_id,ingredient_id,preparation_id,quantity,unit)
+            VALUES ($1,$2,$3,$4,$5)
+          `, [text(f.id),ingredientId,preparationId,number(item.quantidade),text(item.unidade)]);
         }
       }
 

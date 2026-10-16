@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { canTransitionOrder, convertQuantity, isCompletedStatus } from '../domain/orders.js';
+import { canTransitionOrder, isCompletedStatus } from '../domain/orders.js';
 import { setOrderReservationsStatus } from './order-stock-reservations.js';
+import { expandProductTechnicalSheet } from './technical-sheet-components.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
@@ -60,7 +61,7 @@ async function applyInventory(client, order) {
       WHERE oi.order_id=$1 AND effect->>'mode'='add'
     )
     SELECT c.order_product_id,c.stock_product_id AS product_id,c.quantity,CASE WHEN c.is_main THEN c.options ELSE '{}'::jsonb END AS options,p.name,p.current_stock,p.purchase_cost,
-      ts.id AS sheet_id,ts.yield
+      ts.id AS sheet_id,ts.product_id AS sheet_product_id,ts.yield
     FROM components c
     LEFT JOIN products p ON p.id=c.stock_product_id
     LEFT JOIN technical_sheets ts ON ts.product_id=CASE
@@ -72,27 +73,23 @@ async function applyInventory(client, order) {
   `, [order.id]);
 
   let cmv = 0;
+  const ingredientTotals=new Map();
   for (const item of items) {
     const orderQuantity = Number(item.quantity);
     if (item.sheet_id) {
-      const { rows: ingredients } = await client.query(`
-        SELECT i.id,i.name,i.unit,i.current_stock,i.unit_cost,
-          tsi.quantity AS recipe_quantity,tsi.unit AS recipe_unit
-        FROM technical_sheet_items tsi
-        JOIN ingredients i ON i.id=tsi.ingredient_id
-        WHERE tsi.sheet_id=$1
-        ORDER BY i.id
-        FOR UPDATE OF i
-      `, [item.sheet_id]);
-      for (const ingredient of ingredients) {
-        const recipeQuantity = Number(ingredient.recipe_quantity) * orderQuantity / Number(item.yield || 1);
-        const required = convertQuantity(recipeQuantity, ingredient.recipe_unit, ingredient.unit);
-        cmv += await consumeIngredient(client, order, ingredient, required);
+      const expanded=await expandProductTechnicalSheet(client,item.sheet_product_id,orderQuantity);
+      if(expanded?.error)throw businessError(expanded.error,409,{item:expanded.item});
+      if(!expanded)throw businessError('stock_recipe_incomplete',409,{item:item.name});
+      for (const component of expanded.items) {
+        const current=ingredientTotals.get(component.ingredientId)||{name:component.name,unit:component.unit,quantity:0};
+        current.quantity+=component.quantity;ingredientTotals.set(component.ingredientId,current);
       }
 
       if (item.options?.flavoredIce) {
-        const flavoredIce = await client.query("SELECT id,name,unit,current_stock,unit_cost FROM ingredients WHERE id='i-029' FOR UPDATE");
-        if (flavoredIce.rowCount) cmv += await consumeIngredient(client, order, flavoredIce.rows[0], orderQuantity);
+        const flavoredIce = await client.query("SELECT id,name,unit,active FROM ingredients WHERE id='i-029'");
+        if (!flavoredIce.rowCount || !flavoredIce.rows[0].active)throw businessError('stock_recipe_incomplete',409,{item:'Gelo saborizado'});
+        const ice=flavoredIce.rows[0],current=ingredientTotals.get(ice.id)||{name:ice.name,unit:ice.unit,quantity:0};
+        current.quantity+=orderQuantity;ingredientTotals.set(ice.id,current);
       }
       continue;
     }
@@ -122,6 +119,16 @@ async function applyInventory(client, order) {
       reason: `Baixa automática do pedido #${order.order_number}`,
     });
     if (item.purchase_cost !== null) cmv += Number(item.purchase_cost) * orderQuantity;
+  }
+
+  const ingredientIds=[...ingredientTotals.keys()].sort();
+  if(ingredientIds.length){
+    const locked=await client.query('SELECT id,name,unit,current_stock,unit_cost,active FROM ingredients WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ingredientIds]);
+    if(locked.rowCount!==ingredientIds.length)throw businessError('stock_recipe_incomplete',409);
+    for(const ingredient of locked.rows){
+      if(!ingredient.active)throw businessError('stock_recipe_incomplete',409,{item:ingredient.name});
+      cmv+=await consumeIngredient(client,order,ingredient,ingredientTotals.get(ingredient.id).quantity);
+    }
   }
   return roundMoney(cmv);
 }

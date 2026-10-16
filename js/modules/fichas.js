@@ -84,10 +84,32 @@ const FichasModule = {
     if (!ficha || !ficha.itens) return 0;
     return ficha.itens.reduce((sum, item) => {
       const ing = this._ingredientes.find(i => i.id === item.ingredienteId);
-      if (!ing) return sum;
-      const cost = calcIngredienteCost(ing, item.quantidade, item.unidade);
+      if (ing) {
+        const cost = calcIngredienteCost(ing, item.quantidade, item.unidade);
+        return sum + (cost || 0);
+      }
+      const prep = this._receitasCurso.find(i => i.id === item.preparacaoId);
+      if (!prep || prep.cost?.partialUnit == null) return sum;
+      const cost = calcIngredienteCost({ unidade: prep.outputUnit, custoUnitario: prep.cost.partialUnit }, item.quantidade, item.unidade);
       return sum + (cost || 0);
     }, 0);
+  },
+
+  _costComplete(ficha) {
+    if (!ficha?.itens?.length) return false;
+    return ficha.itens.every(item => {
+      if (!(Number(item.quantidade) > 0) || !(item.unidade || '').trim()) return false;
+      const hasIngredient = Boolean(item.ingredienteId);
+      const hasPreparation = Boolean(item.preparacaoId);
+      if (hasIngredient === hasPreparation) return false;
+      if (hasIngredient) {
+        const ingredient = this._ingredientes.find(row => row.id === item.ingredienteId && row.ativo);
+        return Boolean(ingredient && Number(ingredient.custoUnitario) > 0 && calcIngredienteCost(ingredient, Number(item.quantidade), item.unidade) !== null);
+      }
+      const preparation = this._receitasCurso.find(row => row.id === item.preparacaoId && row.recipeType === 'preparation');
+      return Boolean(preparation && preparation.status === 'ready' && preparation.cost?.complete && preparation.cost?.unit != null
+        && calcIngredienteCost({ unidade: preparation.outputUnit, custoUnitario: preparation.cost.unit }, Number(item.quantidade), item.unidade) !== null);
+    });
   },
 
   deleteByProduto(produtoId) {
@@ -297,14 +319,15 @@ const FichasModule = {
     const draft = this._serverMode ? this._readDraft(produto.id) : null;
     if (draft !== null && draft !== ficha.modoPreparo) ficha.modoPreparo = draft;
     const custo  = this.calcCusto(ficha);
+    const custoCompleto = this._costComplete(ficha);
     const preco  = produto.precoVenda || 0;
-    const lucro  = preco - custo;
-    const margem = preco ? Math.round((lucro / preco) * 100) : 0;
-    const cmvPct = preco ? Math.round((custo / preco) * 100) : 0;
-    const cmvW   = Math.min(100, cmvPct);
-    const cmvCls = cmvPct > this._cmvGoal
+    const lucro  = custoCompleto ? preco - custo : null;
+    const margem = custoCompleto && preco ? Math.round((lucro / preco) * 100) : null;
+    const cmvPct = custoCompleto && preco ? Math.round((custo / preco) * 100) : null;
+    const cmvW   = cmvPct === null ? 0 : Math.min(100, cmvPct);
+    const cmvCls = cmvPct !== null && cmvPct > this._cmvGoal
       ? 'cmv-bar__fill--danger'
-      : cmvPct > this._cmvGoal * 0.85
+      : cmvPct !== null && cmvPct > this._cmvGoal * 0.85
         ? 'cmv-bar__fill--warn'
         : '';
 
@@ -352,7 +375,7 @@ const FichasModule = {
 
       <div class="ficha-summary">
         <div>
-          <span class="ficha-summary__label">Custo (Ficha)</span>
+          <span class="ficha-summary__label">${custoCompleto ? 'Custo (Ficha)' : 'Custo parcial'}</span>
           <span class="ficha-summary__value ficha-summary__value--gold" id="fs-custo">${Utils.currency(custo)}</span>
         </div>
         <div>
@@ -361,13 +384,15 @@ const FichasModule = {
         </div>
         <div>
           <span class="ficha-summary__label">Lucro Est.</span>
-          <span class="ficha-summary__value ${lucro < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-lucro">${Utils.currency(lucro)}</span>
+          <span class="ficha-summary__value ${lucro === null ? '' : lucro < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-lucro">${lucro === null ? '—' : Utils.currency(lucro)}</span>
         </div>
         <div>
           <span class="ficha-summary__label">Margem</span>
-          <span class="ficha-summary__value ${margem < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-margem">${margem}%</span>
+          <span class="ficha-summary__value ${margem === null ? '' : margem < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-margem">${margem === null ? '—' : `${margem}%`}</span>
         </div>
       </div>
+
+      ${custoCompleto ? '' : '<p class="ficha-preparo__status" data-state="pending">Custo parcial: há rendimento, ingrediente, unidade ou custo de preparação pendente. Não use este valor como custo final.</p>'}
 
       <div>
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -378,7 +403,7 @@ const FichasModule = {
           <div class="cmv-bar__track">
             <div class="cmv-bar__fill ${cmvCls}" id="fs-cmv-fill" style="width:${cmvW}%"></div>
           </div>
-          <span class="cmv-bar__value" id="fs-cmv-value">${cmvPct}%</span>
+          <span class="cmv-bar__value" id="fs-cmv-value">${cmvPct === null ? '—' : `${cmvPct}%`}</span>
         </div>
       </div>
     `;
@@ -388,11 +413,17 @@ const FichasModule = {
 
   _renderRow(item, idx) {
     const ing   = this._ingredientes.find(i => i.id === item.ingredienteId);
-    const custo = ing ? calcIngredienteCost(ing, item.quantidade, item.unidade) : null;
+    const prep  = this._receitasCurso.find(i => i.id === item.preparacaoId && i.recipeType === 'preparation');
+    const costBase = ing || (prep && prep.cost?.partialUnit != null ? { unidade: prep.outputUnit, custoUnitario: prep.cost.partialUnit } : null);
+    const custo = costBase ? calcIngredienteCost(costBase, item.quantidade, item.unidade) : null;
 
-    const ingOptions = this._ingredientes.map(i =>
-      `<option value="${i.id}" ${i.id === item.ingredienteId ? 'selected' : ''}>${Utils.escapeHtml(i.nome)} (${i.unidade})</option>`
+    const ingOptions = this._ingredientes.filter(i=>i.ativo).map(i =>
+      `<option value="ingredient:${i.id}" ${i.id === item.ingredienteId ? 'selected' : ''}>${Utils.escapeHtml(i.nome)} (${i.unidade})</option>`
     ).join('');
+    const prepOptions = this._receitasCurso.filter(i=>i.recipeType==='preparation').map(i =>
+      `<option value="preparation:${i.id}" ${i.id === item.preparacaoId ? 'selected' : ''}>${Utils.escapeHtml(i.code)} · ${Utils.escapeHtml(i.name)}${i.status==='ready'?'':' · custo pendente'}</option>`
+    ).join('');
+    const selectedComponent = item.ingredienteId ? `ingredient:${item.ingredienteId}` : item.preparacaoId ? `preparation:${item.preparacaoId}` : '';
 
     const unitOptions = UNIDADES.map(u =>
       `<option value="${u}" ${u === item.unidade ? 'selected' : ''}>${u}</option>`
@@ -401,9 +432,10 @@ const FichasModule = {
     return `
       <tr data-idx="${idx}">
         <td>
-          <select class="ficha-ing-select" data-field="ingredienteId">
-            <option value="">— selecione —</option>
-            ${ingOptions}
+          <select class="ficha-ing-select" data-field="componentId">
+            <option value="" ${selectedComponent?'':'selected'}>— selecione insumo ou preparação —</option>
+            <optgroup label="Insumos">${ingOptions}</optgroup>
+            <optgroup label="Preparações do curso">${prepOptions}</optgroup>
           </select>
         </td>
         <td>
@@ -416,10 +448,10 @@ const FichasModule = {
           </select>
         </td>
         <td style="color:var(--text-muted);font-size:var(--text-sm)">
-          ${ing ? `${Utils.currency(ing.custoUnitario)}/${ing.unidade}` : '—'}
+          ${ing ? `${Utils.currency(ing.custoUnitario)}/${ing.unidade}` : prep?.cost?.partialUnit != null ? `${Utils.currency(prep.cost.partialUnit)}/${Utils.escapeHtml(prep.outputUnit||'un')}${prep.cost.complete?'':' · parcial'}` : '—'}
         </td>
         <td style="font-weight:600;font-size:var(--text-sm)">
-          ${custo !== null ? Utils.currency(custo) : '—'}
+          ${custo !== null ? `${Utils.currency(custo)}${prep&&!prep.cost?.complete?'*':''}` : '—'}
         </td>
         <td>
           <button class="btn-icon btn-icon--danger" data-action="remove-item" data-idx="${idx}" title="Remover" ${this._canWrite ? '' : 'disabled'}>
@@ -458,7 +490,7 @@ const FichasModule = {
 
     document.getElementById('ficha-add-item')?.addEventListener('click', () => {
       if (!this._canWrite) return;
-      ficha.itens.push({ ingredienteId: '', quantidade: 0, unidade: 'g' });
+      ficha.itens.push({ ingredienteId: '', preparacaoId: '', quantidade: 0, unidade: 'g' });
       this._persist(ficha, { debounce: true });
       this._renderEditor(produto);
     });
@@ -494,10 +526,14 @@ const FichasModule = {
           ficha.itens[idx].unidade = val;
           this._persist(ficha, { debounce: true });
           this._refreshSummary(ficha, produto);
-        } else if (field === 'ingredienteId') {
-          ficha.itens[idx].ingredienteId = val;
-          const ing = this._ingredientes.find(i => i.id === val);
+        } else if (field === 'componentId') {
+          const [kind, id] = val.split(':', 2);
+          ficha.itens[idx].ingredienteId = kind === 'ingredient' ? id : '';
+          ficha.itens[idx].preparacaoId = kind === 'preparation' ? id : '';
+          const ing = this._ingredientes.find(i => i.id === ficha.itens[idx].ingredienteId);
+          const prep = this._receitasCurso.find(i => i.id === ficha.itens[idx].preparacaoId);
           if (ing) ficha.itens[idx].unidade = ing.unidade;
+          else if (prep?.outputUnit) ficha.itens[idx].unidade = prep.outputUnit;
           this._persist(ficha, { debounce: true });
           this._renderEditor(produto);
         }
@@ -507,14 +543,15 @@ const FichasModule = {
 
   _refreshSummary(ficha, produto) {
     const custo  = this.calcCusto(ficha);
+    const custoCompleto = this._costComplete(ficha);
     const preco  = produto.precoVenda || 0;
-    const lucro  = preco - custo;
-    const margem = preco ? Math.round((lucro / preco) * 100) : 0;
-    const cmvPct = preco ? Math.round((custo / preco) * 100) : 0;
-    const cmvW   = Math.min(100, cmvPct);
-    const cmvCls = cmvPct > this._cmvGoal
+    const lucro  = custoCompleto ? preco - custo : null;
+    const margem = custoCompleto && preco ? Math.round((lucro / preco) * 100) : null;
+    const cmvPct = custoCompleto && preco ? Math.round((custo / preco) * 100) : null;
+    const cmvW   = cmvPct === null ? 0 : Math.min(100, cmvPct);
+    const cmvCls = cmvPct !== null && cmvPct > this._cmvGoal
       ? 'cmv-bar__fill--danger'
-      : cmvPct > this._cmvGoal * 0.85
+      : cmvPct !== null && cmvPct > this._cmvGoal * 0.85
         ? 'cmv-bar__fill--warn'
         : '';
 
@@ -522,12 +559,14 @@ const FichasModule = {
     const setCls = (el, base, cls) => { if (el) el.className = `${base} ${cls}`; };
 
     if ($('fs-custo'))    $('fs-custo').textContent    = Utils.currency(custo);
-    if ($('fs-lucro'))  { $('fs-lucro').textContent  = Utils.currency(lucro);  setCls($('fs-lucro'),  'ficha-summary__value', lucro  < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'); }
-    if ($('fs-margem')) { $('fs-margem').textContent = `${margem}%`;           setCls($('fs-margem'), 'ficha-summary__value', margem < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'); }
+    const costLabel = document.querySelector('#ficha-editor .ficha-summary__label');
+    if (costLabel) costLabel.textContent = custoCompleto ? 'Custo (Ficha)' : 'Custo parcial';
+    if ($('fs-lucro'))  { $('fs-lucro').textContent  = custoCompleto ? Utils.currency(lucro) : '—';  setCls($('fs-lucro'),  'ficha-summary__value', !custoCompleto ? '' : lucro  < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'); }
+    if ($('fs-margem')) { $('fs-margem').textContent = margem === null ? '—' : `${margem}%`;           setCls($('fs-margem'), 'ficha-summary__value', margem === null ? '' : margem < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'); }
     if ($('fs-cmv-fill')) {
       $('fs-cmv-fill').style.width = `${cmvW}%`;
       $('fs-cmv-fill').className   = `cmv-bar__fill ${cmvCls}`;
     }
-    if ($('fs-cmv-value')) $('fs-cmv-value').textContent = `${cmvPct}%`;
+    if ($('fs-cmv-value')) $('fs-cmv-value').textContent = cmvPct === null ? '—' : `${cmvPct}%`;
   },
 };
