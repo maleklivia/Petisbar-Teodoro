@@ -35,8 +35,10 @@ const Cardapio = {
         this.renderPromotions();
         const notice=document.getElementById('service-notice');
         const testMode=storefront.allowOrdersWithoutStockForTesting===true;
-        notice.classList.toggle('hidden',!this.tableNumber&&!testMode);
+        const closedOutsideHours=!storefront.isOpen&&storefront.closedReason==='outside_hours';
+        notice.classList.toggle('hidden',!this.tableNumber&&!testMode&&!closedOutsideHours);
         if(testMode)notice.textContent=`MODO DE TESTES — itens liberados sem estoque real. Pedidos serão registrados como teste e dependem de confirmação.${this.tableNumber?` Mesa ${this.tableNumber}.`:''}`;
+        else if(closedOutsideHours)notice.textContent=`Estamos fora do horário de atendimento (${storefront.hours}). O cardápio aceita pedidos somente nesse horário.`;
         else if(this.tableNumber)notice.textContent=`Pedido para consumo na Mesa ${this.tableNumber}.`;
       }catch{
         this.apiActive=false;
@@ -64,7 +66,7 @@ const Cardapio = {
     const payments=Array.isArray(data.paymentMethods)&&data.paymentMethods.length?data.paymentMethods:['Pix','Dinheiro','Cartão na entrega'];
     const paymentSummary=document.getElementById('payment-summary');if(paymentSummary)paymentSummary.textContent=payments.join(', ');
     const hours=document.getElementById('opening-hours');if(hours)hours.textContent=data.hours||'Horários definidos no ERP';
-    const status=document.getElementById('store-status');if(status){status.classList.toggle('open',Boolean(data.isOpen));status.classList.toggle('closed',!data.isOpen);status.querySelector('strong').textContent=data.isOpen?'Aberto agora':'Fechado agora'}
+    const status=document.getElementById('store-status');if(status){status.classList.toggle('open',Boolean(data.isOpen));status.classList.toggle('closed',!data.isOpen);status.querySelector('strong').textContent=data.isOpen?'Aberto agora':data.closedReason==='outside_hours'?'Fora do horário':'Fechado agora'}
     const promotion=(Array.isArray(data.promotions)&&data.promotions[0])||{};const promotionText=document.getElementById('promotion-text');if(promotionText)promotionText.textContent=promotion.description||'Confira as promoções disponíveis no cardápio.';
     const whatsapp=document.querySelector('#store-panel-contato a');if(whatsapp&&data.whatsapp)whatsapp.href=`https://wa.me/${String(data.whatsapp).replace(/\D/g,'')}`;
     const select=document.querySelector('[name="payment"]');if(select){const selected=select.value;select.innerHTML=payments.map(method=>`<option>${this.escape(method)}</option>`).join('');if(payments.includes(selected))select.value=selected}
