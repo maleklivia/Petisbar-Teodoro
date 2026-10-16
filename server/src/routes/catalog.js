@@ -186,10 +186,10 @@ export default async function catalogRoutes(app) {
       EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
       OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)
     ) LIMIT 1`, [id]);
-    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
+    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [id])).rows.map(row=>row.name) } });}
     const configured=await client.query(`SELECT 1 FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
       CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 LIMIT 1`,[id]);
-    if(configured.rowCount){await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options'});}
+    if(configured.rowCount){await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[id])).rows.map(row=>row.name)}});}
     const { rows } = await client.query('UPDATE products SET active=false, updated_at=now() WHERE id=$1 RETURNING *', [id]);
     await client.query('COMMIT');
     return { data: rows[0] };
