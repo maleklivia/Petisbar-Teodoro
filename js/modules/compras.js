@@ -103,7 +103,7 @@ const ComprasModule = {
   _renderCompras(compras) {
     let data = compras.filter(c => c.status !== 'Recebido' && c.status !== 'Cancelado');
     if (this._filtroStatus !== 'todos') data = data.filter(c => c.status === this._filtroStatus);
-    const automaticDrafts = compras.filter(c => c.tipo === 'automatico' && c.status === 'Rascunho');
+    const automaticDrafts = compras.filter(c => String(c.tipo).toLowerCase() === 'automatico' && c.status === 'Rascunho');
 
     return `
       <div class="module-toolbar">
@@ -206,7 +206,7 @@ const ComprasModule = {
   },
 
   async _cancelarRascunhosAutomaticos() {
-    const drafts=this._compras.filter(c=>c.tipo==='automatico'&&c.status==='Rascunho');
+    const drafts=this._compras.filter(c=>String(c.tipo).toLowerCase()==='automatico'&&c.status==='Rascunho');
     if(!drafts.length)return;
     if(!confirm(`Cancelar os ${drafts.length} rascunhos automáticos?`))return;
     const button=document.getElementById('btn-cancelar-automaticos');if(button)button.disabled=true;
@@ -234,7 +234,7 @@ const ComprasModule = {
           : action === 'cancelar' ? 'Cancelado'
             : action === 'receber' ? 'Recebido'
               : compra.status;
-      if (action === 'cancelar' && !confirm('Cancelar este pedido?')) return;
+      if (action === 'cancelar' && String(compra.tipo).toLowerCase() !== 'automatico' && !confirm('Cancelar este pedido?')) return;
       try {
         const updated = await API.updateServerPurchaseStatus(id, nextStatus);
         const idx = this._compras.findIndex(c => c.id === id);
@@ -262,7 +262,7 @@ const ComprasModule = {
 
     if (action === 'aprovar')  compra.status = 'Aprovado';
     if (action === 'pedido')   compra.status = 'Pedido';
-    if (action === 'cancelar') { if (!confirm('Cancelar este pedido?')) return; compra.status = 'Cancelado'; }
+    if (action === 'cancelar') { if (String(compra.tipo).toLowerCase() !== 'automatico' && !confirm('Cancelar este pedido?')) return; compra.status = 'Cancelado'; }
     if (action === 'receber')  { this._confirmarRecebimento(compra); return; }
 
     Stores.compras.set(compras);
