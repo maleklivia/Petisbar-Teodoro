@@ -1,6 +1,6 @@
 # Backend, PostgreSQL e autenticação
 
-Esta pasta contém a fundação do modo servidor do Petisbar Teodoro. A versão atual do frontend continua funcionando com armazenamento local durante a transição. A API e o importador permitem iniciar a migração controlada; cada tela deverá ser conectada à API e homologada antes do uso operacional.
+Esta pasta contém o backend operacional do Petisbar Teodoro, implantado na VPS. No domínio da VPS, as telas administrativas migradas usam API autenticada e PostgreSQL. A versão do GitHub Pages permanece uma demonstração local e não é fonte operacional.
 
 ## Componentes
 
@@ -79,11 +79,11 @@ docker compose up -d
 
 O endereço `/cardapio.html` oferece catálogo, carrinho, retirada ou entrega, identificação do cliente e formas de pagamento sem coletar dados de cartão. Defina `DEFAULT_DELIVERY_FEE` no `.env` antes de ativar entregas.
 
-Enquanto a API não estiver disponível, a página utiliza o catálogo provisório e finaliza o pedido pelo WhatsApp. Após a implantação, o mesmo link detecta a API e cria o pedido no PostgreSQL com origem `Cardápio Digital`.
+No domínio da VPS, o cardápio usa catálogo/API e grava pedidos no PostgreSQL com origem `Cardápio Digital`. Não usar a página pública para criar pedidos de teste, pois as gravações chegam ao banco de produção.
 
 O cupom `PRIMEIROPEDIDO` concede 10% de desconto, limitado a R$ 10,00, somente no primeiro pedido de cada telefone. Ele aparece apenas quando a API estiver ativa. O servidor valida o telefone ao aplicar e valida novamente ao finalizar, registrando o uso no PostgreSQL para impedir reutilização.
 
-Antes de divulgar, configure o domínio, conclua a conexão da tela administrativa de Pedidos com a API e realize pedidos de homologação de ponta a ponta.
+Antes de divulgar, revise as configurações e conclua uma homologação interna controlada. Não crie pedidos fictícios no domínio público de produção.
 
 Ao mudar um pedido para `Entregue` ou `Concluído`, a API executa na mesma transação a baixa dos ingredientes da ficha técnica (ou do estoque direto do produto), a movimentação de estoque, a receita e o CMV. Um cancelamento posterior gera movimentos e lançamentos de estorno. As marcações no pedido e as chaves financeiras tornam esses efeitos idempotentes.
 
@@ -98,19 +98,18 @@ A migração `009_accounting_fiscal_mei.sql` cria plano de contas, documentos fi
 
 No domínio da VPS, todas as telas administrativas exigem uma sessão válida. As telas de Pedidos, Produção, Produtos, Ingredientes, Fichas Técnicas, Clientes, Estoque, Compras, Fornecedores, Financeiro e Relatórios já usam a API. As telas ainda não migradas exibem um aviso explícito de que seus dados continuam locais. O modo local permanece disponível no GitHub Pages para demonstração e pode ser ativado deliberadamente com `?local=1` durante desenvolvimento.
 
-## iFood
+## iFood e 99
 
-A base do Plano Entrega mantém preço e disponibilidade separados por produto, recebe eventos por polling e registra pedidos com proteção contra duplicidade. Ela inicia desligada. Consulte `docs/IFOOD.md` antes de preencher as credenciais e ativar `IFOOD_ENABLED`.
+iFood inicia desligado. Há cálculo de preço e recebimento de eventos/pedidos, mas não há publicação/sincronização de catálogo nesta versão. A integração 99 não está implementada. Não habilitar marketplaces antes da auditoria interna e de credenciais oficiais do restaurante. Consulte `docs/IFOOD.md`.
 
 ## Backup
 
-O script `ops/backup/backup-postgres.sh` gera um dump em formato próprio do PostgreSQL e remove arquivos locais com mais de 30 dias. Em produção, o destino deve ser sincronizado com armazenamento externo criptografado. Uma restauração precisa ser testada regularmente.
+Em produção, `petisbar-db-backup.timer` executa `/opt/petisbar/app/ops/backup/native-postgres.sh` diariamente e valida o dump local em `/var/backups/petisbar`. O backup fica na própria VPS: configure cópia externa criptografada e retenção, e teste uma restauração em banco isolado. `pg_restore --list` não substitui o teste de restauração.
 
 ## Antes do uso real
 
-- Conectar as telas restantes ao backend: marketing, documentos e configurações.
-- Criar testes automatizados ampliados para CRUD de catálogo/clientes quando houver PostgreSQL local ou pipeline CI disponível.
+- Confirmar quais telas restantes permanecem locais; elas mostram aviso de não migração.
 - Configurar backup externo e monitoramento.
 - Revisar domínio, e-mail, política de privacidade e perfis dos funcionários.
-- Fazer homologação com dados de teste antes da migração definitiva.
+- Fazer homologação interna sem pedidos artificiais no banco de produção.
 
