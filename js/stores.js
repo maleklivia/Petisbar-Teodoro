@@ -950,11 +950,12 @@ storedProducts.forEach(product => {
   }
 });
 
-// Acrescenta fotos representativas também aos produtos já salvos no navegador.
+// Preenche fotos ausentes sem substituir fotos escolhidas manualmente.
 storedProducts.forEach(product => {
   const defaultPhoto = getDefaultProductPhoto(product);
-  if (defaultPhoto && product.foto !== defaultPhoto) {
+  if (defaultPhoto && (!product.foto || product.fotoProvisoria) && product.foto !== defaultPhoto) {
     product.foto = defaultPhoto;
+    product.fotoProvisoria = true;
     productsChanged = true;
   }
 });

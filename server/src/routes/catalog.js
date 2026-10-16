@@ -1,5 +1,19 @@
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { requirePermission } from '../middleware/auth.js';
+
+const uploadedPhotoUrl = (productId, version = '') => `/api/v1/public/products/${encodeURIComponent(productId)}/photo${version?`?v=${version}`:''}`;
+
+export function parseProductPhoto(value) {
+  if (typeof value !== 'string' || !value.startsWith('data:')) return { photoUrl: value || null };
+  const match = /^data:image\/jpeg;base64,([a-z0-9+/]+={0,2})$/i.exec(value);
+  if (!match) return { error: 'product_photo_invalid' };
+  const bytes = Buffer.from(match[1], 'base64');
+  if (bytes.length > 1_000_000 || bytes.toString('base64') !== match[1]
+    || bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff
+    || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) return { error: 'product_photo_invalid' };
+  return { bytes };
+}
 
 const productSchema = z.object({
   id: z.string().min(1).max(100),
@@ -15,7 +29,7 @@ const productSchema = z.object({
   tempoPreparo: z.number().int().nonnegative().default(0),
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
-  foto: z.string().max(500).nullable().optional(),
+  foto: z.string().max(1_400_000).nullable().optional(),
   optionGroups: z.array(z.object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),
     label: z.string().trim().min(1).max(100),
@@ -69,12 +83,25 @@ function sheetRows(rows) {
 }
 
 export default async function catalogRoutes(app) {
+  app.get('/public/products/:id/photo', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const id = z.string().min(1).max(100).parse(request.params.id);
+    const { rows } = await app.db.query('SELECT image_bytes,sha256 FROM product_photo_assets WHERE product_id=$1',[id]);
+    if(!rows[0])return reply.code(404).send({error:'product_photo_not_found'});
+    const etag=`"${rows[0].sha256}"`;
+    reply.header('Cache-Control','public, max-age=300, must-revalidate')
+      .header('ETag',etag)
+      .header('X-Content-Type-Options','nosniff')
+      .type('image/jpeg');
+    if(request.headers['if-none-match']===etag)return reply.code(304).send();
+    return reply.send(rows[0].image_bytes);
+  });
+
   app.get('/products', { preHandler: requirePermission('catalog.read') }, async () => {
     const { rows } = await app.db.query('SELECT * FROM products ORDER BY category, name');
     return { data: rows };
   });
 
-  app.post('/products', { preHandler: requirePermission('catalog.write') }, async (request, reply) => {
+  app.post('/products', { bodyLimit: 2 * 1024 * 1024, preHandler: requirePermission('catalog.write') }, async (request, reply) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
     const p = parsed.data;
@@ -86,9 +113,12 @@ export default async function catalogRoutes(app) {
       if(group.options.some(option=>option.stockMode!=='none'&&!option.priceProductId))return reply.code(400).send({error:'product_options_invalid'});
     }
     if(p.optionGroups.filter(group=>group.options.some(option=>option.priceMode==='replace')).length>1)return reply.code(400).send({error:'product_options_ambiguous'});
+    const photoInput=parseProductPhoto(p.foto);
+    if(photoInput.error)return reply.code(400).send({error:photoInput.error});
     const client=await app.db.connect();
     try {
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[p.id]);
     const priceProductIds=[...new Set(p.optionGroups.flatMap(group=>group.options.map(option=>option.priceProductId).filter(Boolean)))];
     const lockedIds=[...new Set([p.id,...priceProductIds])].sort();
     await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[lockedIds]);
@@ -103,6 +133,12 @@ export default async function catalogRoutes(app) {
       if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion' });}
       if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options'});}
     }
+    let photoUrl=photoInput.photoUrl;
+    let photoSha256=null;
+    if(photoInput.bytes){
+      photoSha256=createHash('sha256').update(photoInput.bytes).digest('hex');
+      photoUrl=uploadedPhotoUrl(p.id,photoSha256);
+    }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
         preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups)
@@ -115,7 +151,14 @@ export default async function catalogRoutes(app) {
         option_groups=EXCLUDED.option_groups, updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,p.optionGroups]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups)]);
+    if(photoInput.bytes){
+      await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256)
+        VALUES($1,$2,$3) ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,
+        sha256=EXCLUDED.sha256,updated_at=now()`,[p.id,photoInput.bytes,photoSha256]);
+    } else if(!photoUrl?.startsWith(uploadedPhotoUrl(p.id))) {
+      await client.query('DELETE FROM product_photo_assets WHERE product_id=$1',[p.id]);
+    }
     await client.query('COMMIT');
     return reply.code(201).send({ data: rows[0] });
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
