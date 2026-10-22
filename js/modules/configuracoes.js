@@ -230,7 +230,8 @@ const ConfiguracoesModule = {
   },
 
   _renderEntrega(cfg) {
-    const f = cfg.frete || {};
+    const remoteZones = cfg['storefront.deliveryZones'];
+    const f = remoteZones ? { padrao: remoteZones.defaultFee, zonas: remoteZones.zones || [] } : (cfg.frete || {});
     const zonas = f.zonas || [];
     return `
       <div style="max-width:560px;display:flex;flex-direction:column;gap:var(--sp-4)">
@@ -238,8 +239,8 @@ const ConfiguracoesModule = {
           <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Frete</h3>
           <div class="form-group">
             <label class="form-label">Frete Padrão (R$)</label>
-            <input type="number" class="form-input" id="cfg-frete-padrao" value="${f.padrao ?? 8}" min="0" step="0.50" style="max-width:160px">
-            <small style="color:var(--text-muted);font-size:var(--text-xs)">Valor usado quando nenhuma zona específica é encontrada</small>
+            <input type="number" class="form-input" id="cfg-frete-padrao" value="${f.padrao ?? ''}" min="0" step="0.50" style="max-width:160px">
+            <small style="color:var(--text-muted);font-size:var(--text-xs)">Deixe em branco para bloquear CEPs fora das zonas cadastradas</small>
           </div>
 
           <h4 style="font-weight:700;margin:var(--sp-5) 0 var(--sp-3)">Zonas de Entrega por CEP</h4>
@@ -272,7 +273,10 @@ const ConfiguracoesModule = {
       const valor    = parseFloat(row.querySelector('.zona-valor')?.value  || 0);
       if (prefixo) zonas.push({ nome, prefixo, valor: isNaN(valor) ? 0 : valor });
     });
-    cfg.frete = { padrao: parseFloat(document.getElementById('cfg-frete-padrao')?.value || 8), zonas };
+    const defaultValue = document.getElementById('cfg-frete-padrao')?.value?.trim();
+    const deliveryZones = { defaultFee: defaultValue === '' ? null : parseFloat(defaultValue), zones: zonas };
+    cfg.frete = { padrao: deliveryZones.defaultFee, zonas };
+    if (API.isServerMode()) API.saveServerSettings({'storefront.deliveryZones': deliveryZones}).catch(error => { console.error(error); UI.toast('Não foi possível salvar as zonas no servidor.', 'error'); });
     this._persist(cfg);
     UI.toast('Configurações de entrega salvas.', 'success');
   },
