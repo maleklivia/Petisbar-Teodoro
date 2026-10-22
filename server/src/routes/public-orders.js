@@ -5,6 +5,7 @@ import { pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pri
 import { calculatePromotions, couponCanStack } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
 import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
+import { createPixOrder, getOrder } from '../services/mercadopago.js';
 
 const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
@@ -190,5 +191,40 @@ export default async function publicOrderRoutes(app) {
     ]);
     delete order.token_id;
     return {data:{...order,items:items.rows,history:history.rows}};
+  });
+
+  app.post('/public/orders/:id/pix', {config:{rateLimit:{max:5,timeWindow:'1 minute'}}}, async (request, reply) => {
+    const orderId = z.string().min(1).max(100).parse(request.params.id);
+    const token = z.string().regex(/^[a-f0-9]{32,128}$/i).parse(request.body?.trackingToken || '');
+    const orderResult = await app.db.query(`SELECT o.id,o.total,o.payment_method,o.client_name,ot.token_hash
+      FROM orders o JOIN order_tracking_tokens ot ON ot.order_id=o.id
+      WHERE o.id=$1 AND ot.token_hash=$2 AND ot.revoked_at IS NULL AND ot.expires_at>now()`, [orderId, hashToken(token)]);
+    if (!orderResult.rowCount) return reply.code(404).send({ error: 'order_not_found' });
+    const order = orderResult.rows[0];
+    if (order.payment_method !== 'Pix') return reply.code(409).send({ error: 'payment_method_not_pix' });
+    const existing = await app.db.query('SELECT * FROM order_payments WHERE order_id=$1', [orderId]);
+    if (existing.rowCount) {
+      const p = existing.rows[0];
+      return { data: { status:p.status, statusDetail:p.status_detail, qrCode:p.qr_code, qrCodeBase64:p.qr_code_base64, ticketUrl:p.ticket_url, feeAmount:Number(p.fee_amount) } };
+    }
+    const created = await createPixOrder({ orderId, amount: order.total, email: `pedido-${order.id}@petisbar.local` });
+    if (created.error) return reply.code(created.status === 403 ? 502 : 503).send({ error: created.error, providerStatus: created.status });
+    await app.db.query(`INSERT INTO order_payments(id,order_id,provider,provider_order_id,provider_payment_id,method,status,status_detail,gross_amount,fee_amount,net_amount,qr_code,qr_code_base64,ticket_url,provider_payload)
+      VALUES($1,$2,'mercadopago',$3,$4,'Pix',$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [created.id,orderId,created.providerOrderId,created.providerPaymentId,created.status,created.statusDetail,created.grossAmount,created.feeAmount,created.netAmount,created.qrCode,created.qrCodeBase64,created.ticketUrl,JSON.stringify(created.payload)]);
+    return { data: { status:created.status, statusDetail:created.statusDetail, qrCode:created.qrCode, qrCodeBase64:created.qrCodeBase64, ticketUrl:created.ticketUrl, feeAmount:created.feeAmount } };
+  });
+
+  app.post('/public/payments/mercadopago/webhook', async (request, reply) => {
+    const providerOrderId = String(request.body?.data?.id || request.query?.id || '').trim();
+    if (!providerOrderId) return reply.code(400).send({ error: 'provider_order_missing' });
+    const payment = await app.db.query('SELECT id,order_id FROM order_payments WHERE provider_order_id=$1', [providerOrderId]);
+    if (!payment.rowCount) return reply.code(204).send();
+    const refreshed = await getOrder(providerOrderId);
+    if (refreshed.error) return reply.code(202).send();
+    const row = payment.rows[0];
+    await app.db.query('UPDATE order_payments SET status=$2,status_detail=$3,fee_amount=$4,net_amount=gross_amount-$4,provider_payload=$5,updated_at=now() WHERE id=$1', [row.id,refreshed.status,refreshed.statusDetail,refreshed.feeAmount,JSON.stringify(refreshed.payload)]);
+    if (refreshed.feeAmount > 0) await app.db.query(`INSERT INTO financial_entries(id,entry_date,description,category,entry_type,amount,reference_type,reference_id,effect_key)
+      VALUES($1,current_date,$2,'Taxas de pagamento','Saída',$3,'order_payment',$4,$5) ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO UPDATE SET amount=EXCLUDED.amount`, [`fin-mp-${row.id}`,'Taxa Mercado Pago — pedido '+row.order_id,-refreshed.feeAmount,row.order_id,`payment-fee:${row.id}`]);
+    return reply.code(204).send();
   });
 }

@@ -274,6 +274,7 @@ const Cardapio = {
         document.getElementById('order-confirmation-number').textContent=`Pedido #${body.data.orderNumber}`;
         document.getElementById('order-confirmation').classList.remove('hidden');
         document.getElementById('order-confirmation').scrollIntoView({behavior:'smooth',block:'center'});
+        if(payload.paymentMethod==='Pix') await this.startPixPayment(body.data.id,body.data.trackingToken);
       }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
@@ -284,6 +285,18 @@ const Cardapio = {
       document.getElementById('service-notice').textContent='Não foi possível confirmar o pedido. Consulte o estabelecimento antes de tentar novamente.';
       this.toast('Conexão interrompida. Confira se o pedido foi recebido antes de reenviar.');
     }finally{this.submitting=false;this.renderCheckout()}
+  },
+  async startPixPayment(orderId,trackingToken){
+    const panel=document.getElementById('pix-payment'); if(!panel)return;
+    try{
+      const response=await fetch(this.endpoint(`/public/orders/${encodeURIComponent(orderId)}/pix`),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({trackingToken}),signal:AbortSignal.timeout(20000)});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body.error||'payment_unavailable');
+      const data=body.data||{}; panel.classList.remove('hidden');
+      const image=document.getElementById('pix-qr'),copy=document.getElementById('pix-copy'),ticket=document.getElementById('pix-ticket');
+      copy.value=data.qrCode||''; image.classList.toggle('hidden',!data.qrCodeBase64); if(data.qrCodeBase64)image.src=`data:image/png;base64,${data.qrCodeBase64}`; ticket.classList.toggle('hidden',!data.ticketUrl); if(data.ticketUrl)ticket.href=data.ticketUrl;
+      document.getElementById('pix-copy-button')?.addEventListener('click',async()=>{await navigator.clipboard.writeText(copy.value);this.toast('Código Pix copiado.')},{once:true});
+    }catch{this.toast('Pedido registrado, mas não foi possível gerar o Pix agora. Consulte o estabelecimento.');}
   },
   toast(message){const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>el.classList.remove('show'),3500)},
 };
