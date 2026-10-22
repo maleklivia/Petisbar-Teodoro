@@ -261,7 +261,9 @@ const Cardapio = {
       const body=await response.json().catch(()=>({}));
       if(!response.ok){
         if(['catalog_changed','product_unavailable','insufficient_stock','payment_unavailable','minimum_order_not_met'].includes(body.error)){
-          await this.refresh();this.toast('O cardápio mudou. Confira preços, disponibilidade e pagamento antes de tentar novamente.');
+          await this.refresh();
+          const reasons={catalog_changed:'O preço do produto mudou. Atualize o carrinho.',product_unavailable:'Um produto ficou indisponível.',insufficient_stock:'Não há estoque suficiente para este item.',payment_unavailable:'Pix não está disponível neste momento.',minimum_order_not_met:`O pedido mínimo é de ${this.money(Number(body.minimumOrder||20))}.`};
+          this.toast(reasons[body.error]);
         }else if(body.error==='store_closed'){
           await this.refresh();this.toast('A loja está fechada no momento.');
         }else this.toast(this.couponError(body.error));
