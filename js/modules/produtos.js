@@ -14,6 +14,10 @@ const ProdutosModule = {
   _activeTab: 'cardapio',
   _serverMode: false,
   _canWrite: true,
+  _photoDraft: null,
+  _photoRemove: false,
+  _photoPreviewUrl: null,
+  _ifoodPriceManualEdit: false,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
@@ -152,9 +156,9 @@ const ProdutosModule = {
               </div>
             </div>
           </td>
-          <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
+          <td style="color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
-          <td><strong>${Utils.currency(p.precoIfood ?? Math.ceil((p.precoVenda / 0.738) * 100) / 100)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
+          <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
@@ -210,9 +214,12 @@ const ProdutosModule = {
 
   _openForm(item = null) {
     const editing = !!item;
+    this._releaseProductPhotoPreview();
+    this._photoDraft = null;
+    this._photoRemove = false;
 
     const catOptions = CATEGORIAS_PRODUTO.map(c =>
-      `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${c}</option>`
+      `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${Utils.escapeHtml(Utils.displayCategory(c))}</option>`
     ).join('');
 
     UI.openModal({
@@ -244,8 +251,8 @@ const ProdutosModule = {
             <div class="form-group">
               <label class="form-label">Preço no iFood — Plano Entrega (R$)</label>
               <input class="form-input" name="precoIfood" type="number" step="0.01" min="0.01"
-                value="${item?.precoIfood ?? (item?.precoVenda ? Math.ceil((item.precoVenda / 0.738) * 100) / 100 : '')}">
-              <small style="color:var(--text-muted)">Sugestão para preservar o valor líquido após 23% + 3,2%. Mensalidade não incluída.</small>
+                value="${item?.precoIfood ?? ''}">
+              <small id="ifood-price-hint" style="color:var(--text-muted)">A sugestão acompanha o preço de venda. Edite este campo para definir um preço manual; mensalidade não incluída.</small>
             </div>
             <label style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer"><input type="checkbox" name="ativoIfood" value="true" ${item?.ativoIfood ? 'checked' : ''}><span class="form-label" style="margin:0">Disponível no iFood após ativar a integração</span></label>
           </div>
@@ -283,6 +290,19 @@ const ProdutosModule = {
               placeholder="Descrição curta para o cardápio...">${Utils.escapeHtml(item?.descricao || '')}</textarea>
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="product-photo-file">Imagem do produto</label>
+            <div class="product-photo-editor">
+              <div id="product-photo-preview">${Utils.productPhoto(item || { nome: 'Produto', foto: '' }, 'product-photo-icon--editor')}</div>
+              <div class="product-photo-editor__controls">
+                <input class="form-input" id="product-photo-file" type="file" accept="image/jpeg,image/png,image/webp">
+                <small>Escolha uma foto JPG, PNG ou WebP. Ela será ajustada para o cardápio e salva no VPS.</small>
+                <button type="button" class="btn btn-secondary btn-sm" id="remove-product-photo">Remover imagem</button>
+                <small id="product-photo-status" aria-live="polite">${item?.foto ? 'Imagem atual do produto.' : 'Nenhuma imagem personalizada.'}</small>
+              </div>
+            </div>
+          </div>
+
           <div class="form-group"><label class="form-label">Opções para o cliente</label><div id="product-option-groups"></div><button type="button" class="btn btn-secondary btn-sm" id="add-product-option-group">+ Grupo de opções</button><small style="display:block;margin-top:8px;color:var(--text-muted)">Preços usam o cadastro do produto escolhido no ERP. Escolha “Somar” para adicional ou “Substituir” para variação de preço.</small></div>
 
           <div class="form-group">
@@ -297,6 +317,8 @@ const ProdutosModule = {
       confirmLabel: editing ? 'Salvar' : 'Cadastrar',
       onConfirm: () => this._submitForm(editing, item),
     });
+    this._bindIfoodPriceEditor(item);
+    this._bindProductPhotoEditor(item);
     this._drawOptionGroups(item?.optionGroups||[]);
     document.getElementById('product-option-groups').addEventListener('click',event=>{
       const button=event.target.closest('[data-option-action]');if(!button)return;
@@ -315,6 +337,117 @@ const ProdutosModule = {
     type:group.querySelector('[data-option-type]').value,required:group.querySelector('[data-option-required]').checked,
     options:[...group.querySelectorAll('[data-option-row]')].map(row=>({value:row.querySelector('[data-option-value]').value.trim(),label:row.querySelector('[data-option-text]').value.trim(),priceMode:row.querySelector('[data-option-price-mode]').value,stockMode:row.querySelector('[data-option-stock-mode]').value,priceProductId:row.querySelector('[data-option-product]').value||null})),
   }))},
+
+  _bindIfoodPriceEditor(item) {
+    const saleInput = document.querySelector('#form-produto [name="precoVenda"]');
+    const ifoodInput = document.querySelector('#form-produto [name="precoIfood"]');
+    const hint = document.getElementById('ifood-price-hint');
+    if (!saleInput || !ifoodInput) return;
+
+    this._ifoodPriceManualEdit = false;
+    let followsSuggestion = !item || item.precoIfood == null || item.precoVenda == null;
+    let requestSequence = 0;
+    const money = value => Math.round(Number(value) * 100);
+    const modeReady = item?.precoIfood != null && Number(item.precoVenda) > 0
+      ? API.previewServerIfoodPrice(Number(item.precoVenda)).then(preview => {
+          followsSuggestion = money(item.precoIfood) === money(preview.ifoodPrice);
+          if (hint) hint.textContent = followsSuggestion
+            ? `Atualiza automaticamente usando ${preview.totalFeePercent}% de taxas totais configuradas no VPS. Edite para fixar um valor manual; mensalidade não incluída.`
+            : `Preço manual preservado. A referência atual usa ${preview.totalFeePercent}% de taxas totais configuradas no VPS; mensalidade não incluída.`;
+        }).catch(() => { followsSuggestion = false; })
+      : Promise.resolve();
+
+    if (ifoodInput.value && followsSuggestion && hint) {
+      hint.textContent = 'A sugestão acompanha o preço de venda. Edite este campo para definir um preço manual; mensalidade não incluída.';
+    }
+    ifoodInput.addEventListener('input', () => {
+      this._ifoodPriceManualEdit = true;
+      requestSequence++;
+      if (hint) hint.textContent = 'Preço manual: será mantido ao alterar o preço de venda.';
+    });
+    saleInput.addEventListener('input', () => {
+      const sequence = ++requestSequence;
+      const saleValue = saleInput.value;
+      void modeReady.then(async () => {
+        if (!followsSuggestion || this._ifoodPriceManualEdit) return;
+        const amount = Number(saleValue);
+        if (!(amount > 0)) { ifoodInput.value = ''; return; }
+        const preview = await API.previewServerIfoodPrice(amount);
+        if (sequence !== requestSequence || saleInput.value !== saleValue || this._ifoodPriceManualEdit || !followsSuggestion) return;
+        ifoodInput.value = Number(preview.ifoodPrice).toFixed(2);
+        if (hint) hint.textContent = `Sugestão automática com ${preview.totalFeePercent}% de taxas totais configuradas no VPS. Edite este campo para fixar manualmente; mensalidade não incluída.`;
+      }).catch(() => {});
+    });
+  },
+
+  _releaseProductPhotoPreview() {
+    if (this._photoPreviewUrl) URL.revokeObjectURL(this._photoPreviewUrl);
+    this._photoPreviewUrl = null;
+  },
+
+  _renderProductPhotoPreview(photo, name, objectUrl = null) {
+    const preview = document.getElementById('product-photo-preview');
+    if (!preview) return;
+    this._releaseProductPhotoPreview();
+    if (objectUrl) {
+      this._photoPreviewUrl = objectUrl;
+      preview.innerHTML = `<span class="product-photo-icon product-photo-icon--editor"><img src="${Utils.escapeHtml(objectUrl)}" alt="Prévia da foto de ${Utils.escapeHtml(name)}"></span>`;
+      return;
+    }
+    preview.innerHTML = Utils.productPhoto({ nome: name, foto: photo || '' }, 'product-photo-icon--editor');
+  },
+
+  async _encodeProductPhoto(file) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Escolha uma imagem JPG, PNG ou WebP.');
+    if (file.size > 12 * 1024 * 1024) throw new Error('A imagem deve ter até 12 MB antes do ajuste.');
+    const bitmap = await createImageBitmap(file);
+    try {
+      const scale = Math.min(1, 1400 / bitmap.width, 1400 / bitmap.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Não foi possível processar a imagem.')), 'image/jpeg', 0.84));
+      if (blob.size > 1_000_000) throw new Error('A foto continua muito grande após o ajuste. Escolha outra imagem.');
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Não foi possível preparar a imagem.'));
+        reader.readAsDataURL(blob);
+      });
+      return { dataUrl, blob };
+    } finally { bitmap.close(); }
+  },
+
+  _bindProductPhotoEditor(item) {
+    const input = document.getElementById('product-photo-file');
+    const status = document.getElementById('product-photo-status');
+    input?.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const previousDraft = this._photoDraft;
+      try {
+        this._photoDraft = await this._encodeProductPhoto(file);
+        this._photoRemove = false;
+        this._renderProductPhotoPreview('', item?.nome || document.querySelector('[name="nome"]')?.value || 'Produto', URL.createObjectURL(this._photoDraft.blob));
+        if (status) status.textContent = `Prévia pronta: ${file.name}`;
+      } catch (error) {
+        input.value = '';
+        this._photoDraft = previousDraft;
+        UI.toast(error.message || 'Não foi possível carregar essa imagem.', 'danger');
+      }
+    });
+    document.getElementById('remove-product-photo')?.addEventListener('click', () => {
+      input.value = '';
+      this._photoDraft = null;
+      this._photoRemove = true;
+      this._renderProductPhotoPreview('', item?.nome || document.querySelector('[name="nome"]')?.value || 'Produto');
+      if (status) status.textContent = 'A imagem personalizada será removida ao salvar.';
+    });
+  },
 
   _drawOptionGroups(groups){
     const container=document.getElementById('product-option-groups');if(!container)return;
@@ -344,13 +477,14 @@ const ProdutosModule = {
       descricao:    fd.get('descricao').trim(),
       precoVenda,
       optionGroups,
-      precoIfood:   parseFloat(fd.get('precoIfood')) || Math.ceil((precoVenda / 0.738) * 100) / 100,
+      precoIfood:   this._ifoodPriceManualEdit ? parseFloat(fd.get('precoIfood')) : undefined,
       ativoIfood:   fd.get('ativoIfood') === 'true',
       tempoPreparo: parseFloat(fd.get('tempoPreparo')) || 0,
       peso:         parseFloat(fd.get('peso')) || 0,
       dataCadastro: fd.get('dataCadastro') || Utils.today(),
       ativo:        fd.get('ativo') === 'true',
-      foto:         original?.foto || '',
+      foto:         this._photoDraft?.dataUrl || (this._photoRemove ? null : original?.foto || ''),
+      fotoProvisoria: this._photoDraft ? false : (this._photoRemove ? true : original?.fotoProvisoria || false),
     };
 
     if (this._serverMode) {
@@ -360,10 +494,20 @@ const ProdutosModule = {
         if (idx >= 0) this._items[idx] = saved;
         else this._items.push(saved);
         UI.toast(editing ? 'Produto atualizado' : 'Produto cadastrado', 'success');
+        this._releaseProductPhotoPreview();
         UI.closeModal();
         this._render();
       } catch (error) {
-        UI.toast(error.code === 'validation_error' ? 'Revise os campos do produto.' : 'Não foi possível salvar o produto.', 'danger');
+        const messages = {
+          validation_error: 'Revise os campos do produto.',
+          product_used_by_active_promotion: 'Este produto está em uma promoção ativa. Encerre a promoção antes de desativá-lo.',
+          product_used_by_product_options: 'Este produto está vinculado às opções de outro produto. Remova o vínculo antes de desativá-lo.',
+          product_option_price_product_missing: 'Uma opção do produto aponta para um cadastro inexistente. Revise os grupos de opções.',
+          product_photo_invalid: 'A imagem não foi aceita. Escolha uma foto JPG, PNG ou WebP e tente novamente.',
+        };
+        const message = messages[error.code]
+          || (error.status ? `Não foi possível salvar o produto (erro ${error.status}${error.code ? `: ${error.code}` : ''}).` : 'Não foi possível salvar o produto. Verifique a conexão e tente novamente.');
+        UI.toast(message, 'danger');
       }
       return;
     }
@@ -378,6 +522,7 @@ const ProdutosModule = {
     }
 
     Stores.produtos.set(this._items);
+    this._releaseProductPhotoPreview();
     UI.closeModal();
     this._render();
   },

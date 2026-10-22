@@ -6,6 +6,8 @@
 const ConfiguracoesModule = {
   _tab: 'restaurante',
   _storefront: null,
+  _ifoodStatus: null,
+  _ifoodStatusUnavailable: false,
   _eventsBound: false,
   _storefrontDraftKey: 'petisbar-storefront-draft-v1',
 
@@ -32,8 +34,14 @@ const ConfiguracoesModule = {
 
   async init() {
     if (API.isServerMode() && API.hasPermission('settings.manage')) {
-      try { const remote = await API.getServerSettings(); this._storefront = remote; if (remote && Object.keys(remote).length) Stores.config.set({ ...Stores.config.get(), ...remote }); }
-      catch (error) { console.warn('Configurações remotas indisponíveis', error); }
+      const results = await Promise.allSettled([API.getServerSettings(), API.getServerIfoodStatus()]);
+      if (results[0].status === 'fulfilled') {
+        const remote = results[0].value;
+        this._storefront = remote;
+        if (remote && Object.keys(remote).length) Stores.config.set({ ...Stores.config.get(), ...remote });
+      } else console.warn('Configurações remotas indisponíveis', results[0].reason);
+      if (results[1].status === 'fulfilled') this._ifoodStatus = results[1].value;
+      else { this._ifoodStatusUnavailable = true; console.warn('Taxas do iFood indisponíveis', results[1].reason); }
     }
     this._render();
     this._bindEvents();
@@ -184,6 +192,15 @@ const ConfiguracoesModule = {
   _renderMetas(cfg) {
     const m = cfg.metas || {};
     const t = cfg.taxas || {};
+    const ifood = this._ifoodStatus;
+    const feeCard = ifood
+      ? `<div class="form-row">
+          <div class="form-group"><label class="form-label">Comissão publicada do Plano Entrega</label><div class="form-input" aria-readonly="true">${Number(ifood.commissionPercent).toLocaleString('pt-BR')}%</div></div>
+          <div class="form-group"><label class="form-label">Taxa publicada para pagamento via iFood</label><div class="form-input" aria-readonly="true">${Number(ifood.paymentFeePercent).toLocaleString('pt-BR')}%</div></div>
+          <div class="form-group"><label class="form-label">Total usado na sugestão de preço</label><div class="form-input" aria-readonly="true">${Number(ifood.totalFeePercent).toLocaleString('pt-BR')}%</div></div>
+        </div>
+        <small style="color:var(--text-muted);font-size:var(--text-xs)">Referência pública: a <a href="https://parceiros.ifood.com.br/restaurante/planos-ifood" target="_blank" rel="noopener noreferrer">página de planos</a> informa 3,2%, enquanto a <a href="https://parceiros.ifood.com.br/restaurante/como-funciona/entregas" target="_blank" rel="noopener noreferrer">página de entregas</a> informa 3,5% para pagamento via iFood. O total configurado no VPS é o percentual que o ERP usa para sugerir preços; não inclui mensalidade. Confira seu contrato no Portal do Parceiro, pois ele prevalece.</small>`
+      : `<p role="status" style="color:var(--text-muted)">${this._ifoodStatusUnavailable ? 'Não foi possível consultar as taxas configuradas no VPS. Recarregue a página para tentar novamente.' : 'As taxas do iFood aparecem quando o ERP está conectado ao VPS com acesso às configurações.'}</p>`;
     return `
       <div style="max-width:560px;display:flex;flex-direction:column;gap:var(--sp-4)">
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-6)">
@@ -211,17 +228,12 @@ const ConfiguracoesModule = {
         </div>
 
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-6)">
-          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Taxas</h3>
+          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Taxas do estabelecimento</h3>
           <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Taxa de Entrega Padrão (R$)</label>
-              <input type="number" class="form-input" id="cfg-taxa-entrega" value="${t.taxaEntregaPadrao || 5}" min="0" step="0.50">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Comissão iFood (%)</label>
-              <input type="number" class="form-input" id="cfg-taxa-ifood" value="${t.taxaIfood || 15}" min="0" max="100">
-            </div>
+            <div class="form-group"><label class="form-label">Taxa de Entrega Padrão (R$)</label><input type="number" class="form-input" id="cfg-taxa-entrega" value="${t.taxaEntregaPadrao || 5}" min="0" step="0.50"></div>
           </div>
+          <h4 style="font-weight:700;margin:var(--sp-5) 0 var(--sp-3)">Referência de taxas iFood — Plano Entrega</h4>
+          ${feeCard}
         </div>
 
         <button class="btn btn-primary" id="btn-salvar-metas">Salvar Metas</button>
@@ -470,9 +482,8 @@ const ConfiguracoesModule = {
       clientesInativosDias: parseInt(document.getElementById('cfg-inativos-dias')?.value || 30),
     };
     cfg.taxas = {
+      ...(cfg.taxas || {}),
       taxaEntregaPadrao: parseFloat(document.getElementById('cfg-taxa-entrega')?.value || 5),
-      taxaIfood:         parseFloat(document.getElementById('cfg-taxa-ifood')?.value || 15),
-      comissaoEntregador: 0,
     };
     this._persist(cfg);
     UI.toast('Metas e taxas salvas.', 'success');

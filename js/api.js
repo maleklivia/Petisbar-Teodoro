@@ -131,6 +131,17 @@ const API = {
     return (await this._request('/products')).data.map(this._mapServerProduct);
   },
 
+  async previewServerIfoodPrice(price) {
+    return (await this._request('/integrations/ifood/pricing-preview', {
+      method: 'POST',
+      body: JSON.stringify({ price }),
+    })).data;
+  },
+
+  async getServerIfoodStatus() {
+    return (await this._request('/integrations/ifood/status')).data;
+  },
+
   async saveServerProduct(product) {
     return this._mapServerProduct((await this._request('/products', {
       method: 'POST',
@@ -191,9 +202,10 @@ const API = {
         rendimento: sheet.rendimento || 1,
         modoPreparo: sheet.modoPreparo || '',
         itens: (sheet.itens || [])
-          .filter(item => item.ingredienteId && Number(item.quantidade) > 0)
+          .filter(item => (item.ingredienteId || item.preparacaoId) && Number(item.quantidade) > 0)
           .map(item => ({
-            ingredienteId: item.ingredienteId,
+            ingredienteId: item.ingredienteId || null,
+            preparacaoId: item.preparacaoId || null,
             quantidade: Number(item.quantidade),
             unidade: item.unidade,
           })),
@@ -353,7 +365,8 @@ const API = {
       rendimento: Number(sheet.rendimento || 1),
       modoPreparo: sheet.modoPreparo || '',
       itens: (sheet.items || []).map(item => ({
-        ingredienteId: item.ingredientId,
+        ingredienteId: item.ingredientId || null,
+        preparacaoId: item.preparationId || null,
         quantidade: Number(item.quantity),
         unidade: item.unit,
       })),
