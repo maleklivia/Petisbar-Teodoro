@@ -53,9 +53,11 @@ test('exibe as três taxas sem um campo local de comissão divergente', () => {
   const module = vm.runInContext('ConfiguracoesModule', context);
   module._ifoodStatus = { commissionPercent: 23, paymentFeePercent: 3.2, totalFeePercent: 26.2 };
   const html = module._renderMetas({ taxas: { taxaIfood: 15 } });
-  assert.match(html, /Comissão do Plano Entrega/);
-  assert.match(html, /Pagamento online pelo iFood/);
+  assert.match(html, /Comissão publicada do Plano Entrega/);
+  assert.match(html, /Taxa publicada para pagamento via iFood/);
   assert.match(html, /Total usado na sugestão de preço/);
+  assert.match(html, /3,5% para pagamento via iFood/);
+  assert.match(html, /Confira seu contrato no Portal do Parceiro/);
   assert.doesNotMatch(html, /cfg-taxa-ifood|Comissão iFood \(%\)/);
 });
 

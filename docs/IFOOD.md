@@ -17,7 +17,7 @@ Exemplo: um item de R$ 20,00 terá sugestão de R$ 27,11. Somar 26,2% daria apen
 
 Cada produto possui `ifood_price` e `ifood_active` separados. A alteração do preço de venda recalcula o preço sugerido quando ele ainda é automático; um preço ajustado manualmente é preservado. Isso atualiza o cadastro local do ERP, não publica preço no marketplace.
 
-Na tela **Configurações → Metas**, essas parcelas são somente leitura e vêm do estado de integração do servidor. A taxa de 3,2% pode depender da forma de pagamento do pedido; o cálculo de sugestão usa o percentual total configurado (`IFOOD_TOTAL_FEE_PERCENT`) como referência. Esse total não substitui as condições específicas do contrato exibidas no Portal do Parceiro. A antiga taxa local de 15% não participava do cálculo e foi removida da interface para evitar divergência; o valor legado, se existir no navegador, é preservado sem uso.
+Na tela **Configurações → Metas**, essas parcelas são somente leitura e vêm do estado de integração do servidor. As páginas oficiais consultadas divergem na taxa de pagamento via iFood: a [página de planos](https://parceiros.ifood.com.br/restaurante/planos-ifood) informa 3,2%, enquanto a [página de entregas](https://parceiros.ifood.com.br/restaurante/como-funciona/entregas) informa 3,5%. O cálculo de sugestão usa somente o percentual total configurado (`IFOOD_TOTAL_FEE_PERCENT`) como referência; para esta instalação, 26,2% corresponde à composição configurada de 23% + 3,2%. O contrato da loja no Portal do Parceiro prevalece. A antiga taxa local de 15% não participava do cálculo e foi removida da interface para evitar divergência; o valor legado, se existir no navegador, é preservado sem uso.
 
 ## Escopo atualmente implementado
 
