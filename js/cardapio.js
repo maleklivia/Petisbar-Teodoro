@@ -273,10 +273,10 @@ const Cardapio = {
       this.renderPromotions();this.renderCatalog();this.renderCart();this.openCart(false);
       if(body.data.trackingToken)localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
       if(body.data.trackingToken){
-        document.getElementById('order-confirmation-number').textContent=`Pedido #${body.data.orderNumber}`;
-        document.getElementById('order-confirmation').classList.remove('hidden');
-        document.getElementById('order-confirmation').scrollIntoView({behavior:'smooth',block:'center'});
-        if(payload.paymentMethod==='Pix') await this.startPixPayment(body.data.id,body.data.trackingToken);
+        const confirmationNumber=document.getElementById('order-confirmation-number'),confirmation=document.getElementById('order-confirmation');
+        if(confirmationNumber)confirmationNumber.textContent=`Pedido #${body.data.orderNumber}`;
+        if(confirmation){confirmation.classList.remove('hidden');confirmation.scrollIntoView({behavior:'smooth',block:'center'});}
+        if(String(payload.paymentMethod||'').trim().toLowerCase()==='pix') await this.startPixPayment(body.data.id,body.data.trackingToken);
       }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();
