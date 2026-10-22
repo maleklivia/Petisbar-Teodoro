@@ -5,7 +5,7 @@ import { pricesMatch, roundMoney, stockAllowsOrder } from '../services/order-pri
 import { calculatePromotions, couponCanStack } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
 import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
-import { createPixOrder, getOrder } from '../services/mercadopago.js';
+import { storefrontAcceptance } from '../services/storefront-hours.js';
 
 const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
@@ -28,6 +28,17 @@ const normalizePhone = value => {
   return digits;
 };
 const validPhone = phone => phone.length === 10 || phone.length === 11;
+function normalizePostalCode(value) { return String(value || '').replace(/\D/g, '').slice(0, 8); }
+function deliveryForPostalCode(value, settings) {
+  const postalCode = normalizePostalCode(value);
+  const zones = Array.isArray(settings?.zones) ? settings.zones : [];
+  const zone = zones
+    .filter(item => String(item?.prefixo || '').replace(/\D/g, '') && postalCode.startsWith(String(item.prefixo).replace(/\D/g, '')))
+    .sort((a, b) => String(b.prefixo).length - String(a.prefixo).length)[0];
+  if (!zone) return null;
+  const fee = Number(zone.valor);
+  return Number.isFinite(fee) && fee >= 0 ? { fee: roundMoney(fee), zone: String(zone.nome || zone.prefixo) } : null;
+}
 async function findCoupon(db, code, lock = false) {
   const { rows } = await db.query(`SELECT id,code,discount_percent,max_discount,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
   return rows[0] || null;
@@ -52,27 +63,34 @@ export default async function publicOrderRoutes(app) {
   const defaultStorefront = {
     minimumOrder: 20,
     deliveryTime: '30–60 min',
-    isOpen: true,
+    isOpen: false,
     hours: 'Horários definidos no ERP',
     paymentMethods: ['Pix', 'Dinheiro', 'Cartão na entrega'],
     promotions: [{ title: 'Promoções do dia', description: 'Confira as promoções disponíveis no cardápio.' }],
     whatsapp: '5521975816050',
     allowOrdersWithoutStockForTesting: false,
+    deliveryZones: { defaultFee: null, zones: [] },
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting'];
+    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
+    const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
+    const hours = String(values['storefront.hours'] ?? defaultStorefront.hours);
+    const acceptance = storefrontAcceptance(manuallyEnabled, hours);
     return { data: {
       minimumOrder: Number(values['storefront.minimumOrder'] ?? defaultStorefront.minimumOrder),
       deliveryTime: String(values['storefront.deliveryTime'] ?? defaultStorefront.deliveryTime),
-      isOpen: values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']),
-      hours: String(values['storefront.hours'] ?? defaultStorefront.hours),
+      isOpen: acceptance.open,
+      manuallyEnabled,
+      closedReason: acceptance.reason,
+      hours,
       paymentMethods: Array.isArray(values['storefront.paymentMethods']) ? values['storefront.paymentMethods'] : defaultStorefront.paymentMethods,
       promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
       allowOrdersWithoutStockForTesting: values['storefront.allowOrdersWithoutStockForTesting'] === true,
+      deliveryZones: values['storefront.deliveryZones'] && typeof values['storefront.deliveryZones'] === 'object' ? values['storefront.deliveryZones'] : defaultStorefront.deliveryZones,
     } };
   });
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
@@ -138,8 +156,13 @@ export default async function publicOrderRoutes(app) {
       }
       const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
-      const openResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.isOpen' FOR SHARE");
-      if(openResult.rows[0]?.value===false){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed'});}
+      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
+      const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));
+      const manuallyEnabled=storefrontValues['storefront.isOpen']===undefined?defaultStorefront.isOpen:Boolean(storefrontValues['storefront.isOpen']);
+      const hours=String(storefrontValues['storefront.hours']??defaultStorefront.hours);
+      const deliveryZones=storefrontValues['storefront.deliveryZones'] && typeof storefrontValues['storefront.deliveryZones']==='object' ? storefrontValues['storefront.deliveryZones'] : defaultStorefront.deliveryZones;
+      const acceptance=storefrontAcceptance(manuallyEnabled,hours);
+      if(!acceptance.open){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed',reason:acceptance.reason});}
       const paymentResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.paymentMethods' FOR SHARE");
       const paymentMethods=Array.isArray(paymentResult.rows[0]?.value)?paymentResult.rows[0].value:defaultStorefront.paymentMethods;
       if(!paymentMethods.includes(input.paymentMethod)){await client.query('ROLLBACK');return reply.code(409).send({error:'payment_unavailable'});}
@@ -153,7 +176,12 @@ export default async function publicOrderRoutes(app) {
       let coupon=null,couponDiscount=0;
       if(input.couponCode){if(!couponCanStack(priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'coupon_not_combinable'});}coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}couponDiscount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));}
       const discount=roundMoney(priced.promotionDiscount+couponDiscount);
-      const deliveryFee=input.fulfillmentType==='entrega'?config.DEFAULT_DELIVERY_FEE:0;
+      let deliveryFee=0;
+      if(input.fulfillmentType==='entrega'){
+        const delivery=deliveryForPostalCode(input.address.postalCode, deliveryZones);
+        if(!delivery){await client.query('ROLLBACK');return reply.code(422).send({error:'delivery_area_unavailable'});}
+        deliveryFee=delivery.fee;
+      }
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
       const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
@@ -191,40 +219,5 @@ export default async function publicOrderRoutes(app) {
     ]);
     delete order.token_id;
     return {data:{...order,items:items.rows,history:history.rows}};
-  });
-
-  app.post('/public/orders/:id/pix', {config:{rateLimit:{max:5,timeWindow:'1 minute'}}}, async (request, reply) => {
-    const orderId = z.string().min(1).max(100).parse(request.params.id);
-    const token = z.string().regex(/^[a-f0-9]{32,128}$/i).parse(request.body?.trackingToken || '');
-    const orderResult = await app.db.query(`SELECT o.id,o.total,o.payment_method,o.client_name,ot.token_hash
-      FROM orders o JOIN order_tracking_tokens ot ON ot.order_id=o.id
-      WHERE o.id=$1 AND ot.token_hash=$2 AND ot.revoked_at IS NULL AND ot.expires_at>now()`, [orderId, hashToken(token)]);
-    if (!orderResult.rowCount) return reply.code(404).send({ error: 'order_not_found' });
-    const order = orderResult.rows[0];
-    if (order.payment_method !== 'Pix') return reply.code(409).send({ error: 'payment_method_not_pix' });
-    const existing = await app.db.query('SELECT * FROM order_payments WHERE order_id=$1', [orderId]);
-    if (existing.rowCount) {
-      const p = existing.rows[0];
-      return { data: { status:p.status, statusDetail:p.status_detail, qrCode:p.qr_code, qrCodeBase64:p.qr_code_base64, ticketUrl:p.ticket_url, feeAmount:Number(p.fee_amount) } };
-    }
-    const created = await createPixOrder({ orderId, amount: order.total, email: `pedido-${order.id}@petisbar.local` });
-    if (created.error) return reply.code(created.status === 403 ? 502 : 503).send({ error: created.error, providerStatus: created.status });
-    await app.db.query(`INSERT INTO order_payments(id,order_id,provider,provider_order_id,provider_payment_id,method,status,status_detail,gross_amount,fee_amount,net_amount,qr_code,qr_code_base64,ticket_url,provider_payload)
-      VALUES($1,$2,'mercadopago',$3,$4,'Pix',$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [created.id,orderId,created.providerOrderId,created.providerPaymentId,created.status,created.statusDetail,created.grossAmount,created.feeAmount,created.netAmount,created.qrCode,created.qrCodeBase64,created.ticketUrl,JSON.stringify(created.payload)]);
-    return { data: { status:created.status, statusDetail:created.statusDetail, qrCode:created.qrCode, qrCodeBase64:created.qrCodeBase64, ticketUrl:created.ticketUrl, feeAmount:created.feeAmount } };
-  });
-
-  app.post('/public/payments/mercadopago/webhook', async (request, reply) => {
-    const providerOrderId = String(request.body?.data?.id || request.query?.id || '').trim();
-    if (!providerOrderId) return reply.code(400).send({ error: 'provider_order_missing' });
-    const payment = await app.db.query('SELECT id,order_id FROM order_payments WHERE provider_order_id=$1', [providerOrderId]);
-    if (!payment.rowCount) return reply.code(204).send();
-    const refreshed = await getOrder(providerOrderId);
-    if (refreshed.error) return reply.code(202).send();
-    const row = payment.rows[0];
-    await app.db.query('UPDATE order_payments SET status=$2,status_detail=$3,fee_amount=$4,net_amount=gross_amount-$4,provider_payload=$5,updated_at=now() WHERE id=$1', [row.id,refreshed.status,refreshed.statusDetail,refreshed.feeAmount,JSON.stringify(refreshed.payload)]);
-    if (refreshed.feeAmount > 0) await app.db.query(`INSERT INTO financial_entries(id,entry_date,description,category,entry_type,amount,reference_type,reference_id,effect_key)
-      VALUES($1,current_date,$2,'Taxas de pagamento','Saída',$3,'order_payment',$4,$5) ON CONFLICT (effect_key) WHERE effect_key IS NOT NULL DO UPDATE SET amount=EXCLUDED.amount`, [`fin-mp-${row.id}`,'Taxa Mercado Pago — pedido '+row.order_id,-refreshed.feeAmount,row.order_id,`payment-fee:${row.id}`]);
-    return reply.code(204).send();
   });
 }
