@@ -1,6 +1,6 @@
 const Cardapio = {
   storefront: null, reorderShortcuts: [], reorderChecked: false,
-  apiActive: false, products: [], promotions: [], cart: new Map(), productOptions: new Map(), combos: new Map(), pendingCustomization: null, pendingCombo: null, pendingComboCounts: new Map(), category: 'Todos', search: '', deliveryFee: 0, coupon: null, quote: null, quoteError: null, quoteSequence: 0, quoteBusy: false, tableNumber: '', refreshPromise: null, submitting: false,
+  apiActive: false, products: [], promotions: [], cart: new Map(), productOptions: new Map(), flavoredIce: new Map(), combos: new Map(), pendingCustomization: null, pendingCombo: null, pendingComboCounts: new Map(), category: 'Todos', search: '', deliveryFee: 0, coupon: null, quote: null, quoteError: null, quoteSequence: 0, quoteBusy: false, tableNumber: '', refreshPromise: null, submitting: false,
   money(value){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value)},
   escape(value){const el=document.createElement('div');el.textContent=String(value??'');return el.innerHTML},
   image(url){if(!url)return './assets/products/snacks.jpg';return url.replace(/^\.\.\//,'./')},
