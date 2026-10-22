@@ -260,11 +260,10 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       if (lineIndexes.some(index=>used.has(index))) { rejected.push({ promotionId:promo.id,code:promo.code,reason:'priority_conflict' }); continue; }
       const normal = money(lineIndexes.reduce((sum,index)=>sum+items[index].listSubtotal,0));
       const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
-      const total = money(Number(promo.combo_price) + selectedSurcharges);
-      if (total > normal) {
-        rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
-        return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };
-      }
+      // A promoção nunca pode deixar o combo mais caro que os mesmos itens avulsos.
+      // Isso também protege combinações com produtos abaixo do preço de referência:
+      // nesses casos o cliente paga o preço normal, sem desconto, mas o pedido segue.
+      const total = money(Math.min(Number(promo.combo_price) + selectedSurcharges, normal));
       const appId = randomUUID();
       const alloc = allocateDiscount(items,lineIndexes,money(normal-total));
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }
