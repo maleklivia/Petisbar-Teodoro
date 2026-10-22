@@ -266,7 +266,7 @@ const Cardapio = {
           this.toast(reasons[body.error]);
         }else if(body.error==='store_closed'){
           await this.refresh();this.toast('A loja está fechada no momento.');
-        }else this.toast(this.couponError(body.error));
+        }else this.toast(this.couponError(body.error)+(body.error?` [${body.error}]`:''));
         return;
       }
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.combos.clear();this.coupon=null;this.quote=null;sessionStorage.removeItem('petisbar-pending-order');
