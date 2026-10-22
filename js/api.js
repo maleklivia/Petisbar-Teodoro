@@ -138,6 +138,10 @@ const API = {
     })).data;
   },
 
+  async getServerIfoodStatus() {
+    return (await this._request('/integrations/ifood/status')).data;
+  },
+
   async saveServerProduct(product) {
     return this._mapServerProduct((await this._request('/products', {
       method: 'POST',

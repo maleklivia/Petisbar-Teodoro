@@ -352,8 +352,8 @@ const ProdutosModule = {
       ? API.previewServerIfoodPrice(Number(item.precoVenda)).then(preview => {
           followsSuggestion = money(item.precoIfood) === money(preview.ifoodPrice);
           if (hint) hint.textContent = followsSuggestion
-            ? `Atualiza automaticamente conforme o preço de venda (taxa configurada: ${preview.totalFeePercent}%). Edite para fixar um valor manual; mensalidade não incluída.`
-            : `Preço manual preservado (taxa atual: ${preview.totalFeePercent}%). Mensalidade não incluída.`;
+            ? `Atualiza automaticamente usando ${preview.totalFeePercent}% de taxas totais configuradas no VPS. Edite para fixar um valor manual; mensalidade não incluída.`
+            : `Preço manual preservado. A referência atual usa ${preview.totalFeePercent}% de taxas totais configuradas no VPS; mensalidade não incluída.`;
         }).catch(() => { followsSuggestion = false; })
       : Promise.resolve();
 
@@ -375,7 +375,7 @@ const ProdutosModule = {
         const preview = await API.previewServerIfoodPrice(amount);
         if (sequence !== requestSequence || saleInput.value !== saleValue || this._ifoodPriceManualEdit || !followsSuggestion) return;
         ifoodInput.value = Number(preview.ifoodPrice).toFixed(2);
-        if (hint) hint.textContent = `Sugestão automática com ${preview.totalFeePercent}% de taxas. Edite este campo para fixar manualmente; mensalidade não incluída.`;
+        if (hint) hint.textContent = `Sugestão automática com ${preview.totalFeePercent}% de taxas totais configuradas no VPS. Edite este campo para fixar manualmente; mensalidade não incluída.`;
       }).catch(() => {});
     });
   },
