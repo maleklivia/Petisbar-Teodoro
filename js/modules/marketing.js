@@ -10,6 +10,8 @@ const MarketingModule = {
   _canWritePromotions: false,
   _promotions: [],
   _promotionProducts: [],
+  _coupons:[],_clients:[],_orders:[],
+  _couponList(){return this._serverMode?this._coupons:Stores.cupons.get();},
 
   async init() {
     this._serverMode = API.isServerMode();
@@ -21,6 +23,12 @@ const MarketingModule = {
       try { [this._promotions,this._promotionProducts]=await Promise.all([API.getServerPromotions(),API.getServerPromotionProducts()]); }
       catch { if(el)el.innerHTML='<div class="empty-state"><p>Não foi possível carregar as promoções do ERP.</p></div>';return; }
     }
+    if(this._serverMode){
+      try{this._coupons=this._canReadPromotions?(await API._request('/coupons')).data:[];
+        this._clients=API.hasPermission('clients.read')?await API.getServerClients():[];
+        this._orders=API.hasPermission('orders.read')?(await API.getServerOrders()).filter(o=>!String(o.source).includes('(Teste)')).map(o=>({clienteId:o.clientId,status:o.status,total:o.total,dataCriacao:o.createdAt})):[];}
+      catch{document.getElementById('marketing-content').textContent='Não foi possível carregar os dados de marketing do servidor.';return;}
+    }
     this._render();
     this._bindEvents();
   },
@@ -28,9 +36,9 @@ const MarketingModule = {
   _render() {
     const el = document.getElementById('marketing-content');
     if (!el) return;
-    const cupons   = Stores.cupons.get();
-    const clientes = Stores.clientes.get();
-    const pedidos  = Stores.pedidos.get();
+    const cupons   = this._couponList();
+    const clientes = this._serverMode?this._clients:Stores.clientes.get();
+    const pedidos  = this._serverMode?this._orders:Stores.pedidos.get();
     const hoje     = new Date().toISOString().slice(0, 10);
     const inativos = this._getInativos(clientes, pedidos);
     const vips     = this._getVIPs(clientes, pedidos);
@@ -264,7 +272,7 @@ const MarketingModule = {
     if (el.dataset.marketingEventsBound === 'true') return;
     el.dataset.marketingEventsBound = 'true';
 
-    el.addEventListener('click', e => {
+    el.addEventListener('click', async e => {
       const tab = e.target.closest('[data-mkt-tab]');
       if (tab) { this._tab = tab.dataset.mktTab; this._render(); this._bindEvents(); return; }
 
@@ -278,6 +286,7 @@ const MarketingModule = {
 
       const toggle = e.target.closest('[data-mkt-toggle]');
       if (toggle) {
+        if(this._serverMode){const c=this._coupons.find(c=>c.id===toggle.dataset.mktToggle);if(!c)return;toggle.disabled=true;try{await API._request(`/coupons/${c.id}`,{method:'PATCH',body:JSON.stringify({active:!c.ativo})});c.ativo=!c.ativo;this._render();}catch{UI.toast('Não foi possível alterar o cupom.','danger');}finally{toggle.disabled=false;}return;}
         const cupons = Stores.cupons.get();
         const cup = cupons.find(c => c.id === toggle.dataset.mktToggle);
         if (cup) { cup.ativo = !cup.ativo; Stores.cupons.set(cupons); this._render(); this._bindEvents(); }
@@ -286,6 +295,7 @@ const MarketingModule = {
 
       const del = e.target.closest('[data-mkt-del-cupom]');
       if (del) {
+        if(this._serverMode){UI.toast('Desative o cupom para preservar o histórico de uso.','info');return;}
         if (!confirm('Excluir este cupom?')) return;
         Stores.cupons.set(Stores.cupons.get().filter(c => c.id !== del.dataset.mktDelCupom));
         this._render();
@@ -429,7 +439,7 @@ const MarketingModule = {
         </div>
       `,
       confirmLabel: 'Criar Cupom',
-      onConfirm: () => {
+      onConfirm: async () => {
         const codigo   = document.getElementById('cup-codigo')?.value?.trim().toUpperCase();
         const tipo     = document.getElementById('cup-tipo')?.value;
         const valor    = parseFloat(document.getElementById('cup-valor')?.value || 0);
@@ -439,8 +449,12 @@ const MarketingModule = {
 
         if (!codigo || !valor || valor <= 0 || !validade) { UI.toast('Preencha todos os campos.', 'error'); return; }
 
-        const cupons  = Stores.cupons.get();
+        const cupons  = this._couponList();
         if (cupons.some(c => c.codigo === codigo)) { UI.toast('Código já existe.', 'error'); return; }
+        if(this._serverMode){
+          try{const saved=(await API._request('/coupons',{method:'POST',body:JSON.stringify({codigo,tipo,valor,limite,validade,descricao:desc})})).data;this._coupons.unshift(saved);UI.closeModal();this._render();UI.toast('Cupom salvo no servidor.');}
+          catch{UI.toast('Não foi possível salvar o cupom. Confira código, desconto e validade.','danger');}return;
+        }
         const maxNum  = cupons.reduce((m, c) => Math.max(m, parseInt(c.id?.replace('cup-', '') || 0)), 0);
         cupons.unshift({ id: `cup-${String(maxNum + 1).padStart(3, '0')}`, codigo, tipo, valor, ativo: true, usos: 0, limite, validade, descricao: desc });
         Stores.cupons.set(cupons);

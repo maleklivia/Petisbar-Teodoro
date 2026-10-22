@@ -42,7 +42,7 @@ const App = {
     UI.setHeaderDate();
     API.bindSessionControls(user);
     UI.initResponsiveNavigation();
-    if (API.isServerMode() && !['pedidos', 'producao', 'produtos', 'clientes', 'estoque', 'compras', 'fornecedores', 'financeiro', 'relatorios', 'central-ia'].includes(page)) UI.showTransitionNotice();
+    if (API.isServerMode() && !['dashboard', 'pedidos', 'producao', 'produtos', 'clientes', 'estoque', 'compras', 'fornecedores', 'financeiro', 'relatorios', 'central-ia'].includes(page)) UI.showTransitionNotice();
 
     // Run page-specific module
     if (Modules[page]) {
@@ -61,6 +61,13 @@ const Modules = {
   /* ── Dashboard ─────────────────────────────────────────────── */
   dashboard: {
     async init(state) {
+      const monthLabel=document.querySelector('.page-header .badge');
+      if(monthLabel)monthLabel.textContent=new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      if(API.isServerMode()) {
+        try { this._renderServer((await API._request('/dashboard')).data); }
+        catch { document.getElementById('kpi-row').textContent='Não foi possível carregar os dados do servidor. Atualize a página para tentar novamente.'; }
+        return;
+      }
       const currentState = this._buildCurrentState(state);
       this._renderKpis(currentState);
       this._renderOrderStats();
@@ -69,6 +76,26 @@ const Modules = {
       this._renderTopProducts(currentState);
       this._renderStockAlerts(currentState);
       this._renderAlertasCusto();
+    },
+
+    _renderServer(data) {
+      const esc=Utils.escapeHtml, money=Utils.currency;
+      const today=Utils.today(), month=Utils.currentMonth();
+      const realOrders=data.orders.filter(o=>!String(o.source).includes('(Teste)'));
+      const monthly=realOrders.filter(o=>o.created_at.slice(0,7)===month);
+      const f=data.finance;
+      const cards=[['Faturamento',f?money(f.revenue):'Sem acesso','este mês'],['Lucro Est.',f?money(f.profit):'Sem acesso','entradas menos saídas'],
+        ['Pedidos',monthly.length,'reais neste mês'],['Ticket Médio',f?money(monthly.length?f.revenue/monthly.length:0):'Sem acesso','pedidos reais'],
+        ['CMV',f?`${f.revenue?Math.round(f.cmv/f.revenue*100):0}%`:'Sem acesso','este mês'],['Estoque Baixo',data.stock.length,'itens no ponto de reposição']];
+      document.getElementById('kpi-row').innerHTML=cards.map(([label,value,sub])=>`<article class="kpi-card"><span class="kpi-card__label">${esc(label)}</span><strong class="kpi-card__value">${esc(value)}</strong><small class="kpi-card__sub">${esc(sub)}</small></article>`).join('');
+      const stats=[['Pedidos Hoje',data.orders.filter(o=>o.created_at.slice(0,10)===today).length],['Pendentes',data.orders.filter(o=>['Novo','Aguardando Pagamento','Pago','Confirmado'].includes(o.status)).length],['Em Produção',data.orders.filter(o=>o.status==='Em Produção').length],['Testes',data.orders.filter(o=>String(o.source).includes('(Teste)')).length]];
+      document.getElementById('order-stats-bar').innerHTML=stats.map(([label,value])=>`<a class="order-stat" href="pedidos.html"><span class="order-stat__label">${esc(label)}</span><span class="order-stat__value">${value}</span></a>`).join('');
+      const c=data.catalog;
+      document.getElementById('catalog-bar').innerHTML=[['Produtos',c.products,`${c.active} ativos`],['Ingredientes',c.ingredients,'ativos'],['Fichas',c.sheets,'técnicas'],['Categorias',c.categories,'ativas']].map(([label,value,sub])=>`<div class="catalog-stat"><span class="catalog-stat__label">${esc(label)}</span><span class="catalog-stat__value">${value}</span><span class="catalog-stat__sub">${esc(sub)}</span></div>`).join('');
+      document.getElementById('recent-orders').innerHTML=data.orders.slice(0,8).map(o=>`<a class="order-row" href="pedidos.html"><strong>#${o.order_number}</strong><div class="order-row__info"><div>${esc(o.client_name)}</div><small>${esc(o.summary)}</small><div>${esc(o.status)} · ${esc(o.source)}</div></div><strong>${money(Number(o.total))}</strong></a>`).join('')||'<p>Nenhum pedido registrado.</p>';
+      this._renderTopProducts({products:data.top});
+      this._renderStockAlerts({stock:data.stock.map(i=>({name:i.name,quantity:Number(i.current_stock),min:Math.max(Number(i.minimum_stock),Number(i.average_daily_use)*Number(i.lead_time_days)),unit:i.unit}))});
+      document.getElementById('custo-alerts-panel').hidden=true;
     },
 
     _buildCurrentState(state) {

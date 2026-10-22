@@ -100,8 +100,9 @@ const API = {
   },
 
   async getServerOrders(status = '') {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    return (await this._request(`/orders${query}`)).data;
+    const all=[];let offset=0;
+    while(true){const data=(await this._request(`/orders?limit=200&offset=${offset}${status?`&status=${encodeURIComponent(status)}`:''}`)).data;all.push(...data);if(data.length<200)break;offset+=200;}
+    return all;
   },
 
   async getServerPromotions() { return (await this._request('/promotions')).data; },

@@ -1,66 +1,38 @@
-import { convertQuantity } from '../domain/orders.js';
-
-const roundStock=value=>Math.round((Number(value)+Number.EPSILON)*1000)/1000;
-
-function sheetProductId(item){
-  if(item.productId==='p-drk001'&&item.options?.flavor==='morango')return 'p-drk002';
-  if(item.productId==='p-drk001'&&item.options?.flavor==='maracuja')return 'p-drk003';
-  if(item.productId==='p-pet001'&&item.options?.size==='G')return 'p-pet006';
-  if(item.productId==='p-pet002'&&item.options?.size==='G')return 'p-pet007';
-  if(item.productId==='p-drk010'&&item.options?.size==='700ml')return 'p-drk011';
-  return item.productId;
-}
+import { recipeRequirements,stockComponents } from './recipe-requirements.js';
+const round=q=>Math.round((Number(q)+Number.EPSILON)*1000)/1000;
 
 export async function reserveOrderStock(client,{orderId,items,allowWithoutStock=false}){
-  if(allowWithoutStock)return {reserved:false,testMode:true};
-  const productTotals=new Map();
+  if(allowWithoutStock)return{reserved:false,testMode:true};
+  const products=new Map(),ingredients=new Map();
   for(const item of items){
-    const effects=item.options?._stockEffects||[],replacement=effects.find(effect=>effect.mode==='replace');
-    const mainId=replacement?.productId||item.productId,mainStock=replacement?.currentStock??item.currentStock;
-    const components=[{productId:mainId,currentStock:mainStock,name:item.name},...effects.filter(effect=>effect.mode==='add').map(effect=>({productId:effect.productId,currentStock:effect.currentStock,name:item.name}))];
-    for(const component of components){const current=productTotals.get(component.productId)||{name:component.name,quantity:0,currentStock:component.currentStock};current.quantity+=Number(item.quantity);productTotals.set(component.productId,current);}
+    for(const component of stockComponents(item))products.set(component.productId,(products.get(component.productId)||0)+component.quantity);
+    if(item.options?.flavoredIce)ingredients.set('i-029',(ingredients.get('i-029')||0)+Number(item.quantity));
   }
-  for(const [productId,item] of productTotals){
-    if(item.currentStock===null)continue;
-    const reserved=await client.query("SELECT COALESCE(SUM(quantity),0) AS quantity FROM order_stock_reservations WHERE product_id=$1 AND status='reserved'",[productId]);
-    const available=Number(item.currentStock)-Number(reserved.rows[0].quantity);
-    if(available<item.quantity)return {error:'insufficient_stock',item:item.name,required:item.quantity,available};
-  }
-  const ingredientTotals=new Map();
-  for(const item of items){
-    const effects=item.options?._stockEffects||[],replacement=effects.find(effect=>effect.mode==='replace');
-    const productIds=[replacement?.productId||sheetProductId(item),...effects.filter(effect=>effect.mode==='add').map(effect=>effect.productId)];
-    for(const productId of [...new Set(productIds)]){const sheet=await client.query(`SELECT ts.id,ts.yield FROM technical_sheets ts WHERE ts.product_id=$1`,[productId]);if(sheet.rowCount){
-      const recipe=await client.query(`SELECT tsi.ingredient_id,tsi.quantity,tsi.unit,i.name,i.unit AS stock_unit,i.active FROM technical_sheet_items tsi JOIN ingredients i ON i.id=tsi.ingredient_id WHERE tsi.sheet_id=$1 ORDER BY i.id`,[sheet.rows[0].id]);
-      for(const ingredient of recipe.rows){if(!ingredient.active)return {error:'stock_recipe_incomplete',item:ingredient.name};let quantity;try{quantity=convertQuantity(Number(ingredient.quantity)*Number(item.quantity)/Number(sheet.rows[0].yield||1),ingredient.unit,ingredient.stock_unit)}catch{return {error:'stock_recipe_unit_invalid',item:ingredient.name};}const current=ingredientTotals.get(ingredient.ingredient_id)||{name:ingredient.name,unit:ingredient.stock_unit,quantity:0};current.quantity+=quantity;ingredientTotals.set(ingredient.ingredient_id,current);}
-    }}
-    if(item.options?.flavoredIce){
-      const ice=await client.query("SELECT id,name,unit,active FROM ingredients WHERE id='i-029'");
-      if(!ice.rowCount||!ice.rows[0].active)return {error:'stock_recipe_incomplete',item:'Gelo saborizado'};
-      const current=ingredientTotals.get('i-029')||{name:ice.rows[0].name,unit:ice.rows[0].unit,quantity:0};
-      current.quantity+=Number(item.quantity);ingredientTotals.set('i-029',current);
+  const ids=[...products.keys()].sort();
+  const locked=await client.query('SELECT id,name,current_stock FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ids]);
+  if(locked.rowCount!==ids.length)return{error:'product_unavailable'};
+  for(const p of locked.rows){
+    const quantity=products.get(p.id);
+    if(p.current_stock!==null){
+      const reserved=await client.query("SELECT coalesce(sum(quantity),0) quantity FROM order_stock_reservations WHERE product_id=$1 AND status='reserved'",[p.id]);
+      const available=Number(p.current_stock)-Number(reserved.rows[0].quantity);
+      if(available<quantity)return{error:'insufficient_stock',item:p.name,required:quantity,available};
     }
+    let recipe;try{recipe=await recipeRequirements(client,p.id,quantity);}catch(error){return{error:error.code||'stock_recipe_incomplete',item:p.name};}
+    for(const i of recipe||[])ingredients.set(i.ingredient_id,(ingredients.get(i.ingredient_id)||0)+i.quantity);
   }
-  const ingredientIds=[...ingredientTotals.keys()].sort();
-  if(ingredientIds.length){
-    const locked=await client.query('SELECT id,name,unit,current_stock,active FROM ingredients WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ingredientIds]);
-    if(locked.rowCount!==ingredientIds.length)return {error:'stock_recipe_incomplete'};
-    for(const ingredient of locked.rows){
-      if(!ingredient.active)return {error:'stock_recipe_incomplete',item:ingredient.name};
-      const needed=roundStock(ingredientTotals.get(ingredient.id).quantity);
-      const reserved=await client.query("SELECT COALESCE(SUM(quantity),0) AS quantity FROM order_stock_reservations WHERE ingredient_id=$1 AND status='reserved'",[ingredient.id]);
-      const available=Number(ingredient.current_stock)-Number(reserved.rows[0].quantity);
-      if(available<needed)return {error:'insufficient_ingredient_stock',item:ingredient.name,required:needed,available,unit:ingredient.unit};
-    }
+  const ingredientIds=[...ingredients.keys()].sort();
+  const ingredientRows=ingredientIds.length?await client.query('SELECT id,name,unit,current_stock,active FROM ingredients WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ingredientIds]):{rows:[],rowCount:0};
+  if(ingredientRows.rowCount!==ingredientIds.length)return{error:'stock_recipe_incomplete'};
+  for(const i of ingredientRows.rows){
+    if(!i.active)return{error:'stock_recipe_incomplete',item:i.name};
+    const reserved=await client.query("SELECT coalesce(sum(quantity),0) quantity FROM order_stock_reservations WHERE ingredient_id=$1 AND status='reserved'",[i.id]);
+    const available=Number(i.current_stock)-Number(reserved.rows[0].quantity),needed=round(ingredients.get(i.id));
+    if(available<needed)return{error:'insufficient_ingredient_stock',item:i.name,required:needed,available,unit:i.unit};
   }
-  for(const [productId,item] of productTotals){
-    if(item.currentStock===null)continue;
-    await client.query(`INSERT INTO order_stock_reservations(order_id,product_id,quantity,unit) VALUES($1,$2,$3,'un')`,[orderId,productId,item.quantity]);
-  }
-  for(const [ingredientId,item] of ingredientTotals){
-    await client.query(`INSERT INTO order_stock_reservations(order_id,ingredient_id,quantity,unit) VALUES($1,$2,$3,$4)`,[orderId,ingredientId,roundStock(item.quantity),item.unit]);
-  }
-  return {reserved:true,products:productTotals.size,ingredients:ingredientTotals.size};
+  for(const p of locked.rows)if(p.current_stock!==null)await client.query("INSERT INTO order_stock_reservations(order_id,product_id,quantity,unit) VALUES($1,$2,$3,'un')",[orderId,p.id,products.get(p.id)]);
+  for(const i of ingredientRows.rows)await client.query('INSERT INTO order_stock_reservations(order_id,ingredient_id,quantity,unit) VALUES($1,$2,$3,$4)',[orderId,i.id,round(ingredients.get(i.id)),i.unit]);
+  return{reserved:true,products:ids.length,ingredients:ingredientIds.length};
 }
 
 export async function setOrderReservationsStatus(client,orderId,status){

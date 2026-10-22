@@ -51,10 +51,11 @@ const technicalSheetSchema = z.object({
   rendimento: z.number().positive().default(1),
   modoPreparo: z.string().max(10000).optional(),
   itens: z.array(z.object({
-    ingredienteId: z.string().min(1).max(100),
+    ingredienteId: z.string().min(1).max(100).nullable().optional(),
+    preparacaoId: z.string().min(1).max(100).nullable().optional(),
     quantidade: z.number().positive(),
     unidade: z.string().min(1).max(20),
-  })).default([]),
+  }).refine(item=>Boolean(item.ingredienteId)!==Boolean(item.preparacaoId),{message:'one_component_required'})).default([]),
 });
 
 function sheetRows(rows) {
@@ -200,10 +201,10 @@ export default async function catalogRoutes(app) {
     const { rows } = await app.db.query(`
       SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
         COALESCE(json_agg(json_build_object(
-          'ingredientId', tsi.ingredient_id,
+          'ingredientId', tsi.ingredient_id,'preparationId',tsi.preparation_id,
           'quantity', tsi.quantity,
           'unit', tsi.unit
-        ) ORDER BY i.name) FILTER (WHERE tsi.ingredient_id IS NOT NULL), '[]'::json) AS items
+        ) ORDER BY i.name) FILTER (WHERE tsi.id IS NOT NULL), '[]'::json) AS items
       FROM technical_sheets ts
       LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
       LEFT JOIN ingredients i ON i.id = tsi.ingredient_id
@@ -219,7 +220,9 @@ export default async function catalogRoutes(app) {
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
 
     const uniqueIngredientIds = new Set();
+    const uniquePreparationIds = new Set();
     for (const item of parsed.data.itens) {
+      if(item.preparacaoId){if(uniquePreparationIds.has(item.preparacaoId))return reply.code(400).send({error:'duplicate_preparation'});uniquePreparationIds.add(item.preparacaoId);continue;}
       if (uniqueIngredientIds.has(item.ingredienteId)) {
         return reply.code(400).send({ error: 'duplicate_ingredient' });
       }
@@ -244,6 +247,7 @@ export default async function catalogRoutes(app) {
       }
 
       const sheetId = parsed.data.id || `ts-${productId}`;
+      if(uniquePreparationIds.size){const found=await client.query("SELECT id FROM recipe_cards WHERE id=ANY($1::text[]) AND recipe_type='preparation'",[[...uniquePreparationIds]]);if(found.rowCount!==uniquePreparationIds.size){await client.query('ROLLBACK');return reply.code(400).send({error:'preparation_not_found'});}}
       const sheet = await client.query(`
         INSERT INTO technical_sheets (id, product_id, yield, preparation_method, updated_at)
         VALUES ($1,$2,$3,COALESCE($4::text,''),now())
@@ -255,18 +259,18 @@ export default async function catalogRoutes(app) {
       await client.query('DELETE FROM technical_sheet_items WHERE sheet_id=$1', [sheet.rows[0].id]);
       for (const item of parsed.data.itens) {
         await client.query(`
-          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, quantity, unit)
-          VALUES ($1,$2,$3,$4)
-        `, [sheet.rows[0].id, item.ingredienteId, item.quantidade, item.unidade]);
+          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, quantity, unit,preparation_id)
+          VALUES ($1,$2,$3,$4,$5)
+        `, [sheet.rows[0].id, item.ingredienteId||null, item.quantidade, item.unidade,item.preparacaoId||null]);
       }
 
       const { rows } = await client.query(`
         SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
           COALESCE(json_agg(json_build_object(
-            'ingredientId', tsi.ingredient_id,
+            'ingredientId', tsi.ingredient_id,'preparationId',tsi.preparation_id,
             'quantity', tsi.quantity,
             'unit', tsi.unit
-          ) ORDER BY i.name) FILTER (WHERE tsi.ingredient_id IS NOT NULL), '[]'::json) AS items
+          ) ORDER BY i.name) FILTER (WHERE tsi.id IS NOT NULL), '[]'::json) AS items
         FROM technical_sheets ts
         LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
         LEFT JOIN ingredients i ON i.id = tsi.ingredient_id

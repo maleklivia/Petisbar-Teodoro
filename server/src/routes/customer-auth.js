@@ -29,9 +29,11 @@ export default async function customerAuthRoutes(app) {
       await client.query('COMMIT');
       try {
         const delivery = await sendCustomerLoginCode({ email, code });
+        if(!delivery.sent)return reply.code(503).send({error:'email_unavailable'});
         request.log.info({ event: 'customer_login_requested', delivery: delivery.sent ? 'sent' : 'not_configured' }, 'login de cliente solicitado');
       } catch (error) {
         request.log.error({ event: 'customer_login_delivery_failed', error: error.message }, 'falha no envio do login de cliente');
+        return reply.code(503).send({error:'email_unavailable'});
       }
       return { ok: true };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -48,7 +50,7 @@ export default async function customerAuthRoutes(app) {
       const challenge = account.rowCount ? await client.query(`SELECT * FROM customer_login_challenges WHERE customer_account_id=$1 AND consumed_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [account.rows[0].id]) : { rowCount: 0 };
       if (!account.rowCount || !challenge.rowCount || challenge.rows[0].attempts >= 5 || hashToken(code) !== challenge.rows[0].code_hash) {
         if (challenge.rowCount) await client.query('UPDATE customer_login_challenges SET attempts=attempts+1 WHERE id=$1', [challenge.rows[0].id]);
-        await client.query('ROLLBACK');
+        await client.query('COMMIT');
         return reply.code(401).send({ error: 'invalid_login_code' });
       }
       await client.query('UPDATE customer_login_challenges SET consumed_at=now() WHERE id=$1', [challenge.rows[0].id]);

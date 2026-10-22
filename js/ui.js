@@ -131,7 +131,9 @@ const UI = {
 
     const toast = document.createElement('div');
     toast.className = `toast toast--${type}`;
-    toast.innerHTML = `<span>${icons[type] || '•'}</span><span>${message}</span>`;
+    const icon = document.createElement('span'), text = document.createElement('span');
+    icon.textContent = icons[type] || '•'; text.textContent = String(message ?? '');
+    toast.append(icon, text);
 
     const container = this._toastContainer();
     container.appendChild(toast);
@@ -190,10 +192,16 @@ const UI = {
 
     // Confirm handler
     if (onConfirm) {
-      overlay.querySelector('#modal-confirm').addEventListener('click', () => {
+      overlay.querySelector('#modal-confirm').addEventListener('click', async () => {
+        const button = overlay.querySelector('#modal-confirm');
+        if (button.disabled) return;
         const form = overlay.querySelector('form');
+        if (form && !form.reportValidity()) return;
         const data = form ? Object.fromEntries(new FormData(form)) : {};
-        onConfirm(data);
+        button.disabled = true;
+        try { await onConfirm(data); }
+        catch (error) { console.error('Falha ao salvar formulário', error); this.toast('Não foi possível salvar. Confira os dados e tente novamente.', 'danger'); }
+        finally { if (button.isConnected) button.disabled = false; }
       });
     }
 

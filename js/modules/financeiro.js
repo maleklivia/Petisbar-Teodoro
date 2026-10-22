@@ -259,7 +259,8 @@ const FinanceiroModule = {
   _bindEvents() {
     const el = document.getElementById('financeiro-content');
     if (!el) return;
-
+    if (el.dataset.financeEventsBound === 'true') return;
+    el.dataset.financeEventsBound = 'true';
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-fin-tab]');
       if (tab) { this._tab = tab.dataset.finTab; this._render(); this._bindEvents(); return; }

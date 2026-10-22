@@ -268,7 +268,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       const alloc = allocateDiscount(items,lineIndexes,money(normal-total));
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }
       applications.push({ id:appId,promotionId:promo.id,code:promo.code,name:promo.name,ruleType:'combo',
-        discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:money(normal-total),items:alloc,stackWithCoupon:promo.stackWithCoupon,
+        discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:total,items:alloc,stackWithCoupon:promo.stackWithCoupon,
         comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})),
         price:total, estimatedCmvPercent:promo.cmv_estimate_percent===null||promo.cmv_estimate_percent===undefined?null:money(Number(promo.cmv_estimate_percent)*normal/Math.max(total,0.01)) });
     } else {

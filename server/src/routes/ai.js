@@ -79,6 +79,7 @@ async function operationalSnapshot(db) {
 }
 
 export default async function aiRoutes(app) {
+  app.get('/ai/snapshot', {preHandler:requirePermission('reports.read')},async()=>({data:await operationalSnapshot(app.db)}));
   app.get('/ai/status', { preHandler: requirePermission('reports.read') }, async () => ({
     data: { enabled: config.AI_ENABLED, model: config.OPENAI_MODEL, approvalRequired: true },
   }));

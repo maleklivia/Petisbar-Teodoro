@@ -68,9 +68,9 @@ const ConfiguracoesModule = {
     `;
   },
 
-  _persist(cfg) {
+  async _persist(cfg) {
+    if (API.isServerMode()) await API.saveServerSettings(cfg);
     Stores.config.set(cfg);
-    if (API.isServerMode()) API.saveServerSettings(cfg).catch(error => { console.error(error); UI.toast('Não foi possível salvar no servidor.', 'error'); });
   },
 
   _renderTab(cfg) {
@@ -276,7 +276,7 @@ const ConfiguracoesModule = {
     `;
   },
 
-  _salvarEntrega() {
+  async _salvarEntrega() {
     const cfg   = Stores.config.get();
     const zonas = [];
     document.querySelectorAll('#cfg-zonas-list .zona-row').forEach(row => {
@@ -288,8 +288,8 @@ const ConfiguracoesModule = {
     const defaultValue = document.getElementById('cfg-frete-padrao')?.value?.trim();
     const deliveryZones = { defaultFee: defaultValue === '' ? null : parseFloat(defaultValue), zones: zonas };
     cfg.frete = { padrao: deliveryZones.defaultFee, zonas };
-    if (API.isServerMode()) API.saveServerSettings({'storefront.deliveryZones': deliveryZones}).catch(error => { console.error(error); UI.toast('Não foi possível salvar as zonas no servidor.', 'error'); });
-    this._persist(cfg);
+    if (zonas.some(z=>!/^\d{1,8}$/.test(z.prefixo)||!Number.isFinite(z.valor)||z.valor<0)) throw new Error('Revise os prefixos e valores das zonas.');
+    await this._persist({...cfg,'storefront.deliveryZones':deliveryZones});
     UI.toast('Configurações de entrega salvas.', 'success');
   },
 
@@ -422,7 +422,16 @@ const ConfiguracoesModule = {
     el.addEventListener('input', saveDraft);
     el.addEventListener('change', saveDraft);
 
-    el.addEventListener('click', e => {
+    el.addEventListener('click', async e => {
+      const save=e.target.closest('#btn-salvar-restaurante,#btn-salvar-metas,#btn-salvar-entrega,#btn-salvar-horario');
+      if(save){
+        if(save.disabled)return;
+        save.disabled=true;
+        try{const action={'btn-salvar-restaurante':'_salvarRestaurante','btn-salvar-metas':'_salvarMetas','btn-salvar-entrega':'_salvarEntrega','btn-salvar-horario':'_salvarHorario'}[save.id];await this[action]();}
+        catch{UI.toast('Não foi possível salvar no servidor. Confira os dados e tente novamente.','danger');}
+        finally{save.disabled=false;}
+        return;
+      }
       if (e.target.closest('#cfg-discard-draft')) { localStorage.removeItem(this._storefrontDraftKey); this._render(); return; }
       const tab = e.target.closest('[data-cfg-tab]');
       if (tab) { this._tab = tab.dataset.cfgTab; this._render(); this._bindEvents(); return; }
@@ -457,7 +466,7 @@ const ConfiguracoesModule = {
     });
   },
 
-  _salvarRestaurante() {
+  async _salvarRestaurante() {
     const cfg = Stores.config.get();
     cfg.restaurante = {
       nome:     document.getElementById('cfg-nome')?.value?.trim()   || '',
@@ -469,11 +478,11 @@ const ConfiguracoesModule = {
       estado:   document.getElementById('cfg-estado')?.value?.trim() || '',
       cep:      document.getElementById('cfg-cep')?.value?.trim()    || '',
     };
-    this._persist(cfg);
+    await this._persist(cfg);
     UI.toast('Dados do restaurante salvos.', 'success');
   },
 
-  _salvarMetas() {
+  async _salvarMetas() {
     const cfg = Stores.config.get();
     cfg.metas = {
       cmvMeta:              parseFloat(document.getElementById('cfg-cmv-meta')?.value || 35),
@@ -485,18 +494,18 @@ const ConfiguracoesModule = {
       ...(cfg.taxas || {}),
       taxaEntregaPadrao: parseFloat(document.getElementById('cfg-taxa-entrega')?.value || 5),
     };
-    this._persist(cfg);
+    await this._persist(cfg);
     UI.toast('Metas e taxas salvas.', 'success');
   },
 
-  _salvarHorario() {
+  async _salvarHorario() {
     const cfg  = Stores.config.get();
     const dias = ['segunda','terca','quarta','quinta','sexta','sabado','domingo'];
     cfg.horario = {};
     for (const d of dias) {
       cfg.horario[d] = document.getElementById(`cfg-hr-${d}`)?.value?.trim() || 'Fechado';
     }
-    this._persist(cfg);
+    await this._persist(cfg);
     UI.toast('Horário salvo.', 'success');
   },
 };

@@ -151,7 +151,7 @@ test('destaca o combo de batatas recheadas com foto do cardápio', () => {
     combo_price: 57.76, groups: [{ name: 'Batatas recheadas', requiredQuantity: 2 }, { name: 'Refrigerante', requiredQuantity: 1 }],
   }];
   client.renderPromotions();
-  assert.match(element('combo-catalog').innerHTML, /class="combo-image" src="\.\/assets\/cardapio-cabecalho\.webp"/);
-  assert.match(element('combo-catalog').innerHTML, /alt="Batatas recheadas em cumbucas com bebidas"/);
+  assert.match(element('combo-catalog').innerHTML, /class="combo-image" src="\.\/assets\/promotions\/combo-duas-batatas-refrigerante\.jpg"/);
+  assert.match(element('combo-catalog').innerHTML, /alt="Duas batatas recheadas em cumbucas com refrigerante"/);
   assert.match(element('combo-catalog').innerHTML, /Combo Duas Batatas Recheadas \+ Refrigerante/);
 });

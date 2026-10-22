@@ -40,11 +40,12 @@ function deliveryForPostalCode(value, settings) {
   return Number.isFinite(fee) && fee >= 0 ? { fee: roundMoney(fee), zone: String(zone.nome || zone.prefixo) } : null;
 }
 async function findCoupon(db, code, lock = false) {
-  const { rows } = await db.query(`SELECT id,code,discount_percent,max_discount,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
+  const { rows } = await db.query(`SELECT id,code,discount_percent,discount_amount,max_discount,max_uses,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
   return rows[0] || null;
 }
 
 async function couponEligibility(db, coupon, phone) {
+  if(coupon.max_uses!=null){const count=await db.query('SELECT count(*)::int AS uses FROM coupon_redemptions WHERE coupon_id=$1',[coupon.id]);if(count.rows[0].uses>=coupon.max_uses)return 'coupon_limit_reached';}
   const used = await db.query('SELECT 1 FROM coupon_redemptions WHERE coupon_id=$1 AND phone_normalized=$2', [coupon.id, phone]);
   if (used.rowCount) return 'coupon_already_used';
   if (coupon.first_order_only) {
@@ -55,6 +56,7 @@ async function couponEligibility(db, coupon, phone) {
 }
 
 function discountFor(coupon, subtotal) {
+  if(coupon.discount_amount!=null)return roundMoney(Math.min(subtotal,Number(coupon.discount_amount)));
   const percentage = roundMoney(subtotal * Number(coupon.discount_percent) / 100);
   return roundMoney(coupon.max_discount === null ? percentage : Math.min(percentage, Number(coupon.max_discount)));
 }
@@ -187,7 +189,7 @@ export default async function publicOrderRoutes(app) {
       const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
       const rawNotes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
       const notes=testStockMode?`[TESTE SEM ESTOQUE] ${rawNotes}`.trim():rawNotes;
-      const initialStatus=input.paymentMethod==='Pix'?'Novo':'Em Produção';
+      const initialStatus=input.paymentMethod==='Pix'?'Aguardando Pagamento':'Em Produção';
       await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code,customer_account_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",[id,orderNumber,source,input.customer.name,input.customer.phone,initialStatus,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null,request.customer?.id||null]);
       const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items,allowWithoutStock:testStockMode});
       if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}

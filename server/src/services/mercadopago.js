@@ -47,5 +47,6 @@ export async function getOrder(providerOrderId) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) return { error: 'provider_error', status: response.status, payload };
   const payment = payload.transactions?.payments?.[0] || {};
-  return { status: payment.status || payload.status || '', statusDetail: payment.status_detail || payload.status_detail || '', feeAmount: money(payment.fee_amount || payload.fee_amount || 0), payload };
+  const fee=payment.fee_amount??payload.fee_amount;
+  return { status: payment.status || payload.status || '', statusDetail: payment.status_detail || payload.status_detail || '', feeAmount: fee===undefined?null:money(fee), payload };
 }

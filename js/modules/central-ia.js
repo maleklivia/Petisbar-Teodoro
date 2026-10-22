@@ -6,6 +6,12 @@ const CentralIAModule = {
 
   async init() {
     this.snapshot = this.buildSnapshot();
+    if(API.isServerMode()){
+      try{const s=(await API._request('/ai/snapshot')).data;this.snapshot={...this.snapshot,ordersToday:s.orders.today,pendingOrders:s.orders.pending,pendingPurchases:s.purchases.pending,
+        criticalStock:s.criticalStock.map(i=>({...i,nome:i.name,unidade:i.unit,categoria:i.category,coverageDays:i.averageDailyUse>0?i.current/i.averageDailyUse:null,leadDays:i.leadTimeDays,purchaseQuantity:Math.max(0,i.reorderPoint-i.current)})),
+        productsWithoutSheet:Array.from({length:s.catalog.productsWithoutTechnicalSheet},()=>({nome:'Consulte Produtos'})),provisionalCosts:[],finance:s.financeThisMonth};}
+      catch{document.getElementById('ai-recommendations').textContent='Não foi possível carregar os dados do servidor. Atualize a página para tentar novamente.';return;}
+    }
     this.recommendations = this.buildRecommendations(this.snapshot);
     this.render();
     this.bind();

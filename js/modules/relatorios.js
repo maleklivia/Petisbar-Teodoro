@@ -333,7 +333,8 @@ const RelatoriosModule = {
   _bindEvents() {
     const el = document.getElementById('relatorios-content');
     if (!el) return;
-
+    if (el.dataset.reportEventsBound === 'true') return;
+    el.dataset.reportEventsBound = 'true';
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-rel-tab]');
       if (tab) { this._tab = tab.dataset.relTab; this._render(); this._bindEvents(); return; }

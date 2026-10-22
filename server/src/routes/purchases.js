@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
+import { convertQuantity } from '../domain/orders.js';
 
 const purchaseItemSchema = z.object({
   ingredienteId: z.string().max(100).optional().transform(value => value || undefined),
@@ -31,14 +32,14 @@ const purchaseSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Informe um ingrediente ou produto', path: ['itens', index] });
       continue;
     }
-    if (seen.has(itemId)) {
+    if (itemId && seen.has(itemId)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Item duplicado na compra',
         path: ['itens', index, item.produtoId ? 'produtoId' : 'ingredienteId'],
       });
     }
-    seen.add(itemId);
+    if(itemId)seen.add(itemId);
   }
 });
 
@@ -122,11 +123,13 @@ async function applyReceipt(client, purchase, userId) {
   const items = await client.query('SELECT * FROM purchase_items WHERE purchase_id=$1', [purchase.id]);
 
   for (const item of items.rows) {
+    let receivedQuantity=Number(item.quantity),receivedUnit=item.unit;
     if (item.ingredient_id) {
       const ingredient = await client.query('SELECT * FROM ingredients WHERE id=$1 FOR UPDATE', [item.ingredient_id]);
-      if (!ingredient.rowCount) continue;
-      const nextStock = number(ingredient.rows[0].current_stock) + number(item.quantity);
-      await client.query('UPDATE ingredients SET current_stock=$2, unit_cost=$3, updated_at=now() WHERE id=$1', [item.ingredient_id, nextStock, item.unit_cost]);
+      if (!ingredient.rowCount) throw Object.assign(new Error('ingredient_not_found'),{code:'ingredient_not_found',statusCode:409});
+      receivedUnit=ingredient.rows[0].unit;receivedQuantity=convertQuantity(Number(item.quantity),item.unit,receivedUnit);
+      const nextStock = number(ingredient.rows[0].current_stock) + receivedQuantity;
+      await client.query('UPDATE ingredients SET current_stock=$2, unit_cost=$3, updated_at=now() WHERE id=$1', [item.ingredient_id, nextStock, Number(item.subtotal)/receivedQuantity]);
     } else if (item.product_id) {
       const product = await client.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [item.product_id]);
       if (!product.rowCount) continue;
@@ -138,7 +141,7 @@ async function applyReceipt(client, purchase, userId) {
       INSERT INTO stock_movements (id, ingredient_id, product_id, movement_type, quantity, unit, reason, reference, movement_date, created_by)
       VALUES ($1,$2,$3,'entrada',$4,$5,'compra',$6,$7,$8)
       ON CONFLICT (id) DO NOTHING
-    `, [`mov-purchase-${purchase.id}-${key}`, item.ingredient_id || null, item.product_id || null, item.quantity, item.unit, purchase.id, receivedAt, userId]);
+    `, [`mov-purchase-${purchase.id}-${key}`, item.ingredient_id || null, item.product_id || null, receivedQuantity, receivedUnit, purchase.id, receivedAt, userId]);
   }
 
   await client.query(`
@@ -263,6 +266,7 @@ export default async function purchasesRoutes(app) {
     const client = await app.db.connect();
     try {
       await client.query('BEGIN');
+      await client.query('SELECT id FROM purchases WHERE id=$1 FOR UPDATE',[id]);
       const current = await fetchPurchase(client, id);
       if (!current) {
         await client.query('ROLLBACK');
@@ -272,6 +276,7 @@ export default async function purchasesRoutes(app) {
         await client.query('ROLLBACK');
         return reply.code(409).send({ error: 'received_purchase_locked' });
       }
+      if(current.status==='Cancelado'&&parsed.data.status!=='Cancelado'){await client.query('ROLLBACK');return reply.code(409).send({error:'cancelled_purchase_locked'});}
       if (parsed.data.status === 'Recebido') await applyReceipt(client, current, request.user.id);
       else await client.query('UPDATE purchases SET status=$2 WHERE id=$1', [id, parsed.data.status]);
       const updated = await fetchPurchase(client, id);

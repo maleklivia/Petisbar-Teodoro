@@ -7,15 +7,21 @@
 const DocumentosModule = {
   _busca: '',
   _filtroCategoria: 'todos',
+  _items:[],
+  _all(){return API.isServerMode()?this._items:Stores.documentos.get();},
 
-  init() {
+  async init() {
+    if(API.isServerMode()){
+      try{this._items=(await API._request('/documents')).data;}
+      catch{document.getElementById('documentos-content').textContent='Não foi possível carregar os documentos do servidor.';return;}
+    }
     this._render();
     this._bindEvents();
     this._verificarVencimentos();
   },
 
   _filtered() {
-    let data = Stores.documentos.get();
+    let data = this._all().slice();
     if (this._busca) {
       const b = this._busca.toLowerCase();
       data = data.filter(d => d.titulo.toLowerCase().includes(b) || d.categoria.toLowerCase().includes(b));
@@ -27,7 +33,7 @@ const DocumentosModule = {
   _render() {
     const el = document.getElementById('documentos-content');
     if (!el) return;
-    const todos = Stores.documentos.get();
+    const todos = this._all();
     const hoje  = new Date().toISOString().slice(0, 10);
     const limit = new Date(); limit.setDate(limit.getDate() + 30);
     const limStr= limit.toISOString().slice(0, 10);
@@ -108,7 +114,7 @@ const DocumentosModule = {
     const el = document.getElementById('documentos-content');
     if (!el) return;
 
-    el.addEventListener('click', e => {
+    el.onclick = async e => {
       if (e.target.closest('#btn-novo-doc')) { this._openForm(); return; }
 
       const edit = e.target.closest('[data-doc-edit]');
@@ -117,12 +123,15 @@ const DocumentosModule = {
       const del = e.target.closest('[data-doc-del]');
       if (del) {
         if (!confirm('Excluir este documento?')) return;
-        Stores.documentos.set(Stores.documentos.get().filter(d => d.id !== del.dataset.docDel));
+        try{
+          if(API.isServerMode()){await API._request(`/documents/${encodeURIComponent(del.dataset.docDel)}`,{method:'DELETE'});this._items=this._items.filter(d=>d.id!==del.dataset.docDel);}
+          else Stores.documentos.set(this._all().filter(d=>d.id!==del.dataset.docDel));
+        }catch{UI.toast('Não foi possível excluir o documento.','danger');return;}
         this._render();
         this._bindEvents();
         return;
       }
-    });
+    };
 
     const busca = el.querySelector('#doc-busca');
     if (busca) busca.addEventListener('input', e => { this._busca = e.target.value; this._render(); this._bindEvents(); });
@@ -132,7 +141,7 @@ const DocumentosModule = {
   },
 
   _openForm(id) {
-    const docs = Stores.documentos.get();
+    const docs = this._all();
     const d    = id ? docs.find(x => x.id === id) : null;
 
     UI.openModal({
@@ -164,7 +173,7 @@ const DocumentosModule = {
         </div>
       `,
       confirmLabel: d ? 'Salvar' : 'Adicionar',
-      onConfirm: () => {
+      onConfirm: async () => {
         const titulo    = document.getElementById('doc-titulo')?.value?.trim();
         const categoria = document.getElementById('doc-categoria')?.value;
         const data2     = document.getElementById('doc-data')?.value;
@@ -173,7 +182,14 @@ const DocumentosModule = {
 
         if (!titulo) { UI.toast('Informe o título.', 'error'); return; }
 
-        const docs2  = Stores.documentos.get();
+        if(link&&!/^https?:\/\//i.test(link)){UI.toast('Informe um link HTTP ou HTTPS válido.','danger');return;}
+        if(API.isServerMode()){
+          try{const saved=(await API._request(id?`/documents/${encodeURIComponent(id)}`:'/documents',{method:id?'PUT':'POST',body:JSON.stringify({titulo,categoria,data:data2,link,notas})})).data;
+            this._items=[saved,...this._items.filter(x=>x.id!==saved.id)];UI.closeModal();this._render();this._bindEvents();UI.toast('Documento salvo no servidor.');}
+          catch{UI.toast('Não foi possível salvar o documento.','danger');}
+          return;
+        }
+        const docs2  = this._all();
         if (id) {
           const idx = docs2.findIndex(x => x.id === id);
           if (idx >= 0) docs2[idx] = { ...docs2[idx], titulo, categoria, data: data2, link, notas };
@@ -184,6 +200,7 @@ const DocumentosModule = {
           UI.toast('Documento adicionado.', 'success');
         }
         Stores.documentos.set(docs2);
+        UI.closeModal();
         this._render();
         this._bindEvents();
       },
@@ -194,7 +211,7 @@ const DocumentosModule = {
     const hoje = new Date().toISOString().slice(0, 10);
     const lim  = new Date(); lim.setDate(lim.getDate() + 7);
     const limStr = lim.toISOString().slice(0, 10);
-    const urgentes = Stores.documentos.get().filter(d => d.data && d.data >= hoje && d.data <= limStr);
+    const urgentes = this._all().filter(d => d.data && d.data >= hoje && d.data <= limStr);
     if (urgentes.length > 0 && typeof EventBus !== 'undefined') {
       EventBus.emit('documentos.vencendo', { documentos: urgentes.map(d => d.titulo) });
     }

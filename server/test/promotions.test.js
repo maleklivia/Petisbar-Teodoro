@@ -68,13 +68,15 @@ test('recusa grupos incompletos e produto não permitido; permite instâncias em
   assert.equal(repeated.promotions[1].comboGroups.length,2);
 });
 
-test('rejeita preço fechado que ultrapassa o valor normal dos componentes',async()=>{
+test('limita combo ao valor dos componentes sem criar desconto negativo',async()=>{
   const database=fakeDb({promotions:[promo(comboId,{combo_price:21})],groups:[group(comboId)],products:[beerProduct],costs:[beerCost]});
   const result=await calculatePromotions(database,[],[{promotionId:comboId,selections:[{groupId,items:[
     {productId:'beer',quantity:2,options:{}},
   ]}]}]);
-  assert.equal(result.error,'combo_price_exceeds_normal');
-  assert.equal(result.normalPrice,20);
+  assert.equal(result.error,undefined);
+  assert.equal(result.promotionDiscount,0);
+  assert.equal(result.promotions[0].price,20);
+  assert.equal(result.promotions[0].appliedSubtotal,20);
 });
 
 test('ordena promoções concorrentes pela prioridade e nunca reaproveita a unidade',async()=>{

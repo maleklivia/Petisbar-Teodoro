@@ -1,3 +1,4 @@
+import { stockComponents } from './recipe-requirements.js';
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 export function pricesMatch(requested, priced) {
@@ -59,14 +60,15 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
         'p-drk010':['size','beverage','iceFlavor'],'p-drk011':['size','beverage','iceFlavor'],
         'p-pet001':['size'],'p-pet002':['size','drink'],
       };
-      const allowed=legacyAllowed[item.productId]||[];
+      const allowed=legacyAllowed[item.productId]||['note'];
+      if(selected.note!==undefined&&(typeof selected.note!=='string'||selected.note.length>500))optionErrors.push('product_options_invalid');
       const required={
         'p-aca001':['flavor'],'p-ref001':['sodaFlavor'],
         'p-drk001':['flavor'],'p-drk002':['flavor'],'p-drk003':['flavor'],'p-drk004':['flavor'],'p-drk005':['flavor'],'p-drk006':['flavor'],
         'p-drk010':['size','beverage','iceFlavor'],'p-drk011':['size','beverage','iceFlavor'],
         'p-pet001':['size'],'p-pet002':['size'],'p-pet006':['size'],'p-pet007':['size'],
       }[item.productId]||[];
-      if(Object.hasOwn(legacyAllowed,item.productId)&&Object.keys(selected).some(key=>!allowed.includes(key)&&key!=='flavoredIce'))optionErrors.push('product_options_invalid');
+      if(Object.keys(selected).some(key=>!allowed.includes(key)&&key!=='flavoredIce'))optionErrors.push('product_options_invalid');
       if(required.some(key=>!selected[key]))optionErrors.push('product_options_required');
       if(item.productId==='p-drk010'&&selected.size&&!['500ml','700ml'].includes(selected.size))optionErrors.push('product_options_invalid');
       if(['p-pet001','p-pet002','p-pet006','p-pet007'].includes(item.productId)&&selected.size&&!['P','G'].includes(selected.size))optionErrors.push('product_options_invalid');
@@ -121,6 +123,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
     const canAddFlavoredIce = ['p-drk010', 'p-drk011'].includes(product.id);
     const options = { ...(item.options || {}) };
     if(groups.length){const effects=[];for(const group of groups){const selected=item.options?.[group.key],values=Array.isArray(selected)?selected:selected===undefined?[]:[selected];for(const value of values){const choice=group.options.find(entry=>entry.value===value);if(choice?.priceProductId&&choice.stockMode&&choice.stockMode!=='none'){const linked=priceProducts.get(choice.priceProductId);effects.push({productId:choice.priceProductId,mode:choice.stockMode,currentStock:linked?.current_stock??null});}}}if(effects.length)options._stockEffects=effects;}
+    if(!groups.length){const components=stockComponents({productId:product.id,quantity:item.quantity,options});const effects=components.flatMap((component,index)=>component.productId!==product.id||index>0?[{productId:component.productId,mode:index===0?'replace':'add',currentStock:priceProducts.get(component.productId)?.current_stock??null}]:[]);if(effects.length)options._stockEffects=effects;}
     options.flavoredIce = canAddFlavoredIce && Boolean(item.flavoredIce ?? options.flavoredIce);
     const caipirinhaFlavors = { natural: 'Limão', morango: 'Morango', maracuja: 'Maracujá' };
     const name = product.id === 'p-drk001' && caipirinhaFlavors[options.flavor]

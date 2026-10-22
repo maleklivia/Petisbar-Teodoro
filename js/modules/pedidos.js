@@ -48,6 +48,8 @@ const PedidosModule = {
       clienteEmail: order.customerEmail,
       clienteContaId: order.customerAccountId,
       status: order.status,
+      agendadoPara:order.scheduledFor,
+      fulfillmentType:order.fulfillmentType,
       itens: (order.items || []).map(item => ({
         id: item.id,
         produtoId: item.productId,
@@ -142,7 +144,7 @@ const PedidosModule = {
 
   _renderRow(p) {
     const slug = this._statusSlug(p.status);
-    const next = nextStatus(p.status);
+    const next = nextStatus(p.status,p);
     const resumo = p.itens.map(i => `${i.grupoCombo?`${i.grupoCombo}: `:''}${i.nome}${Object.keys(i.options||{}).length?` (${Object.values(i.options).flat().filter(Boolean).join(', ')})`:''} ×${i.qty}`).join(', ');
     const resumoCurt = resumo.length > 35 ? resumo.slice(0, 35) + '…' : resumo;
     const canCancel = !['Cancelado', 'Entregue', 'Concluído'].includes(p.status);
@@ -206,7 +208,7 @@ const PedidosModule = {
   _avancarStatus(pedidoId) {
     const pedido = this._pedidos().find(p => p.id === pedidoId);
     if (!pedido) return;
-    const novo = nextStatus(pedido.status);
+    const novo = nextStatus(pedido.status,pedido);
     if (novo) this._mudarStatus(pedidoId, novo);
   },
 
@@ -538,6 +540,7 @@ const PedidosModule = {
           source: origem,
           paymentMethod: forma,
           notes: obs,
+          scheduledFor:agendadoPara,
           deliveryFee: taxa,
           discount: desc,
           items: Carrinho.getItens().map(item => ({
