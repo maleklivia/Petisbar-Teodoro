@@ -128,13 +128,15 @@ async function applyEffects(client, order) {
     await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1',[order.id]);
     return;
   }
+  await client.query('SELECT pg_advisory_xact_lock(71652201)');
   const cmv = await applyInventory(client, order);
   await applyFinancialEntries(client, order, cmv);
   await setOrderReservationsStatus(client,order.id,'consumed');
-  await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1', [order.id]);
+  await client.query('UPDATE orders SET effects_applied_at=clock_timestamp() WHERE id=$1', [order.id]);
 }
 
 async function reverseEffects(client, order) {
+  await client.query('SELECT pg_advisory_xact_lock(71652201)');
   if (!order.effects_applied_at || order.effects_reversed_at) {
     await setOrderReservationsStatus(client,order.id,'released');
     return;

@@ -75,12 +75,12 @@ export default async function publicOrderRoutes(app) {
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
+    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
     const hours = String(values['storefront.hours'] ?? defaultStorefront.hours);
-    const acceptance = storefrontAcceptance(manuallyEnabled, hours);
+    const acceptance = storefrontAcceptance(manuallyEnabled, values.horario||hours);
     return { data: {
       minimumOrder: Number(values['storefront.minimumOrder'] ?? defaultStorefront.minimumOrder),
       deliveryTime: String(values['storefront.deliveryTime'] ?? defaultStorefront.deliveryTime),
@@ -158,12 +158,12 @@ export default async function publicOrderRoutes(app) {
       }
       const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
-      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
+      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
       const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));
       const manuallyEnabled=storefrontValues['storefront.isOpen']===undefined?defaultStorefront.isOpen:Boolean(storefrontValues['storefront.isOpen']);
       const hours=String(storefrontValues['storefront.hours']??defaultStorefront.hours);
       const deliveryZones=storefrontValues['storefront.deliveryZones'] && typeof storefrontValues['storefront.deliveryZones']==='object' ? storefrontValues['storefront.deliveryZones'] : defaultStorefront.deliveryZones;
-      const acceptance=storefrontAcceptance(manuallyEnabled,hours);
+      const acceptance=storefrontAcceptance(manuallyEnabled,storefrontValues.horario||hours);
       if(!acceptance.open){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed',reason:acceptance.reason});}
       const paymentResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.paymentMethods' FOR SHARE");
       const paymentMethods=Array.isArray(paymentResult.rows[0]?.value)?paymentResult.rows[0].value:defaultStorefront.paymentMethods;

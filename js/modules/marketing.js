@@ -118,7 +118,7 @@ const MarketingModule = {
     return `
       <div class="module-toolbar">
         <span style="flex:1"></span>
-        <button class="btn btn-primary" id="btn-novo-cupom">+ Novo Cupom</button>
+        ${!this._serverMode||this._canWritePromotions?'<button class="btn btn-primary" id="btn-novo-cupom">+ Novo Cupom</button>':''}
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -155,12 +155,12 @@ const MarketingModule = {
                   </td>
                   <td>
                     <div class="row-actions">
-                      <button class="btn-icon" data-mkt-toggle="${c.id}" title="${c.ativo ? 'Desativar' : 'Ativar'}">
+                      ${!this._serverMode||this._canWritePromotions?`<button class="btn-icon" data-mkt-toggle="${c.id}" title="${c.ativo ? 'Desativar' : 'Ativar'}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
-                      </button>
-                      <button class="btn-icon btn-icon--danger" data-mkt-del-cupom="${c.id}" title="Excluir">
+                      </button>`:''}
+                      ${!this._serverMode?`<button class="btn-icon btn-icon--danger" data-mkt-del-cupom="${c.id}" title="Excluir">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
-                      </button>
+                      </button>`:''}
                     </div>
                   </td>
                 </tr>

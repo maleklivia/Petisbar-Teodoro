@@ -5,17 +5,21 @@ const CentralIAModule = {
   recommendations: [],
 
   async init() {
+    try{await this.refresh();}catch{/* Keep the refresh control available after a failed read. */}
+    this.bind();
+    await this.detectOnlineAI();
+  },
+
+  async refresh() {
     this.snapshot = this.buildSnapshot();
     if(API.isServerMode()){
       try{const s=(await API._request('/ai/snapshot')).data;this.snapshot={...this.snapshot,ordersToday:s.orders.today,pendingOrders:s.orders.pending,pendingPurchases:s.purchases.pending,
         criticalStock:s.criticalStock.map(i=>({...i,nome:i.name,unidade:i.unit,categoria:i.category,coverageDays:i.averageDailyUse>0?i.current/i.averageDailyUse:null,leadDays:i.leadTimeDays,purchaseQuantity:Math.max(0,i.reorderPoint-i.current)})),
         productsWithoutSheet:Array.from({length:s.catalog.productsWithoutTechnicalSheet},()=>({nome:'Consulte Produtos'})),provisionalCosts:[],finance:s.financeThisMonth};}
-      catch{document.getElementById('ai-recommendations').textContent='Não foi possível carregar os dados do servidor. Atualize a página para tentar novamente.';return;}
+      catch{this.snapshot=null;document.getElementById('ai-recommendations').textContent='Não foi possível carregar os dados do servidor. Atualize para tentar novamente.';throw new Error('snapshot_unavailable');}
     }
     this.recommendations = this.buildRecommendations(this.snapshot);
     this.render();
-    this.bind();
-    await this.detectOnlineAI();
   },
 
   buildSnapshot() {
@@ -117,6 +121,9 @@ const CentralIAModule = {
     const target = document.getElementById('ai-recommendations');
     const destinations = {
       'Comprar antes de faltar': 'estoque.html',
+      'Estoque no ponto de reposição': 'estoque.html',
+      'Acompanhar pedidos em andamento': 'pedidos.html',
+      'Resultado mensal negativo': 'financeiro.html',
       'Completar fichas técnicas': 'produtos.html?tab=fichas',
       'Confirmar custos provisórios': 'produtos.html',
       'Operação ainda sem movimento financeiro': 'financeiro.html',
@@ -134,24 +141,24 @@ const CentralIAModule = {
   },
 
   bind() {
-    document.getElementById('ai-refresh').addEventListener('click', () => {
-      this.snapshot = this.buildSnapshot();
-      this.recommendations = this.buildRecommendations(this.snapshot);
-      this.render();
-      UI.toast('Análise atualizada com os dados mais recentes.', 'success');
-    });
-    document.getElementById('ai-suggestions').addEventListener('click', event => {
+    document.getElementById('ai-refresh').onclick = async event => {
+      event.currentTarget.disabled=true;
+      try{await this.refresh();UI.toast('Análise atualizada com os dados mais recentes.', 'success');}
+      catch{UI.toast('Não foi possível consultar o servidor.','danger');}
+      finally{document.getElementById('ai-refresh').disabled=false;}
+    };
+    document.getElementById('ai-suggestions').onclick = event => {
       const button = event.target.closest('[data-ai-question]');
       if (button) this.ask(button.dataset.aiQuestion);
-    });
-    document.getElementById('ai-question-form').addEventListener('submit', event => {
+    };
+    document.getElementById('ai-question-form').onsubmit = event => {
       event.preventDefault();
       const input = document.getElementById('ai-question-input');
       const question = input.value.trim();
       if (!question) return;
       input.value = '';
       this.ask(question);
-    });
+    };
   },
 
   async detectOnlineAI() {
@@ -182,6 +189,7 @@ const CentralIAModule = {
   },
 
   async ask(question) {
+    if(!this.snapshot){UI.toast('Atualize os dados antes de analisar.','danger');return;}
     this.addMessage(question, 'user');
     const loading = this.addMessage(this.online ? 'Analisando os dados do servidor…' : 'Analisando os dados disponíveis…', 'assistant');
     try {

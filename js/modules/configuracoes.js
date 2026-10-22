@@ -7,6 +7,7 @@ const ConfiguracoesModule = {
   _tab: 'restaurante',
   _storefront: null,
   _ifoodStatus: null,
+  _integrationStatus: null,
   _ifoodStatusUnavailable: false,
   _eventsBound: false,
   _storefrontDraftKey: 'petisbar-storefront-draft-v1',
@@ -34,7 +35,7 @@ const ConfiguracoesModule = {
 
   async init() {
     if (API.isServerMode() && API.hasPermission('settings.manage')) {
-      const results = await Promise.allSettled([API.getServerSettings(), API.getServerIfoodStatus()]);
+      const results = await Promise.allSettled([API.getServerSettings(), API.getServerIfoodStatus(),API._request('/settings/integrations')]);
       if (results[0].status === 'fulfilled') {
         const remote = results[0].value;
         this._storefront = remote;
@@ -42,6 +43,7 @@ const ConfiguracoesModule = {
       } else console.warn('Configurações remotas indisponíveis', results[0].reason);
       if (results[1].status === 'fulfilled') this._ifoodStatus = results[1].value;
       else { this._ifoodStatusUnavailable = true; console.warn('Taxas do iFood indisponíveis', results[1].reason); }
+      if(results[2].status==='fulfilled')this._integrationStatus=results[2].value.data;
     }
     this._render();
     this._bindEvents();
@@ -69,7 +71,10 @@ const ConfiguracoesModule = {
   },
 
   async _persist(cfg) {
-    if (API.isServerMode()) await API.saveServerSettings(cfg);
+    if (API.isServerMode()) {
+      await API.saveServerSettings(cfg);
+      cfg=await API.getServerSettings();this._storefront=cfg;
+    }
     Stores.config.set(cfg);
   },
 
@@ -96,7 +101,7 @@ const ConfiguracoesModule = {
       ${draft ? '<p role="status">Rascunho deste navegador recuperado. Clique em “Salvar no VPS” para publicá-lo. <button type="button" class="btn btn-ghost" id="cfg-discard-draft">Descartar rascunho</button></p>' : ''}
       <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Utils.escapeHtml(draft?.minimumOrder ?? String(s['storefront.minimumOrder'] ?? 20))}"></label>
       <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
-      <label class="form-group">Horário exibido<input class="form-input" name="hours" maxlength="160" required value="${Utils.escapeHtml(draft?.hours ?? s['storefront.hours'] ?? '')}"></label>
+      <label class="form-group">Horário de funcionamento<textarea class="form-input" name="hours" readonly rows="3">${Utils.escapeHtml(s['storefront.hours'] ?? '')}</textarea></label><small>Altere os dias e horários na aba Horário. O cardápio e a aceitação dos pedidos usam essa mesma agenda.</small>
       <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
       <label class="form-group"><input name="allowOrdersWithoutStockForTesting" type="checkbox" ${(draft?.allowOrdersWithoutStockForTesting ?? s['storefront.allowOrdersWithoutStockForTesting']) ? 'checked' : ''}> Modo de testes: permitir pedidos sem estoque real</label>
       <small>Durante os testes, todos os produtos ativos ficam disponíveis. Os pedidos entram no ERP identificados como teste. Desative esta opção antes de vender normalmente.</small>
@@ -117,7 +122,6 @@ const ConfiguracoesModule = {
     const settings = {
       'storefront.minimumOrder': Number(data.get('minimumOrder')),
       'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
-      'storefront.hours': String(data.get('hours')).trim(),
       'storefront.isOpen': data.get('isOpen') === 'on',
       'storefront.allowOrdersWithoutStockForTesting': data.get('allowOrdersWithoutStockForTesting') === 'on',
       'storefront.paymentMethods': payments,
@@ -129,6 +133,7 @@ const ConfiguracoesModule = {
     try {
       await API.saveServerSettings(settings);
       this._storefront = { ...current, ...settings };
+      Stores.config.set({...Stores.config.get(),...settings});
       try { localStorage.removeItem(this._storefrontDraftKey); } catch { /* O servidor já confirmou a gravação. */ }
       UI.toast('Configurações salvas no VPS.', 'success');
     } catch (error) {
@@ -350,7 +355,7 @@ const ConfiguracoesModule = {
     return `
       <div style="max-width:600px">
         <p style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:var(--sp-5)">
-          Integrações futuras — a arquitetura está preparada. Ative quando disponível.
+          Situação informada pelo servidor. Um botão não configura credenciais nem comprova uma integração. Teste o fluxo antes de liberar aos clientes.
         </p>
         <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
           ${integracoes.map(i => `
@@ -360,10 +365,7 @@ const ConfiguracoesModule = {
                 <div style="font-weight:700">${i.nome}</div>
                 <div style="font-size:var(--text-sm);color:var(--text-muted)">${i.desc}</div>
               </div>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:var(--text-sm);white-space:nowrap">
-                <input type="checkbox" class="cfg-int-toggle" data-cfg-int="${i.key}" ${i.status ? 'checked' : ''}>
-                ${i.status ? '<span style="color:var(--color-success);font-weight:600">Ativo</span>' : '<span style="color:var(--text-muted)">Inativo</span>'}
-              </label>
+              <span style="font-size:var(--text-sm);max-width:220px">${Utils.escapeHtml(this._integrationStatus?.[i.key]||'Situação não consultada')}</span>
             </div>
           `).join('')}
         </div>
@@ -375,6 +377,7 @@ const ConfiguracoesModule = {
   },
 
   _renderSeguranca() {
+    if(API.isServerMode())return `<section style="max-width:680px"><h3>Segurança e liberação</h3><p>ERP conectado ao PostgreSQL do servidor, com login individual e permissões por função. Os dados operacionais não ficam limitados a este navegador.</p><p>A publicação do código não comprova a prontidão comercial. Antes de divulgar o link, valide:</p><ul><li>HTTPS, domínio e acesso de clientes.</li><li>Estoque físico, fichas, preços e área de entrega.</li><li>Mercado Pago em produção e recebimento conciliado.</li><li>Entrega de e-mails de autenticação.</li><li>Backup externo e restauração testada.</li><li>Política de privacidade e dados de clientes.</li></ul><p>Modo sem estoque: <strong>${this._storefront?.['storefront.allowOrdersWithoutStockForTesting']?'ATIVO — somente testes':'Desativado'}</strong>.</p><p>E-mail: ${Utils.escapeHtml(this._integrationStatus?.email||'Situação não consultada')}.</p><p>Armazenamento: PostgreSQL · versão da interface v0.6.0.</p></section>`;
     return `
       <div style="max-width:620px">
         <div style="background:var(--bg-surface);border:1px solid var(--color-warning);border-radius:var(--radius-lg);padding:var(--sp-6)">

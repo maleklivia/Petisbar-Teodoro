@@ -19,6 +19,7 @@ export async function reserveOrderStock(client,{orderId,items,allowWithoutStock=
       if(available<quantity)return{error:'insufficient_stock',item:p.name,required:quantity,available};
     }
     let recipe;try{recipe=await recipeRequirements(client,p.id,quantity);}catch(error){return{error:error.code||'stock_recipe_incomplete',item:p.name};}
+    if(!recipe&&p.current_stock===null)return{error:'stock_recipe_incomplete',item:p.name};
     for(const i of recipe||[])ingredients.set(i.ingredient_id,(ingredients.get(i.ingredient_id)||0)+i.quantity);
   }
   const ingredientIds=[...ingredients.keys()].sort();

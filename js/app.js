@@ -42,7 +42,6 @@ const App = {
     UI.setHeaderDate();
     API.bindSessionControls(user);
     UI.initResponsiveNavigation();
-    if (API.isServerMode() && !['dashboard', 'pedidos', 'producao', 'produtos', 'clientes', 'estoque', 'compras', 'fornecedores', 'financeiro', 'relatorios', 'central-ia'].includes(page)) UI.showTransitionNotice();
 
     // Run page-specific module
     if (Modules[page]) {
@@ -286,7 +285,7 @@ const Modules = {
       el.innerHTML = sorted.map((p, i) => `
         <div class="product-rank">
           <span class="product-rank__pos ${i === 0 ? 'top' : ''}">${i + 1}</span>
-          <span class="product-rank__name">${p.name}</span>
+          <span class="product-rank__name">${Utils.escapeHtml(p.name)}</span>
           <span class="product-rank__sold">${p.sold} vendas</span>
         </div>
       `).join('');

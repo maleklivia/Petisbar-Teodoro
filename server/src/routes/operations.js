@@ -29,12 +29,12 @@ export default async function operationsRoutes(app){
     const body=z.object({id:uuid,amount:z.number().nonnegative().max(1000000)}).parse(request.body);
     return transaction(async c=>{await c.query("SELECT pg_advisory_xact_lock(71652201)");const same=await c.query('SELECT * FROM cash_sessions WHERE id=$1',[body.id]);if(same.rowCount)return same.rows[0];
       if((await c.query('SELECT id FROM cash_sessions WHERE closed_at IS NULL')).rowCount)throw fail('cash_already_open');
-      return(await c.query('INSERT INTO cash_sessions(id,opened_by,opening_amount) VALUES($1,$2,$3) RETURNING *',[body.id,request.user.id,body.amount])).rows[0];});
+      return(await c.query('INSERT INTO cash_sessions(id,opened_by,opening_amount,opened_at) VALUES($1,$2,$3,clock_timestamp()) RETURNING *',[body.id,request.user.id,body.amount])).rows[0];});
   });
   app.post('/operations/cash/:id/close',{preHandler:requirePermission('finance.write')},async request=>{
     const id=uuid.parse(request.params.id),body=z.object({amount:z.number().nonnegative().max(1000000)}).parse(request.body);
-    return transaction(async c=>{const r=await c.query('SELECT * FROM cash_sessions WHERE id=$1 FOR UPDATE',[id]);if(!r.rowCount)throw fail('cash_not_found',404);if(r.rows[0].closed_at)return r.rows[0];
-      return(await c.query('UPDATE cash_sessions SET closed_at=now(),expected_amount=$2,counted_amount=$3 WHERE id=$1 RETURNING *',[id,await expected(c,r.rows[0]),body.amount])).rows[0];});
+    return transaction(async c=>{await c.query('SELECT pg_advisory_xact_lock(71652201)');const r=await c.query('SELECT * FROM cash_sessions WHERE id=$1 FOR UPDATE',[id]);if(!r.rowCount)throw fail('cash_not_found',404);if(r.rows[0].closed_at)return r.rows[0];
+      return(await c.query('UPDATE cash_sessions SET closed_at=clock_timestamp(),expected_amount=$2,counted_amount=$3 WHERE id=$1 RETURNING *',[id,await expected(c,r.rows[0]),body.amount])).rows[0];});
   });
   app.post('/operations/cash/:id/movements',{preHandler:requirePermission('finance.write')},async request=>{
     const session=uuid.parse(request.params.id),body=z.object({id:uuid,type:z.enum(['entrada','saida']),amount:z.number().positive().max(1000000),reason:z.string().trim().min(1).max(500)}).parse(request.body);

@@ -37,6 +37,17 @@ import { startIfoodWorker } from './services/ifood-worker.js';
 export async function buildApp() {
   const app = Fastify({ bodyLimit: 10 * 1024 * 1024, logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
   app.decorate('db', db);
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error(error);
+    if(error.name==='ZodError')return reply.code(400).send({error:'validation_error'});
+    if(error.code==='23503')return reply.code(409).send({error:'record_in_use'});
+    if(error.code==='23505')return reply.code(409).send({error:'record_already_exists'});
+    const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+    reply.code(status).send({
+      error: status === 500 ? 'internal_error' : error.code || 'request_error',
+      ...(status < 500 && error.details ? { details: error.details } : {}),
+    });
+  });
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cookie, { secret: config.COOKIE_SECRET, hook: 'onRequest' });
   await app.register(cors, { origin: config.APP_ORIGIN, credentials: true, methods: ['GET','POST','PUT','PATCH','DELETE'] });
@@ -81,17 +92,6 @@ export async function buildApp() {
   app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); stopPayments=startPaymentReconciliation(app); });
   app.addHook('onClose', async () => { stopIfoodWorker(); stopPayments(); });
 
-  app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
-    if(error.name==='ZodError')return reply.code(400).send({error:'validation_error'});
-    if(error.code==='23503')return reply.code(409).send({error:'record_in_use'});
-    if(error.code==='23505')return reply.code(409).send({error:'record_already_exists'});
-    const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
-    reply.code(status).send({
-      error: status === 500 ? 'internal_error' : error.code || 'request_error',
-      ...(status < 500 && error.details ? { details: error.details } : {}),
-    });
-  });
   return app;
 }
 

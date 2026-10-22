@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {createHash} from 'node:crypto';
 import { requirePermission } from '../middleware/auth.js';
 
 const productSchema = z.object({
@@ -15,7 +16,7 @@ const productSchema = z.object({
   tempoPreparo: z.number().int().nonnegative().default(0),
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
-  foto: z.string().max(500).nullable().optional(),
+  foto: z.string().max(1400000).nullable().optional(),
   optionGroups: z.array(z.object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),
     label: z.string().trim().min(1).max(100),
@@ -92,6 +93,15 @@ export default async function catalogRoutes(app) {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
     const p = parsed.data;
+    let photoBytes=null,photoHash=null;
+    if(p.foto?.startsWith('data:')){
+      const match=/^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(p.foto);
+      if(match)photoBytes=Buffer.from(match[1],'base64');
+      if(!photoBytes||photoBytes.length<4||photoBytes.length>1000000||photoBytes[0]!==255||photoBytes[1]!==216||photoBytes[2]!==255||photoBytes.at(-2)!==255||photoBytes.at(-1)!==217)
+        return reply.code(400).send({error:'product_photo_invalid'});
+      photoHash=createHash('sha256').update(photoBytes).digest('hex');
+      p.foto=`/api/v1/public/products/${encodeURIComponent(p.id)}/photo?v=${photoHash.slice(0,16)}`;
+    }else if(p.foto&&(p.foto.length>500||!(/^(?:(?:\.\.\/|\/)?assets\/|\/api\/v1\/public\/products\/|https:\/\/)/.test(p.foto))))return reply.code(400).send({error:'product_photo_invalid'});
     if (new Set(p.optionGroups.map(group=>group.key)).size !== p.optionGroups.length || p.optionGroups.some(group=>new Set(group.options.map(option=>option.value)).size!==group.options.length))
       return reply.code(400).send({error:'product_options_ambiguous'});
     for(const group of p.optionGroups){
@@ -114,8 +124,8 @@ export default async function catalogRoutes(app) {
       ) LIMIT 1`, [p.id]);
       const configured=await client.query(`SELECT 1 FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
         CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 LIMIT 1`,[p.id]);
-    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [id])).rows.map(row=>row.name) } });}
-    if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[id])).rows.map(row=>row.name)}});}
+    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [p.id])).rows.map(row=>row.name) } });}
+    if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[p.id])).rows.map(row=>row.name)}});}
     }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
@@ -129,7 +139,10 @@ export default async function catalogRoutes(app) {
         option_groups=EXCLUDED.option_groups, updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,p.optionGroups]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups)]);
+    if(photoBytes)await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256) VALUES($1,$2,$3)
+      ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,sha256=EXCLUDED.sha256,updated_at=now()`,[p.id,photoBytes,photoHash]);
+    else if(!p.foto)await client.query('DELETE FROM product_photo_assets WHERE product_id=$1',[p.id]);
     await client.query('COMMIT');
     return reply.code(201).send({ data: rows[0] });
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }

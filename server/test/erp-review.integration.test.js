@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID,createHash } from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import argon2 from 'argon2';
 
 const enabled=process.env.ERP_REVIEW_DATABASE_URL;
@@ -32,12 +33,29 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
     });
     const ingredient=`i-${tag}`,product=`p-${tag}`;
     await t.test('cadastros, ficha e movimento de estoque com conversão e bloqueio de saldo',async()=>{
-      await call('POST','/ingredients',{id:ingredient,nome:tag,categoria:'Teste',unidade:'kg',estoqueAtual:1,estoqueMinimo:0,custoUnitario:10});
-      await call('POST','/products',{id:product,nome:tag,categoria:'Teste',precoVenda:25,estoqueAtual:null});
+      await call('POST','/ingredients',{id:ingredient,nome:tag,categoria:'Teste',unidade:'kg',estoqueAtual:1,estoqueMinimo:0,custoUnitario:10},true,201);
+      await call('POST','/products',{id:product,nome:tag,categoria:'Teste',precoVenda:25,estoqueAtual:null},true,201);
       await call('PUT',`/technical-sheets/${product}`,{rendimento:1,itens:[{ingredienteId:ingredient,quantidade:100,unidade:'g'}]});
       await call('POST','/stock/movements',{tipo:'entrada',ingredienteId:ingredient,quantidade:500,unidade:'g',data:'2026-10-22'},true,201);
       assert.equal(Number((await q('SELECT current_stock FROM ingredients WHERE id=$1',[ingredient])).rows[0].current_stock),1.5);
       await call('POST','/stock/movements',{tipo:'saida',ingredienteId:ingredient,quantidade:2,unidade:'kg',data:'2026-10-22'},true,409);
+    });
+    await t.test('foto e opções são gravadas atomicamente, recuperadas e protegidas por vínculo',async()=>{
+      const variant=`v-${tag}`,owner=`o-${tag}`;
+      await call('POST','/products',{id:variant,nome:tag+' variante',categoria:'Teste',precoVenda:15,estoqueAtual:10},true,201);
+      const groups=[{key:'sabor',label:'Sabor',type:'radio',required:true,options:[{value:'tradicional',label:'Tradicional',priceMode:'replace',stockMode:'replace',priceProductId:variant}]}];
+      const bytes=await readFile(new URL('../../assets/products/soda.jpg',import.meta.url));
+      const payload={id:owner,nome:tag+' com foto',categoria:'Teste',precoVenda:10,optionGroups:groups,foto:'data:image/jpeg;base64,'+bytes.toString('base64')};
+      const saved=(await call('POST','/products',payload,true,201)).data;
+      assert.deepEqual(saved.option_groups,groups);assert.match(saved.photo_url,/^\/api\/v1\/public\/products\//);
+      const photo=await app.inject({method:'GET',url:saved.photo_url});assert.equal(photo.statusCode,200);assert.deepEqual(photo.rawPayload,bytes);
+      const cached=await app.inject({method:'GET',url:saved.photo_url,headers:{'if-none-match':photo.headers.etag}});assert.equal(cached.statusCode,304);
+      await call('POST','/products',{id:variant,nome:tag,categoria:'Teste',precoVenda:15,ativo:false},true,409);
+      await call('DELETE',`/products/${variant}`,undefined,true,409);
+      await call('POST','/products',{...payload,foto:'data:image/jpeg;base64,YmFk'},true,400);
+      assert.equal(Number((await q('SELECT octet_length(image_bytes) n FROM product_photo_assets WHERE product_id=$1',[owner])).rows[0].n),bytes.length);
+      await call('POST','/products',{...payload,foto:null},true,201);
+      assert.equal((await q('SELECT 1 FROM product_photo_assets WHERE product_id=$1',[owner])).rowCount,0);
     });
     await t.test('clientes e fornecedores preservam campos e vínculos',async()=>{
       const client=(await call('POST','/clients',{nome:tag,telefone:'21999999999',email:'',cpf:'',observacoes:'Teste',enderecos:[{rua:'Rua de teste',numero:'1',cidade:'Teste',estado:'RJ'}]},true,201)).data;
@@ -94,6 +112,48 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       const coupon=(await call('POST','/coupons',{codigo:'R'+randomUUID().replaceAll('-','').toUpperCase(),tipo:'fixo',valor:3,limite:2,validade:'2027-01-01'})).data;
       const validation=await call('POST','/public/coupons/validate',{code:coupon.codigo,phone:'21977777777',items:[{productId:product,quantity:1,expectedUnitPrice:25}]},false);
       assert.equal(validation.data.discount,3);await call('PATCH',`/coupons/${coupon.id}`,{active:false});
+    });
+    await t.test('combo com substituição de refrigerante, orçamento e pedido usam o mesmo preço',async()=>{
+      await call('PUT','/settings',{'storefront.allowOrdersWithoutStockForTesting':true});
+      const promotions=(await call('GET','/public/promotions',undefined,false)).data;
+      const promo=promotions.find(p=>p.code==='COMBO-BATATA-RECHEADA');assert.ok(promo);
+      const selections=promo.groups.map(g=>({groupId:g.id,items:Array.from({length:g.requiredQuantity},()=>({productId:g.products[0].id,quantity:1,options:g.products[0].id==='p-ref001'?{sodaFlavor:'coca-cola'}:{}}))}));
+      const cart={items:[],combos:[{promotionId:promo.id,selections}]};
+      const quote=(await call('POST','/public/pricing/quote',cart,false)).data;
+      const payload={...publicOrder('Dinheiro'),...cart};
+      const order=(await call('POST','/public/orders',payload,false,201)).data;
+      assert.equal(Number(order.total),Number(quote.totalAfterPromotions));
+      assert.match((await q('SELECT source FROM orders WHERE id=$1',[order.id])).rows[0].source,/\(Teste\)/);
+      await call('PATCH',`/orders/${order.id}/status`,{status:'Pronto'});
+      await call('PATCH',`/orders/${order.id}/status`,{status:'Entregue'});
+      assert.equal((await q('SELECT 1 FROM financial_entries WHERE reference_id=$1',[order.id])).rowCount,0);
+      assert.equal((await q('SELECT 1 FROM stock_movements WHERE reference=$1',[order.id])).rowCount,0);
+      await call('PUT','/settings',{'storefront.allowOrdersWithoutStockForTesting':false});
+    });
+    await t.test('agenda semanal válida é canônica e dados inválidos não são salvos',async()=>{
+      await call('PUT','/settings',{horario:{segunda:'Fechado',terca:'15h – 23h',quarta:'15h – 23h',quinta:'15h – 23h',sexta:'18h – 02h',sabado:'15h – 23h',domingo:'15h – 23h'}});
+      const settings=(await call('GET','/settings')).data;
+      assert.equal(settings.horario.sexta,'18:00 – 02:00');
+      await call('PUT','/settings',{horario:{...settings.horario,sexta:'erro'}},true,400);
+      assert.deepEqual((await call('GET','/settings')).data.horario,settings.horario);
+    });
+    await t.test('tentativas de autenticação de cliente persistem e bloqueiam o código após cinco erros',async()=>{
+      const email=`${tag}-customer@example.invalid`,hash=createHash('sha256').update('123456').digest('hex');
+      const ca=(await q('INSERT INTO customer_accounts(email,email_normalized,display_name) VALUES($1,$1,$2) RETURNING id',[email,tag])).rows[0];
+      const challenge=(await q("INSERT INTO customer_login_challenges(customer_account_id,code_hash,expires_at) VALUES($1,$2,now()+interval '10 minutes') RETURNING id",[ca.id,hash])).rows[0];
+      for(let n=0;n<5;n++)await call('POST','/customer/auth/verify',{email,code:'000000'},false,401);
+      await call('POST','/customer/auth/verify',{email,code:'123456'},false,401);
+      assert.equal(Number((await q('SELECT attempts FROM customer_login_challenges WHERE id=$1',[challenge.id])).rows[0].attempts),6);
+      assert.equal((await q('SELECT 1 FROM customer_sessions WHERE customer_account_id=$1',[ca.id])).rowCount,0);
+    });
+    await t.test('usuário sem privilégios não lê financeiro nem altera cadastros',async()=>{
+      const r=(await q('INSERT INTO roles(name) VALUES($1) RETURNING id',[tag])).rows[0];
+      await q('INSERT INTO users(role_id,name,email,password_hash) VALUES($1,$2,$3,$4)',[r.id,tag,`${tag}-restricted@example.invalid`,await argon2.hash(tag)]);
+      const login=await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:`${tag}-restricted@example.invalid`,password:tag}});
+      assert.equal(login.statusCode,200);
+      const adminCookie=cookie;cookie=login.headers['set-cookie'].split(';')[0];
+      try{await call('GET','/finance/entries',undefined,true,403);await call('POST','/operations/cash/open',{id:randomUUID(),amount:10},true,403);await call('POST','/products',{},true,403);}
+      finally{cookie=adminCookie;}
     });
   }finally{await app.close();await db.end();}
 });
