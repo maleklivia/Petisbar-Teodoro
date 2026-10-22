@@ -28,6 +28,17 @@ const normalizePhone = value => {
   return digits;
 };
 const validPhone = phone => phone.length === 10 || phone.length === 11;
+function normalizePostalCode(value) { return String(value || '').replace(/\D/g, '').slice(0, 8); }
+function deliveryForPostalCode(value, settings) {
+  const postalCode = normalizePostalCode(value);
+  const zones = Array.isArray(settings?.zones) ? settings.zones : [];
+  const zone = zones
+    .filter(item => String(item?.prefixo || '').replace(/\D/g, '') && postalCode.startsWith(String(item.prefixo).replace(/\D/g, '')))
+    .sort((a, b) => String(b.prefixo).length - String(a.prefixo).length)[0];
+  if (!zone) return null;
+  const fee = Number(zone.valor);
+  return Number.isFinite(fee) && fee >= 0 ? { fee: roundMoney(fee), zone: String(zone.nome || zone.prefixo) } : null;
+}
 async function findCoupon(db, code, lock = false) {
   const { rows } = await db.query(`SELECT id,code,discount_percent,max_discount,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
   return rows[0] || null;
@@ -58,10 +69,11 @@ export default async function publicOrderRoutes(app) {
     promotions: [{ title: 'Promoções do dia', description: 'Confira as promoções disponíveis no cardápio.' }],
     whatsapp: '5521975816050',
     allowOrdersWithoutStockForTesting: false,
+    deliveryZones: { defaultFee: null, zones: [] },
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting'];
+    const keys = ['storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
@@ -78,6 +90,7 @@ export default async function publicOrderRoutes(app) {
       promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
       allowOrdersWithoutStockForTesting: values['storefront.allowOrdersWithoutStockForTesting'] === true,
+      deliveryZones: values['storefront.deliveryZones'] && typeof values['storefront.deliveryZones'] === 'object' ? values['storefront.deliveryZones'] : defaultStorefront.deliveryZones,
     } };
   });
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
@@ -143,10 +156,11 @@ export default async function publicOrderRoutes(app) {
       }
       const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
-      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['storefront.isOpen','storefront.hours']]);
+      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
       const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));
       const manuallyEnabled=storefrontValues['storefront.isOpen']===undefined?defaultStorefront.isOpen:Boolean(storefrontValues['storefront.isOpen']);
       const hours=String(storefrontValues['storefront.hours']??defaultStorefront.hours);
+      const deliveryZones=storefrontValues['storefront.deliveryZones'] && typeof storefrontValues['storefront.deliveryZones']==='object' ? storefrontValues['storefront.deliveryZones'] : defaultStorefront.deliveryZones;
       const acceptance=storefrontAcceptance(manuallyEnabled,hours);
       if(!acceptance.open){await client.query('ROLLBACK');return reply.code(409).send({error:'store_closed',reason:acceptance.reason});}
       const paymentResult=await client.query("SELECT value FROM app_settings WHERE key='storefront.paymentMethods' FOR SHARE");
@@ -162,7 +176,12 @@ export default async function publicOrderRoutes(app) {
       let coupon=null,couponDiscount=0;
       if(input.couponCode){if(!couponCanStack(priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'coupon_not_combinable'});}coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}couponDiscount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));}
       const discount=roundMoney(priced.promotionDiscount+couponDiscount);
-      const deliveryFee=input.fulfillmentType==='entrega'?config.DEFAULT_DELIVERY_FEE:0;
+      let deliveryFee=0;
+      if(input.fulfillmentType==='entrega'){
+        const delivery=deliveryForPostalCode(input.address.postalCode, deliveryZones);
+        if(!delivery){await client.query('ROLLBACK');return reply.code(422).send({error:'delivery_area_unavailable'});}
+        deliveryFee=delivery.fee;
+      }
       const total=roundMoney(Math.max(0,priced.subtotal+deliveryFee-discount)); const id=`web-${randomUUID()}`;
       const numberResult=await client.query("SELECT nextval('order_number_seq') AS number"); const orderNumber=Number(numberResult.rows[0].number);
       const source=testStockMode?(input.tableNumber?'Mesa QR (Teste)':'Cardápio Digital (Teste)'):(input.tableNumber?'Mesa QR':'Cardápio Digital');
