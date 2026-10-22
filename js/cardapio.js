@@ -276,7 +276,7 @@ const Cardapio = {
         const confirmationNumber=document.getElementById('order-confirmation-number'),confirmation=document.getElementById('order-confirmation');
         if(confirmationNumber)confirmationNumber.textContent=`Pedido #${body.data.orderNumber}`;
         if(confirmation){confirmation.classList.remove('hidden');confirmation.scrollIntoView({behavior:'smooth',block:'center'});}
-        if(String(payload.paymentMethod||'').trim().toLowerCase()==='pix') await this.startPixPayment(body.data.id,body.data.trackingToken);
+        if(String(body.data.paymentMethod||payload.paymentMethod||'').trim().toLowerCase()==='pix') await this.startPixPayment(body.data.id,body.data.trackingToken);
       }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();

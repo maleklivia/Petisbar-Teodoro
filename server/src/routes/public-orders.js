@@ -172,7 +172,7 @@ export default async function publicOrderRoutes(app) {
       const trackingToken=randomBytes(32).toString('hex');
       await client.query(`INSERT INTO order_tracking_tokens (order_id,token_hash,expires_at) VALUES ($1,$2,now()+interval '30 days')`,[id,hashToken(trackingToken)]);
       if(idempotencyKey)await client.query(`INSERT INTO order_idempotency_keys (idempotency_key_hash,request_hash,order_id,customer_account_id,expires_at) VALUES ($1,$2,$3,$4,now()+interval '30 days')`,[hashToken(idempotencyKey),requestHash,id,request.customer?.id||null]);
-      const response={data:{id,orderNumber,status:'Novo',subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
+      const response={data:{id,orderNumber,status:'Novo',paymentMethod:input.paymentMethod,subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
       await client.query('UPDATE public_order_idempotency SET order_id=$2,response=$3 WHERE idempotency_key=$1',[input.idempotencyKey,id,response]);
       await client.query('COMMIT'); return reply.code(201).send(response);
     } catch(error){await client.query('ROLLBACK');if(error.code==='23505'&&error.constraint?.includes('coupon'))return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
