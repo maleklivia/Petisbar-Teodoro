@@ -204,7 +204,7 @@ const RelatoriosModule = {
               return `
                 <tr>
                   <td style="font-weight:600">${Utils.escapeHtml(r.nome)}</td>
-                  <td style="font-size:var(--text-sm);color:var(--text-muted)">${Utils.escapeHtml(r.categoria)}</td>
+                  <td style="font-size:var(--text-sm);color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(r.categoria))}</td>
                   <td style="text-align:right">${Utils.currency(r.precoVenda)}</td>
                   <td style="text-align:right">${custo}</td>
                   <td style="text-align:right;font-weight:700;color:${sobre ? 'var(--color-danger)' : 'var(--color-success)'}">${r.cmvPct === null ? '—' : `${r.cmvPct.toFixed(1)}%`}</td>

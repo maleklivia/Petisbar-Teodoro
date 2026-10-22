@@ -98,6 +98,12 @@ const Utils = {
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   },
 
+  displayCategory(category = '') {
+    const value = String(category ?? '').trim();
+    if (value.toLocaleUpperCase('pt-BR') === 'BATATAS RECHEADAS') return 'Batatas Recheadas';
+    return value;
+  },
+
   /* ── Calculation Helpers ─────────────────────────────────────── */
 
   cmvPercent(cmvTotal, revenue) {

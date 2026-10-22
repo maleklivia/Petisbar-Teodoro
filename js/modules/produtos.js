@@ -156,7 +156,7 @@ const ProdutosModule = {
               </div>
             </div>
           </td>
-          <td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td>
+          <td style="color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</td>
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
           <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
@@ -219,7 +219,7 @@ const ProdutosModule = {
     this._photoRemove = false;
 
     const catOptions = CATEGORIAS_PRODUTO.map(c =>
-      `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${c}</option>`
+      `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${Utils.escapeHtml(Utils.displayCategory(c))}</option>`
     ).join('');
 
     UI.openModal({

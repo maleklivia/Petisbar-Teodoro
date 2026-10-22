@@ -187,7 +187,7 @@ const FichasModule = {
         ${Utils.productPhoto(p, 'product-photo-icon--small')}
         <div class="ficha-produto-item__info">
           <div class="ficha-produto-item__nome">${Utils.escapeHtml(p.nome)}</div>
-          <div class="ficha-produto-item__cat">${Utils.escapeHtml(p.categoria)}</div>
+          <div class="ficha-produto-item__cat">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</div>
         </div>
       </div>
     `).join('')}${courseCards.length?`<div class="ficha-list-heading">Preparações e receitas</div>${courseCards.map(card=>`
@@ -338,7 +338,7 @@ const FichasModule = {
         ${Utils.productPhoto(produto, 'product-photo-icon--large')}
         <div>
           <div class="ficha-editor__title">${Utils.escapeHtml(produto.nome)}</div>
-          <div class="ficha-editor__sub">${Utils.escapeHtml(produto.categoria)} &middot; Preço de venda: ${Utils.currency(preco)}</div>
+          <div class="ficha-editor__sub">${Utils.escapeHtml(Utils.displayCategory(produto.categoria))} &middot; Preço de venda: ${Utils.currency(preco)}</div>
         </div>
       </div>
 
