@@ -195,11 +195,11 @@ const ConfiguracoesModule = {
     const ifood = this._ifoodStatus;
     const feeCard = ifood
       ? `<div class="form-row">
-          <div class="form-group"><label class="form-label">Comissão do Plano Entrega</label><div class="form-input" aria-readonly="true">${Number(ifood.commissionPercent).toLocaleString('pt-BR')}%</div></div>
-          <div class="form-group"><label class="form-label">Pagamento online pelo iFood</label><div class="form-input" aria-readonly="true">${Number(ifood.paymentFeePercent).toLocaleString('pt-BR')}%</div></div>
+          <div class="form-group"><label class="form-label">Comissão publicada do Plano Entrega</label><div class="form-input" aria-readonly="true">${Number(ifood.commissionPercent).toLocaleString('pt-BR')}%</div></div>
+          <div class="form-group"><label class="form-label">Taxa publicada para pagamento via iFood</label><div class="form-input" aria-readonly="true">${Number(ifood.paymentFeePercent).toLocaleString('pt-BR')}%</div></div>
           <div class="form-group"><label class="form-label">Total usado na sugestão de preço</label><div class="form-input" aria-readonly="true">${Number(ifood.totalFeePercent).toLocaleString('pt-BR')}%</div></div>
         </div>
-        <small style="color:var(--text-muted);font-size:var(--text-xs)">A taxa de pagamento online depende da forma de pagamento do pedido. A sugestão de preço usa o total configurado no VPS como referência e não inclui mensalidade. Confira as condições do seu contrato no Portal do Parceiro.</small>`
+        <small style="color:var(--text-muted);font-size:var(--text-xs)">Referência pública: a <a href="https://parceiros.ifood.com.br/restaurante/planos-ifood" target="_blank" rel="noopener noreferrer">página de planos</a> informa 3,2%, enquanto a <a href="https://parceiros.ifood.com.br/restaurante/como-funciona/entregas" target="_blank" rel="noopener noreferrer">página de entregas</a> informa 3,5% para pagamento via iFood. O total configurado no VPS é o percentual que o ERP usa para sugerir preços; não inclui mensalidade. Confira seu contrato no Portal do Parceiro, pois ele prevalece.</small>`
       : `<p role="status" style="color:var(--text-muted)">${this._ifoodStatusUnavailable ? 'Não foi possível consultar as taxas configuradas no VPS. Recarregue a página para tentar novamente.' : 'As taxas do iFood aparecem quando o ERP está conectado ao VPS com acesso às configurações.'}</p>`;
     return `
       <div style="max-width:560px;display:flex;flex-direction:column;gap:var(--sp-4)">
