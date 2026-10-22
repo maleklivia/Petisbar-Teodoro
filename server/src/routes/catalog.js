@@ -69,6 +69,19 @@ function sheetRows(rows) {
 }
 
 export default async function catalogRoutes(app) {
+  // Entrega as fotos armazenadas no PostgreSQL para o cardápio público.
+  app.get('/public/products/:id/photo', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const id = z.string().min(1).max(100).parse(request.params.id);
+    const { rows } = await app.db.query('SELECT image_bytes,sha256 FROM product_photo_assets WHERE product_id=$1', [id]);
+    if (!rows[0]) return reply.code(404).send({ error: 'product_photo_not_found' });
+    const etag = `"${rows[0].sha256}"`;
+    reply.header('Cache-Control', 'public, max-age=300, must-revalidate')
+      .header('ETag', etag)
+      .header('X-Content-Type-Options', 'nosniff')
+      .type('image/jpeg');
+    if (request.headers['if-none-match'] === etag) return reply.code(304).send();
+    return reply.send(rows[0].image_bytes);
+  });
   app.get('/products', { preHandler: requirePermission('catalog.read') }, async () => {
     const { rows } = await app.db.query('SELECT * FROM products ORDER BY category, name');
     return { data: rows };
