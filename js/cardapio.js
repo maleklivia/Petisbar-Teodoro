@@ -32,7 +32,8 @@ const Cardapio = {
           for(const key of this.cart.keys())if(!products.some(p=>p.id===this.cartProductId(key))){this.cart.delete(key);this.productOptions.delete(key);this.flavoredIce.delete(key)}
           this.toast('Produto indisponível removido do carrinho.');
         }
-        for(const [instanceId,combo] of this.combos)if(!promotions.some(promotion=>promotion.id===combo.promotion.id)){this.combos.delete(instanceId);this.toast('Um combo saiu do cardápio e foi removido do carrinho.')}
+        for(const [instanceId,combo] of this.combos){const current=promotions.find(promotion=>promotion.id===combo.promotion.id);if(!current){this.combos.delete(instanceId);this.toast('Um combo saiu do cardápio e foi removido do carrinho.')}else combo.promotion=current;}
+        if(this.pendingCombo&&previousPromotions!==JSON.stringify(promotions)){this.closeCustomization();this.toast('A promoção foi atualizada. Monte o combo novamente com a regra atual.');}
         if(this.pendingCustomization&&!products.some(p=>p.id===this.pendingCustomization.product.id))this.closeCustomization();
         if(this.coupon&&(products.some(p=>previous.get(p.id)!==JSON.stringify([p.name,p.category,p.description,p.sale_price,p.photo_url,p.current_stock,p.option_prices]))||previousPromotions!==JSON.stringify(promotions)))this.coupon=null;
         this.renderStorefront();
