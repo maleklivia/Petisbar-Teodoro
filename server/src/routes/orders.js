@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ORDER_STATUSES } from '../domain/orders.js';
 import { requirePermission } from '../middleware/auth.js';
 import { transitionOrderStatus } from '../services/order-effects.js';
+import { sendCustomerEmail } from '../services/customer-email.js';
 import { roundMoney } from '../services/order-pricing.js';
 import { calculatePromotions } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
@@ -186,7 +187,10 @@ export default async function orderRoutes(app) {
         ip: request.ip,
       });
       const current = await client.query(`${orderSelect} WHERE o.id=$1 GROUP BY o.id`, [order.id]);
+      const emailResult = await client.query('SELECT ca.email FROM customer_accounts ca JOIN orders o ON o.customer_account_id=ca.id WHERE o.id=$1', [order.id]);
       await client.query('COMMIT');
+      const email = emailResult.rows[0]?.email;
+      if (email) void sendCustomerEmail({ email, subject: `Pedido #${current.rows[0].order_number}: ${body.data.status}`, text: `Seu pedido #${current.rows[0].order_number} agora está com status: ${body.data.status}.` }).catch(error => request.log.error({ event: 'order_status_email_failed', orderId: order.id, error: error.message }, 'falha ao enviar atualização do pedido'));
       return { data: serializeOrder(current.rows[0]) };
     } catch (error) {
       await client.query('ROLLBACK');

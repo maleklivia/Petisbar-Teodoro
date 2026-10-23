@@ -6,6 +6,7 @@ import { calculatePromotions, couponCanStack } from '../services/promotions.js';
 import { reserveOrderStock } from '../services/order-stock-reservations.js';
 import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
 import { storefrontAcceptance } from '../services/storefront-hours.js';
+import { sendCustomerEmail } from '../services/customer-email.js';
 
 const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
@@ -205,7 +206,20 @@ export default async function publicOrderRoutes(app) {
       if(idempotencyKey)await client.query(`INSERT INTO order_idempotency_keys (idempotency_key_hash,request_hash,order_id,customer_account_id,expires_at) VALUES ($1,$2,$3,$4,now()+interval '30 days')`,[hashToken(idempotencyKey),requestHash,id,request.customer?.id||null]);
       const response={data:{id,orderNumber,status:initialStatus,paymentMethod:input.paymentMethod,subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
       await client.query('UPDATE public_order_idempotency SET order_id=$2,response=$3 WHERE idempotency_key=$1',[input.idempotencyKey,id,response]);
-      await client.query('COMMIT'); return reply.code(201).send(response);
+      let customerEmail = null;
+      if (request.customer?.id) {
+        const customer = await client.query('SELECT email FROM customer_accounts WHERE id=$1', [request.customer.id]);
+        customerEmail = customer.rows[0]?.email || null;
+      }
+      await client.query('COMMIT');
+      if (customerEmail && !testStockMode) {
+        void sendCustomerEmail({
+          email: customerEmail,
+          subject: `Pedido #${orderNumber} recebido — Petisbar Teodoro`,
+          text: `Olá, ${input.customer.name}!\n\nRecebemos seu pedido #${orderNumber}. Status atual: ${initialStatus}.\nTotal: R$ ${total.toFixed(2).replace('.', ',')}.\n\nAcompanhe o pedido pelo link disponibilizado no cardápio.`,
+        }).catch(error => request.log.error({ event: 'order_email_failed', orderId: id, error: error.message }, 'falha ao enviar confirmação do pedido'));
+      }
+      return reply.code(201).send(response);
     } catch(error){await client.query('ROLLBACK');if(error.code==='23505'&&error.constraint?.includes('coupon'))return reply.code(409).send({error:'coupon_already_used'});throw error;} finally{client.release();}
   });
 
