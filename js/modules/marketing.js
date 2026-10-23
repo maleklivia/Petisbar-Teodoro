@@ -98,8 +98,8 @@ const MarketingModule = {
       ${missingSkol?'<div class="alert alert-warning" style="margin-bottom:var(--sp-4)">Skol não está cadastrada como produto ativo; ela não aparece nas opções do rascunho de cervejas.</div>':''}
       <div class="table-wrap"><table class="data-table"><thead><tr><th>Promoção</th><th>Regra</th><th>Preço / desconto</th><th>Período</th><th>Margem estimada</th><th>Status</th><th></th></tr></thead><tbody>
         ${this._promotions.length?this._promotions.map(p=>{
-          const type={percentage:'Percentual',fixed:'Desconto fixo',combo:'Combo fechado'}[p.rule_type]||p.rule_type;
-          const value=p.rule_type==='percentage'?`${p.discount_percent}%`:p.rule_type==='fixed'?Utils.currency(Number(p.discount_amount||0)):p.combo_price==null?'Preço pendente':Utils.currency(Number(p.combo_price));
+          const type=p.rule_type==='combo'&&p.discount_percent!=null?'Combo com desconto':{percentage:'Percentual',fixed:'Desconto fixo',combo:'Combo fechado'}[p.rule_type]||p.rule_type;
+          const value=p.discount_percent!=null?`${p.discount_percent}% sobre os itens escolhidos`:p.rule_type==='fixed'?Utils.currency(Number(p.discount_amount||0)):p.combo_price==null?'Preço pendente':Utils.currency(Number(p.combo_price));
           const active=p.active&&(!p.ends_at||new Date(p.ends_at)>=new Date())&&(!p.starts_at||new Date(p.starts_at)<=new Date());
           const margin=p.estimatedMargin==null?'Não calculável':`${Utils.currency(Number(p.estimatedMargin))} · margem ${Number(p.marginPercent).toFixed(1)}%${p.estimatedCmvPercent==null?'':` · CMV ${Number(p.estimatedCmvPercent).toFixed(1)}%`}`;
           const period=`${p.starts_at?Utils.formatShortDate(p.starts_at):'Sem início'} – ${p.ends_at?Utils.formatShortDate(p.ends_at):'Sem fim'}`;
@@ -335,7 +335,7 @@ const MarketingModule = {
       <form id="promotion-form"><div class="form-row"><div class="form-group"><label class="form-label">Código interno</label><input class="form-input" name="code" value="${this._esc(promotion?.code||'')}" placeholder="COMBO-EXEMPLO" maxlength="40" required></div>
       <div class="form-group" style="flex:2"><label class="form-label">Nome comercial</label><input class="form-input" name="name" value="${this._esc(promotion?.name||'')}" maxlength="120" required></div></div>
       <div class="form-group"><label class="form-label">Descrição para o cliente</label><textarea class="form-input" name="description" maxlength="2000">${this._esc(promotion?.description||'')}</textarea></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Tipo de regra</label><select class="form-input" name="ruleType" data-promo-rule><option value="combo" ${promotion?.rule_type==='combo'||!promotion?'selected':''}>Combo com preço fechado</option><option value="percentage" ${promotion?.rule_type==='percentage'?'selected':''}>Desconto percentual</option><option value="fixed" ${promotion?.rule_type==='fixed'?'selected':''}>Desconto fixo</option></select></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Tipo de regra</label><select class="form-input" name="ruleType" data-promo-rule><option value="combo" ${(promotion?.rule_type==='combo'&&promotion?.discount_percent==null)||!promotion?'selected':''}>Combo com preço fechado</option><option value="combo_percentage" ${promotion?.rule_type==='combo'&&promotion?.discount_percent!=null?'selected':''}>Combo com desconto sobre escolhas</option><option value="percentage" ${promotion?.rule_type==='percentage'?'selected':''}>Desconto percentual</option><option value="fixed" ${promotion?.rule_type==='fixed'?'selected':''}>Desconto fixo</option></select></div>
       <div class="form-group promo-value" data-rule-value="combo"><label class="form-label">Preço fechado do combo</label><input class="form-input" name="comboPrice" type="number" min="0" step="0.01" value="${promotion?.combo_price??''}" placeholder="Deixe vazio até definir"></div>
       <div class="form-group promo-value" data-rule-value="percentage"><label class="form-label">Desconto (%)</label><input class="form-input" name="discountPercent" type="number" min="0.01" max="100" step="0.01" value="${promotion?.discount_percent??''}"></div>
       <div class="form-group promo-value" data-rule-value="fixed"><label class="form-label">Desconto (R$)</label><input class="form-input" name="discountAmount" type="number" min="0.01" step="0.01" value="${promotion?.discount_amount??''}"></div></div>
@@ -368,13 +368,13 @@ const MarketingModule = {
     group.querySelectorAll('[data-group-product]:not(:checked)').forEach(input=>{input.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value='0.00';});
   },
 
-  _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value;dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==type);dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==type);},
+  _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value,isCombo=type.startsWith('combo');dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==(isCombo?'combo':'targets'));dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==(type==='combo_percentage'?'percentage':type));},
 
   async _savePromotion(id){
     const form=UI._activeModal?.querySelector('#promotion-form');if(!form)return;
     try{
       const value=name=>form.elements[name]?.value||'';
-      const type=value('ruleType');
+      const selectedRule=value('ruleType'),type=selectedRule==='combo_percentage'?'combo':selectedRule;
       const groups=type==='combo'?[...form.querySelectorAll('[data-promo-group]')].map((group,index)=>{
         let allowedOptions={};try{allowedOptions=JSON.parse(group.querySelector('[data-group-options]').value||'{}');}catch{throw new Error('As opções do grupo precisam estar em JSON válido.');}
         const selected=[...group.querySelectorAll('[data-group-product]:checked')].map(check=>({productId:check.value,surcharge:Number(check.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value||0),allowedOptions}));
@@ -382,8 +382,8 @@ const MarketingModule = {
       }):[];
       const starts=value('startsAt'),ends=value('endsAt');
       const data={code:value('code').trim().toUpperCase(),name:value('name').trim(),description:value('description').trim(),ruleType:type,
-        discountPercent:type==='percentage'?Number(value('discountPercent')):null,discountAmount:type==='fixed'?Number(value('discountAmount')):null,
-        comboPrice:type==='combo'&&value('comboPrice')!==''?Number(value('comboPrice')):null,startsAt:starts?new Date(starts).toISOString():null,endsAt:ends?new Date(ends).toISOString():null,
+        discountPercent:type==='percentage'||selectedRule==='combo_percentage'?Number(value('discountPercent')):null,discountAmount:type==='fixed'?Number(value('discountAmount')):null,
+        comboPrice:selectedRule==='combo'&&value('comboPrice')!==''?Number(value('comboPrice')):null,startsAt:starts?new Date(starts).toISOString():null,endsAt:ends?new Date(ends).toISOString():null,
         priority:Number(value('priority')||100),stackWithCoupon:form.elements.stackWithCoupon.checked,
         cmvEstimatePercent:value('cmvEstimatePercent')===''?null:Number(value('cmvEstimatePercent')),
         productIds:type==='combo'?[]:[...form.querySelectorAll('[data-promo-target]:checked')].map(check=>check.value),groups};

@@ -152,3 +152,17 @@ test('cobra acréscimo de substituição sem transformar o acréscimo em descont
   assert.equal(result.promotions[0].price,21);
   assert.deepEqual(result.items.map(item=>item.listUnitPrice),[10,12]);
 });
+
+test('combo percentual desconta o preço normal escolhido sem somar acréscimos novamente',async()=>{
+  const premium={id:'premium',name:'Premium',category:'Teste',salePrice:32.9,surcharge:10.8,active:true,allowedOptions:{}};
+  const standard={id:'beer',name:'Base',category:'Teste',salePrice:22.1,surcharge:0,active:true,allowedOptions:{}};
+  const database=fakeDb({promotions:[promo(comboId,{combo_price:null,discount_percent:5})],
+    groups:[group(comboId,{products:[standard,premium]})],products:[{...beerProduct,sale_price:'22.10'},{...beerProduct,id:'premium',sale_price:'32.90'}],costs:[beerCost]});
+  for(const ids of [['beer','beer'],['beer','premium'],['premium','premium']]){
+    const result=await calculatePromotions(database,[],[{promotionId:comboId,selections:[{groupId,items:ids.map(productId=>({productId,quantity:1,options:{}}))}]}]);
+    const discount=Math.round((result.subtotal*.05+Number.EPSILON)*100)/100;
+    assert.equal(result.promotionDiscount,discount);
+    assert.equal(result.promotions[0].price,Math.round((result.subtotal-discount+Number.EPSILON)*100)/100);
+    assert.ok(result.promotions[0].price<result.subtotal);
+  }
+});

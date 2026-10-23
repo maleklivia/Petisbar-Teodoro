@@ -77,7 +77,7 @@ const Cardapio = {
   },
   renderPromotions(){
     const el=document.getElementById('combo-catalog');if(!el)return;
-    const available=this.promotions.filter(p=>p.rule_type==='combo'&&p.combo_price!=null&&p.groups?.length);
+    const available=this.promotions.filter(p=>p.rule_type==='combo'&&(p.combo_price!=null||p.discount_percent!=null)&&p.groups?.length);
     const discounts=this.promotions.filter(p=>p.rule_type!=='combo');
     const text=document.getElementById('promotion-text');if(text)text.textContent=available.length||discounts.length?`${available.map(p=>p.name).join(' · ')}${discounts.length?' · Descontos aplicados automaticamente no carrinho':''}`:'Confira as promoções disponíveis no cardápio.';
     if(!available.length){el.classList.add('hidden');el.innerHTML='';return}
@@ -91,7 +91,8 @@ const Cardapio = {
       };
       const visual=comboImages[p.code];
       const image=visual?`<img class="combo-image" src="${visual[0]}" alt="${visual[1]}" loading="lazy">`:'';
-      return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>A partir de ${this.money(Number(p.combo_price))}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
+      const priceLabel=p.discount_percent!=null?`${Number(p.discount_percent)}% de desconto nos itens escolhidos`:`A partir de ${this.money(Number(p.combo_price))}`;
+      return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>${priceLabel}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
     }).join('');
   },
   categoryOrder: ['Batatas Recheadas','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
@@ -190,12 +191,13 @@ const Cardapio = {
         const selected=allowed.find(product=>product.id===saved.productId)||allowed[0];if(!selected)return`<p>Este grupo não possui produtos disponíveis no catálogo.</p>`;
         const selectedGroup={...group,allowedOptions:Object.fromEntries(Object.entries(group.allowedOptions||{}).map(([key,values])=>[key,selected.allowedOptions?.[key]?values.filter(value=>selected.allowedOptions[key].includes(value)):values]))};
         const options=this.comboOptionMarkup(this.products.find(p=>p.id===selected.id),selectedGroup,index,saved.options);
-        return `<div class="combo-choice-slot" data-combo-slot data-group-id="${this.escape(group.id)}" data-slot="${index}"><label>Escolha ${this.escape(group.name.toLowerCase())} ${index+1}<select data-combo-product>${allowed.map(product=>`<option value="${this.escape(product.id)}" ${selected.id===product.id?'selected':''}>${this.escape(product.name)}${Number(product.surcharge)?` (+ ${this.money(Number(product.surcharge))})`:''}</option>`).join('')}</select></label>${options}</div>`;
+        return `<div class="combo-choice-slot" data-combo-slot data-group-id="${this.escape(group.id)}" data-slot="${index}"><label>Escolha ${this.escape(group.name.toLowerCase())} ${index+1}<select data-combo-product>${allowed.map(product=>`<option value="${this.escape(product.id)}" ${selected.id===product.id?'selected':''}>${this.escape(product.name)}${promotion.discount_percent!=null?` · ${this.money(Number(product.salePrice))}`:Number(product.surcharge)?` (+ ${this.money(Number(product.surcharge))})`:''}</option>`).join('')}</select></label>${options}</div>`;
       }).join('');
       return `<section class="combo-group-builder"><h3>${this.escape(group.name)} <small>${group.requiredQuantity} obrigatório(s)</small></h3>${slots}<div class="combo-group-actions">${count<group.maxQuantity?`<button type="button" data-combo-quantity="1" data-group-id="${this.escape(group.id)}">+ Adicionar unidade</button>`:''}${count>group.requiredQuantity?`<button type="button" data-combo-quantity="-1" data-group-id="${this.escape(group.id)}">− Remover unidade</button>`:''}</div></section>`;
     }).join('');
     document.getElementById('customization-title').textContent=promotion.name;
-    document.getElementById('customization-content').innerHTML=`<div class="customization-intro"><div><strong>${this.escape(promotion.description||promotion.name)}</strong><span>Preço base: ${this.money(Number(promotion.combo_price))}. Acréscimos por escolha aparecem ao lado dos itens.</span></div></div>${html}<p class="customization-help">Cada unidade pode ter opções próprias. O ERP confirma o estoque e recalcula o preço ao fechar o pedido.</p>`;
+    const pricingHelp=promotion.discount_percent!=null?`${Number(promotion.discount_percent)}% de desconto sobre o preço normal dos itens e opções escolhidos. Não há acréscimo separado por sabor.`:`Preço base: ${this.money(Number(promotion.combo_price))}. Acréscimos por escolha aparecem ao lado dos itens.`;
+    document.getElementById('customization-content').innerHTML=`<div class="customization-intro"><div><strong>${this.escape(promotion.description||promotion.name)}</strong><span>${pricingHelp}</span></div></div>${html}<p class="customization-help">Cada unidade pode ter opções próprias. O ERP confirma o estoque e recalcula o preço ao fechar o pedido.</p>`;
     document.getElementById('customization-add').textContent='Adicionar combo';
   },
   readComboSelection(){
@@ -237,7 +239,7 @@ const Cardapio = {
   comboLines(){return this.comboData().flatMap(combo=>combo.selections.flatMap(group=>group.items.map(item=>({...item,product:this.products.find(product=>product.id===item.productId),promotion:combo.promotion,groupId:group.groupId,groupName:combo.promotion.groups.find(groupInfo=>groupInfo.id===group.groupId)?.name}))))},
   allPromotionsPayload(){return this.comboData().map(combo=>({promotionId:combo.promotion.id,selections:combo.selections}))},
   cartPayloadItems(){return this.cartData().map(i=>({productId:i.product.id,quantity:i.quantity,expectedUnitPrice:this.productUnitPrice(i.product,i.options),options:i.options,flavoredIce:Boolean(i.options.flavoredIce)}))},
-  comboAppliedPrice(combo){let total=Number(combo.promotion.combo_price);for(const groupSelection of combo.selections){const group=combo.promotion.groups.find(item=>item.id===groupSelection.groupId);for(const selected of groupSelection.items){const product=this.products.find(item=>item.id===selected.productId);if(!product)continue;const allowed=group?.products.find(item=>item.id===selected.productId);const optionExtra=Math.max(0,this.productUnitPrice(product,selected.options||{})-Number(product.sale_price));total+=(Number(allowed?.surcharge||0)+optionExtra)*Number(selected.quantity||1)}}return Math.round((total+Number.EPSILON)*100)/100},
+  comboAppliedPrice(combo){const percent=combo.promotion.discount_percent;let total=percent!=null?0:Number(combo.promotion.combo_price);for(const groupSelection of combo.selections){const group=combo.promotion.groups.find(item=>item.id===groupSelection.groupId);for(const selected of groupSelection.items){const product=this.products.find(item=>item.id===selected.productId);if(!product)continue;if(percent!=null){total+=this.productUnitPrice(product,selected.options||{})*Number(selected.quantity||1);continue;}const allowed=group?.products.find(item=>item.id===selected.productId);const optionExtra=Math.max(0,this.productUnitPrice(product,selected.options||{})-Number(product.sale_price));total+=(Number(allowed?.surcharge||0)+optionExtra)*Number(selected.quantity||1)}}total=Math.round((total+Number.EPSILON)*100)/100;if(percent!=null)total-=Math.round((total*Number(percent)/100+Number.EPSILON)*100)/100;return Math.round((total+Number.EPSILON)*100)/100},
   subtotal(){const direct=this.cartData().reduce((s,i)=>s+this.productUnitPrice(i.product,i.options)*i.quantity,0);const combos=this.comboData().reduce((sum,combo)=>sum+this.comboAppliedPrice(combo),0);return Math.round((direct+combos+Number.EPSILON)*100)/100},
   hasAlcohol(){return [...this.cartData().map(i=>i.product),...this.comboLines().map(i=>i.product).filter(Boolean)].some(product=>['Drinks','Cervejas'].includes(product.category))},
   renderCart(){

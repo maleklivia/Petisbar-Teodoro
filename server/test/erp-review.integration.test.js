@@ -143,9 +143,19 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       await call('PUT','/settings',{'storefront.allowOrdersWithoutStockForTesting':true});
       const promotions=(await call('GET','/public/promotions',undefined,false)).data;
       const promo=promotions.find(p=>p.code==='COMBO-BATATA-RECHEADA');assert.ok(promo);
+      assert.equal(promo.combo_price,null);assert.equal(Number(promo.discount_percent),5);
       const selections=promo.groups.map(g=>({groupId:g.id,items:Array.from({length:g.requiredQuantity},()=>({productId:g.products[0].id,quantity:1,options:g.products[0].id==='p-ref001'?{sodaFlavor:'coca-cola'}:{}}))}));
       const cart={items:[],combos:[{promotionId:promo.id,selections}]};
       const quote=(await call('POST','/public/pricing/quote',cart,false)).data;
+      assert.equal(quote.totalAfterPromotions,Math.round((quote.subtotalNormal-Math.round((quote.subtotalNormal*.05+Number.EPSILON)*100)/100+Number.EPSILON)*100)/100);
+      const potatoGroup=promo.groups.find(g=>g.code==='batata'),sodaGroup=promo.groups.find(g=>g.code==='refrigerante');
+      for(const potato of potatoGroup.products.filter(p=>p.active))for(const sodaFlavor of ['coca-cola','guarana','sprite']){
+        const choices=[{groupId:potatoGroup.id,items:[{productId:potato.id,quantity:2,options:{}}]},
+          {groupId:sodaGroup.id,items:[{productId:'p-ref001',quantity:1,options:{sodaFlavor}}]}];
+        const priced=(await call('POST','/public/pricing/quote',{items:[],combos:[{promotionId:promo.id,selections:choices}]},false)).data;
+        assert.equal(priced.totalPromotionDiscount,Math.round((priced.subtotalNormal*.05+Number.EPSILON)*100)/100);
+        assert.ok(priced.totalAfterPromotions<priced.subtotalNormal,`${potato.name} / ${sodaFlavor}`);
+      }
       const payload={...publicOrder('Dinheiro'),...cart};
       const order=(await call('POST','/public/orders',payload,false,201)).data;
       assert.equal(Number(order.total),Number(quote.totalAfterPromotions));
