@@ -75,6 +75,7 @@ const Cardapio = {
     const status=document.getElementById('store-status');if(status){status.classList.toggle('open',Boolean(data.isOpen));status.classList.toggle('closed',!data.isOpen);status.querySelector('strong').textContent=data.isOpen?'Aberto agora':data.closedReason==='outside_hours'?'Fora do horário':'Fechado agora'}
     const promotion=(Array.isArray(data.promotions)&&data.promotions[0])||{};const promotionText=document.getElementById('promotion-text');if(promotionText)promotionText.textContent=promotion.description||'Confira as promoções disponíveis no cardápio.';
     const whatsapp=document.querySelector('#store-panel-contato a');if(whatsapp&&data.whatsapp)whatsapp.href=`https://wa.me/${String(data.whatsapp).replace(/\D/g,'')}`;
+    const deliveryInfo=document.getElementById('delivery-info');if(deliveryInfo){const zones=Array.isArray(data.deliveryZones?.zones)?data.deliveryZones.zones:[];const fees=[...new Set(zones.map(zone=>Number(zone.valor)).filter(fee=>Number.isFinite(fee)))];const feeText=fees.length?fees.map(fee=>this.money(fee)).join(' a '):'confirmada pelo estabelecimento';deliveryInfo.textContent=`Entrega por CEP: ${zones.length?'área atendida conforme CEP cadastrado':'consulte o estabelecimento'} · taxa de ${feeText}. Retirada no local disponível mediante confirmação.`}
     const select=document.querySelector('[name="payment"]');if(select){const selected=select.value;select.innerHTML=payments.map(method=>`<option>${this.escape(method)}</option>`).join('');if(payments.includes(selected))select.value=selected}
   },
   renderPromotions(){
@@ -93,7 +94,7 @@ const Cardapio = {
       };
       const visual=comboImages[p.code];
       const image=visual?`<img class="combo-image" src="${visual[0]}" alt="${visual[1]}" loading="lazy">`:'';
-      const saving=p.normalPriceEstimate!=null&&p.estimate!=null?` · economize ${this.money(Math.max(0,Number(p.normalPriceEstimate)-Number(p.estimate)))}`:'';
+      const normal=Number(p.normalPriceEstimate),advertised=p.discount_percent!=null&&Number.isFinite(normal)?normal*(1-Number(p.discount_percent)/100):Number(p.combo_price),saving=Number.isFinite(normal)&&Number.isFinite(advertised)&&normal>advertised?` · economize ${this.money(normal-advertised)}`:'';
       const priceLabel=p.discount_percent!=null?`${Number(p.discount_percent)}% de desconto nos itens escolhidos${saving}`:`A partir de ${this.money(Number(p.combo_price))}${saving}`;
       const description=String(p.description||groups).replace(/Skol[^.]*\.?/gi,'').replace(/\s{2,}/g,' ').trim();
       return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(description)}</p><p>${groups}</p><strong>${priceLabel}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
