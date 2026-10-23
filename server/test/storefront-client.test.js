@@ -23,11 +23,12 @@ function loadClient() {
   const client = vm.runInContext('Cardapio', context);
   client.renderStorefront = () => {};
   client.renderCategories = () => {};
+  const renderCart=()=>clientRenderCart.call(client),clientRenderCart=client.renderCart;
   client.renderCart = () => {};
   client.openCart = () => {};
   client.toast = () => {};
   client.escape = value => String(value);
-  return { client, element };
+  return { client, element, renderCart };
 }
 
 test('falha de API retira catálogo antigo e bloqueia pedidos', async () => {
@@ -171,11 +172,13 @@ test('exibe uma imagem própria para cada um dos quatro combos', () => {
 });
 
 test('combo de escolhas exibe desconto e calcula os mesmos centavos sem acréscimos duplicados',()=>{
-  const {client,element}=loadClient();
+  const {client,element,renderCart}=loadClient();
   client.products=[{id:'potato',sale_price:29.9},{id:'p-ref001',sale_price:5,option_prices:{soda:{'coca-cola':6}}}];
   const promotion={id:'combo',name:'Combo',rule_type:'combo',combo_price:null,discount_percent:5,groups:[{id:'potatoes',name:'Batatas',requiredQuantity:2,products:[{id:'potato',surcharge:7.8}]},{id:'soda',name:'Refrigerante',requiredQuantity:1,products:[{id:'p-ref001',surcharge:0}]}]};
   const combo={promotion,selections:[{groupId:'potatoes',items:[{productId:'potato',quantity:2,options:{}}]},{groupId:'soda',items:[{productId:'p-ref001',quantity:1,options:{sodaFlavor:'coca-cola'}}]}]};
   assert.equal(client.comboAppliedPrice(combo),62.51);
+  client.combos.set('one',combo);client.quote={subtotalNormal:65.8,promotionDiscount:3.29};client.renderCheckout=()=>{};
+  renderCart();assert.equal(element('cart-fab-total').textContent,client.money(62.51));
   client.promotions=[promotion];client.renderPromotions();
   assert.match(element('combo-catalog').innerHTML,/5% de desconto nos itens escolhidos/);
   assert.doesNotMatch(element('combo-catalog').innerHTML,/A partir de R\$.*0,00/);
