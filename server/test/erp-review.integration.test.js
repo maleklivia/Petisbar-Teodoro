@@ -111,6 +111,7 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       await call('POST','/documents',{titulo:tag,categoria:'Manual',link:'javascript:alert(1)'},true,400);
       await call('DELETE',`/documents/${document.id}`);
       const coupon=(await call('POST','/coupons',{codigo:'R'+randomUUID().replaceAll('-','').toUpperCase(),tipo:'fixo',valor:3,limite:2,validade:'2027-01-01'})).data;
+      assert.equal(coupon.validade,'2027-01-01');
       const validation=await call('POST','/public/coupons/validate',{code:coupon.codigo,phone:'21977777777',items:[{productId:product,quantity:1,expectedUnitPrice:25}]},false);
       assert.equal(validation.data.discount,3);await call('PATCH',`/coupons/${coupon.id}`,{active:false});
     });

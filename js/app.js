@@ -29,6 +29,7 @@ const App = {
   state: null,
 
   async init(page) {
+    document.body.dataset.loadState='loading';
     const user = await API.requireSession();
     if (!user) return;
     this.state = Storage.getState();
@@ -45,7 +46,13 @@ const App = {
 
     // Run page-specific module
     if (Modules[page]) {
-      await Modules[page].init(this.state);
+      try{await Modules[page].init(this.state);document.body.dataset.loadState='ready';}
+      catch(error){
+        console.error('Falha ao carregar módulo',page,error);
+        document.body.dataset.loadState='error';
+        const content=document.getElementById('page-content');
+        if(content){content.textContent='Não foi possível carregar esta área. Recarregue a página para tentar novamente.';}
+      }
     }
   },
 
@@ -376,7 +383,7 @@ const Modules = {
     },
   },
 
-  'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') CentralIAModule.init(); } },
+  'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') return CentralIAModule.init(); } },
   financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') return FinanceiroModule.init();   } },
   pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') return PedidosModule.init(); } },
   producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') return ProducaoModule.init();     } },
@@ -386,11 +393,11 @@ const Modules = {
   estoque:      { async init() { if (typeof EstoqueModule      !== 'undefined') return EstoqueModule.init();      } },
   compras:      { async init() { if (typeof ComprasModule      !== 'undefined') return ComprasModule.init();      } },
   fornecedores: { async init() { if (typeof FornecedoresModule !== 'undefined') return FornecedoresModule.init(); } },
-  marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') MarketingModule.init();    } },
-  documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') DocumentosModule.init();   } },
+  marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') return MarketingModule.init();    } },
+  documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') return DocumentosModule.init();   } },
   relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') return RelatoriosModule.init();   } },
-  configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') ConfiguracoesModule.init();} },
-  'contabil-fiscal':{ async init() { if (typeof ContabilFiscalModule!== 'undefined') ContabilFiscalModule.init();} },
+  configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') return ConfiguracoesModule.init();} },
+  'contabil-fiscal':{ async init() { if (typeof ContabilFiscalModule!== 'undefined') return ContabilFiscalModule.init();} },
 };
 
 /* ── Auto-init via data-page attribute ───────────────────────── */

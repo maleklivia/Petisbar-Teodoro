@@ -136,7 +136,7 @@ const MarketingModule = {
           <tbody>
             ${cupons.length ? cupons.map(c => {
               const expirado = c.validade < hoje;
-              const esgotado = c.usos >= c.limite;
+              const esgotado = c.limite!=null && c.usos >= c.limite;
               const ativo    = c.ativo && !expirado && !esgotado;
               return `
                 <tr>
@@ -145,7 +145,7 @@ const MarketingModule = {
                   </td>
                   <td style="font-size:var(--text-sm);color:var(--text-muted)">${c.tipo}</td>
                   <td style="font-weight:700">${c.tipo === 'percentual' ? `${c.valor}%` : Utils.currency(c.valor)}</td>
-                  <td style="font-size:var(--text-sm)">${c.usos} / ${c.limite}</td>
+                  <td style="font-size:var(--text-sm)">${c.usos} / ${c.limite??'sem limite'}</td>
                   <td style="font-size:var(--text-sm);color:${expirado ? 'var(--color-danger)' : 'var(--text-muted)'}">${Utils.formatShortDate(c.validade)}</td>
                   <td>
                     ${ativo ? '<span class="badge badge-success">Ativo</span>' : ''}

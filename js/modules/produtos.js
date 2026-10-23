@@ -105,7 +105,7 @@ const ProdutosModule = {
 
   getCusto(produtoId) {
     const ficha = FichasModule.getByProduto(produtoId);
-    if (ficha) return FichasModule.calcCusto(ficha);
+    if (ficha) return FichasModule._costComplete(ficha)?FichasModule.calcCusto(ficha):null;
     const produto = this._items.find(p => p.id === produtoId);
     return produto?.custoCompra ?? null;
   },
