@@ -17,6 +17,8 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
+          test -n "$VPS_SSH_KEY" || { echo 'VPS_SSH_KEY não configurado' >&2; exit 1; }
+          test -n "$VPS_KNOWN_HOSTS" || { echo 'VPS_KNOWN_HOSTS não configurado' >&2; exit 1; }
           install -m 700 -d ~/.ssh
           printf '%s' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -27,6 +29,8 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
+          test -n "$VPS_HOST" || { echo 'VPS_HOST não configurado' >&2; exit 1; }
+          test -n "$VPS_USER" || { echo 'VPS_USER não configurado' >&2; exit 1; }
           ssh -T "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
           set -Eeuo pipefail
           APP=/opt/petisbar/app
@@ -73,3 +77,4 @@ jobs:
           test "$(git_app rev-parse HEAD)" = "$TARGET"
           test -z "$(git_app status --porcelain)"
           trap - ERR
+          REMOTE
