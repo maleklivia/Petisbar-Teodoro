@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { canTransitionOrder, isCompletedStatus } from '../domain/orders.js';
+import { canTransitionOrder, convertQuantity, isCompletedStatus } from '../domain/orders.js';
 import { setOrderReservationsStatus } from './order-stock-reservations.js';
-import { expandProductTechnicalSheet } from './technical-sheet-components.js';
+import { recipeRequirements,stockComponents } from './recipe-requirements.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
-const isTestOrder = order => String(order.notes || '').startsWith('[TESTE SEM ESTOQUE]');
+// A customer's free-text notes must never control stock or financial effects.
+const isTestOrder = order => ['Cardápio Digital (Teste)','Mesa QR (Teste)'].includes(order.source);
 
 function businessError(code, statusCode = 409, details) {
   const error = new Error(code);
@@ -49,85 +50,55 @@ async function consumeIngredient(client, order, ingredient, quantity) {
 }
 
 async function applyInventory(client, order) {
-  const { rows: items } = await client.query(`
-    WITH components AS (
-      SELECT oi.id,oi.quantity,oi.options,
-        COALESCE((SELECT effect->>'productId' FROM jsonb_array_elements(COALESCE(oi.options->'_stockEffects','[]'::jsonb)) effect WHERE effect->>'mode'='replace' LIMIT 1),oi.product_id) AS stock_product_id,
-        oi.product_id AS order_product_id,true AS is_main
-      FROM order_items oi WHERE oi.order_id=$1
-      UNION ALL
-      SELECT oi.id,oi.quantity,'{}'::jsonb,effect->>'productId',oi.product_id,false
-      FROM order_items oi CROSS JOIN LATERAL jsonb_array_elements(COALESCE(oi.options->'_stockEffects','[]'::jsonb)) effect
-      WHERE oi.order_id=$1 AND effect->>'mode'='add'
-    )
-    SELECT c.order_product_id,c.stock_product_id AS product_id,c.quantity,CASE WHEN c.is_main THEN c.options ELSE '{}'::jsonb END AS options,p.name,p.current_stock,p.purchase_cost,
-      ts.id AS sheet_id,ts.product_id AS sheet_product_id,ts.yield
-    FROM components c
-    LEFT JOIN products p ON p.id=c.stock_product_id
-    LEFT JOIN technical_sheets ts ON ts.product_id=CASE
-      WHEN c.stock_product_id<>c.order_product_id THEN c.stock_product_id
-      WHEN c.order_product_id='p-drk001' AND c.options->>'flavor'='morango' THEN 'p-drk002'
-      WHEN c.order_product_id='p-drk001' AND c.options->>'flavor'='maracuja' THEN 'p-drk003'
-      ELSE c.stock_product_id END
-    ORDER BY c.id,c.is_main DESC
-  `, [order.id]);
-
-  let cmv = 0;
-  const ingredientTotals=new Map();
-  for (const item of items) {
-    const orderQuantity = Number(item.quantity);
-    if (item.sheet_id) {
-      const expanded=await expandProductTechnicalSheet(client,item.sheet_product_id,orderQuantity);
-      if(expanded?.error)throw businessError(expanded.error,409,{item:expanded.item});
-      if(!expanded)throw businessError('stock_recipe_incomplete',409,{item:item.name});
-      for (const component of expanded.items) {
-        const current=ingredientTotals.get(component.ingredientId)||{name:component.name,unit:component.unit,quantity:0};
-        current.quantity+=component.quantity;ingredientTotals.set(component.ingredientId,current);
+  // Reservation quantities are the operational snapshot captured at acceptance.
+  // Recipe edits made while cooking must not change the accepted consumption.
+  const reservations=await client.query("SELECT * FROM order_stock_reservations WHERE order_id=$1 AND status='reserved' ORDER BY ingredient_id,product_id FOR UPDATE",[order.id]);
+  if(reservations.rowCount){
+    const productIds=reservations.rows.map(r=>r.product_id).filter(Boolean).sort();
+    if(productIds.length)await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[productIds]);
+    const ingredientIds=reservations.rows.map(r=>r.ingredient_id).filter(Boolean).sort();
+    if(ingredientIds.length)await client.query('SELECT id FROM ingredients WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ingredientIds]);
+    let cmv=0;
+    for(const r of reservations.rows){
+      if(r.ingredient_id){
+        const ingredient=await client.query('SELECT id,name,unit,current_stock,unit_cost FROM ingredients WHERE id=$1 FOR UPDATE',[r.ingredient_id]);
+        if(!ingredient.rowCount)throw businessError('stock_recipe_incomplete');
+        cmv+=await consumeIngredient(client,order,ingredient.rows[0],Number(r.quantity));
+      }else{
+        const p=await client.query('UPDATE products SET current_stock=current_stock-$2,updated_at=now() WHERE id=$1 AND current_stock >= $2 RETURNING purchase_cost',[r.product_id,r.quantity]);
+        if(!p.rowCount)throw businessError('insufficient_stock');
+        await insertMovement(client,{order,productId:r.product_id,type:'Saída',quantity:Number(r.quantity),unit:r.unit,reason:`Baixa automática do pedido #${order.order_number}`});
+        cmv+=Number(p.rows[0].purchase_cost||0)*Number(r.quantity);
       }
-
-      if (item.options?.flavoredIce) {
-        const flavoredIce = await client.query("SELECT id,name,unit,active FROM ingredients WHERE id='i-029'");
-        if (!flavoredIce.rowCount || !flavoredIce.rows[0].active)throw businessError('stock_recipe_incomplete',409,{item:'Gelo saborizado'});
-        const ice=flavoredIce.rows[0],current=ingredientTotals.get(ice.id)||{name:ice.name,unit:ice.unit,quantity:0};
-        current.quantity+=orderQuantity;ingredientTotals.set(ice.id,current);
-      }
-      continue;
     }
-
-    if (!item.product_id || item.current_stock === null) {
-      if (item.purchase_cost !== null) cmv += Number(item.purchase_cost) * orderQuantity;
-      continue;
-    }
-    const updated = await client.query(`
-      UPDATE products SET current_stock=current_stock-$1,updated_at=now()
-      WHERE id=$2 AND current_stock >= $1 RETURNING id
-    `, [orderQuantity, item.product_id]);
-    if (!updated.rowCount) {
-      throw businessError('insufficient_stock', 409, {
-        item: item.name,
-        required: orderQuantity,
-        available: Number(item.current_stock),
-        unit: 'un',
-      });
-    }
-    await insertMovement(client, {
-      order,
-      productId: item.product_id,
-      type: 'Saída',
-      quantity: orderQuantity,
-      unit: 'un',
-      reason: `Baixa automática do pedido #${order.order_number}`,
-    });
-    if (item.purchase_cost !== null) cmv += Number(item.purchase_cost) * orderQuantity;
+    return roundMoney(cmv);
   }
-
-  const ingredientIds=[...ingredientTotals.keys()].sort();
-  if(ingredientIds.length){
-    const locked=await client.query('SELECT id,name,unit,current_stock,unit_cost,active FROM ingredients WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[ingredientIds]);
-    if(locked.rowCount!==ingredientIds.length)throw businessError('stock_recipe_incomplete',409);
-    for(const ingredient of locked.rows){
-      if(!ingredient.active)throw businessError('stock_recipe_incomplete',409,{item:ingredient.name});
-      cmv+=await consumeIngredient(client,order,ingredient,ingredientTotals.get(ingredient.id).quantity);
+  const items=await client.query('SELECT product_id,quantity,options FROM order_items WHERE order_id=$1 ORDER BY product_id',[order.id]);
+  let cmv=0;
+  for(const raw of items.rows){
+    const item={productId:raw.product_id,quantity:Number(raw.quantity),options:raw.options||{}};
+    for(const component of stockComponents(item)){
+      const recipe=await recipeRequirements(client,component.productId,component.quantity);
+      if(recipe){
+        for(const r of recipe){
+          const ingredient=await client.query('SELECT id,name,unit,current_stock,unit_cost FROM ingredients WHERE id=$1 FOR UPDATE',[r.ingredient_id]);
+          cmv+=await consumeIngredient(client,order,ingredient.rows[0],r.quantity);
+        }
+      }else{
+        const product=await client.query('SELECT id,name,current_stock,purchase_cost FROM products WHERE id=$1 FOR UPDATE',[component.productId]);
+        const p=product.rows[0];if(!p)throw businessError('product_unavailable');
+        if(p.current_stock!==null){
+          const updated=await client.query('UPDATE products SET current_stock=current_stock-$2,updated_at=now() WHERE id=$1 AND current_stock >= $2 RETURNING id',[p.id,component.quantity]);
+          if(!updated.rowCount)throw businessError('insufficient_stock');
+          await insertMovement(client,{order,productId:p.id,type:'Saída',quantity:component.quantity,unit:'un',reason:`Baixa automática do pedido #${order.order_number}`});
+        }
+        cmv+=Number(p.purchase_cost||0)*component.quantity;
+      }
+    }
+    if(item.options.flavoredIce){
+      const ice=await client.query("SELECT id,name,unit,current_stock,unit_cost FROM ingredients WHERE id='i-029' FOR UPDATE");
+      if(!ice.rowCount)throw businessError('stock_recipe_incomplete');
+      cmv+=await consumeIngredient(client,order,ice.rows[0],item.quantity);
     }
   }
   return roundMoney(cmv);
@@ -153,23 +124,25 @@ async function applyFinancialEntries(client, order, cmv) {
 async function applyEffects(client, order) {
   if (order.effects_applied_at && !order.effects_reversed_at) return;
   if (order.effects_reversed_at) throw businessError('order_effects_already_reversed');
-  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+  if (isTestOrder(order)) {
     await setOrderReservationsStatus(client,order.id,'released');
     await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1',[order.id]);
     return;
   }
+  await client.query('SELECT pg_advisory_xact_lock(71652201)');
   const cmv = await applyInventory(client, order);
   await applyFinancialEntries(client, order, cmv);
   await setOrderReservationsStatus(client,order.id,'consumed');
-  await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1', [order.id]);
+  await client.query('UPDATE orders SET effects_applied_at=clock_timestamp() WHERE id=$1', [order.id]);
 }
 
 async function reverseEffects(client, order) {
+  await client.query('SELECT pg_advisory_xact_lock(71652201)');
   if (!order.effects_applied_at || order.effects_reversed_at) {
     await setOrderReservationsStatus(client,order.id,'released');
     return;
   }
-  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+  if (isTestOrder(order)) {
     await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1',[order.id]);
     await setOrderReservationsStatus(client,order.id,'released');
     return;

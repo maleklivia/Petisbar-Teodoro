@@ -148,8 +148,8 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
           return unit===null?sum:sum+unit;
         },0) : null;
     const estimate = promotion.rule_type === 'combo' && promotion.combo_price !== null
-      ? Number(promotion.combo_price) : promotion.rule_type === 'percentage' && promotion.discount_percent !== null
-        ? money(normalEstimate * (1 - Number(promotion.discount_percent) / 100))
+      ? Number(promotion.combo_price) : ['percentage','combo'].includes(promotion.rule_type) && promotion.discount_percent !== null
+        ? money(normalEstimate - money(normalEstimate * Number(promotion.discount_percent) / 100))
         : promotion.rule_type === 'fixed' && promotion.discount_amount !== null
           ? money(Math.max(0, normalEstimate - Number(promotion.discount_amount))) : null;
     const estimatedCost = costTotal === null && promotion.cmv_estimate_percent !== null && promotion.cmv_estimate_percent !== undefined
@@ -235,7 +235,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       }
     }
     if (seenGroups.size !== promotion.groups.length) return { error: 'combo_group_required' };
-    if (promotion.combo_price === null) return { error: 'promotion_price_unconfigured' };
+    if (promotion.combo_price === null && promotion.discount_percent === null) return { error: 'promotion_price_unconfigured' };
   }
 
   const priced = await priceOrderItems(db, allLines, { lock });
@@ -271,7 +271,9 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       if (lineIndexes.some(index=>used.has(index))) { rejected.push({ promotionId:promo.id,code:promo.code,reason:'priority_conflict' }); continue; }
       const normal = money(lineIndexes.reduce((sum,index)=>sum+items[index].listSubtotal,0));
       const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
-      const total = money(Number(promo.combo_price) + selectedSurcharges);
+      const total = promo.discount_percent!==null
+        ? money(normal-money(normal*Number(promo.discount_percent)/100))
+        : Math.min(normal,money(Number(promo.combo_price) + selectedSurcharges));
       if (total > normal) {
         rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
         return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };
@@ -280,7 +282,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       const alloc = allocateDiscount(items,lineIndexes,money(normal-total));
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }
       applications.push({ id:appId,promotionId:promo.id,code:promo.code,name:promo.name,ruleType:'combo',
-        discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:money(normal-total),items:alloc,stackWithCoupon:promo.stackWithCoupon,
+        discount:money(normal-total),normalSubtotal:normal,appliedSubtotal:total,items:alloc,stackWithCoupon:promo.stackWithCoupon,
         comboGroups:comboReservations.filter(row=>row.promotion.id===promo.id&&row.comboInstanceToken===candidate.comboInstanceToken).map(row=>({groupId:row.group.id,groupName:row.group.name,productId:items[row.lineIndex].productId,options:items[row.lineIndex].options})),
         price:total, estimatedCmvPercent:promo.cmv_estimate_percent===null||promo.cmv_estimate_percent===undefined?null:money(Number(promo.cmv_estimate_percent)*normal/Math.max(total,0.01)) });
     } else {

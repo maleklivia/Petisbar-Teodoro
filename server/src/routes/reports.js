@@ -26,12 +26,11 @@ export default async function reportsRoutes(app) {
         SELECT id, entry_date, description, category, entry_type, amount
         FROM financial_entries
         ORDER BY entry_date DESC, created_at DESC
-        LIMIT 1000
       `),
       app.db.query(`
         SELECT id, client_id, client_name, total, created_at
         FROM orders
-        WHERE status = ANY($1::text[]) AND source NOT LIKE '%(Teste)' AND notes NOT LIKE '[TESTE SEM ESTOQUE]%'
+        WHERE status = ANY($1::text[]) AND source NOT LIKE '%(Teste)'
       `, [completedStatuses]),
       app.db.query('SELECT id, name, category, sale_price, active FROM products ORDER BY category, name'),
       app.db.query('SELECT id, name, unit, unit_cost, current_stock, minimum_stock, category, active FROM ingredients ORDER BY category, name'),
@@ -47,7 +46,7 @@ export default async function reportsRoutes(app) {
       app.db.query(`SELECT code,name,rule_type AS "ruleType",COUNT(DISTINCT pa.order_id)::int AS orders,
         SUM(discount_amount)::numeric(12,2) AS discount,SUM(applied_subtotal)::numeric(12,2) AS promoted_sales
         FROM promotion_applications pa JOIN orders o ON o.id=pa.order_id
-        WHERE o.status=ANY($1::text[]) AND o.source NOT LIKE '%(Teste)' AND o.notes NOT LIKE '[TESTE SEM ESTOQUE]%' GROUP BY code,name,rule_type ORDER BY SUM(discount_amount) DESC,code`,[completedStatuses]),
+        WHERE o.status=ANY($1::text[]) AND o.source NOT LIKE '%(Teste)' GROUP BY code,name,rule_type ORDER BY SUM(discount_amount) DESC,code`,[completedStatuses]),
       loadCourseRecipeCosts(app.db),
     ]);
 
@@ -109,6 +108,7 @@ export default async function reportsRoutes(app) {
       data: {
         finance: finance.rows.map(entry),
         deliveredOrders: delivered.rowCount,
+        deliveredOrderDates: delivered.rows.map(order=>dateOnly(order.created_at)),
         productCmv,
         stock: ingredients.rows.filter(item => item.active).map(item => ({
           id: item.id,

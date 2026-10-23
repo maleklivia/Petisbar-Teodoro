@@ -29,3 +29,10 @@
 @media(max-width:700px){.combo-catalog{grid-template-columns:1fr}.combo-extra-options{grid-template-columns:1fr}}
 .store-header-copy .store-status{display:flex;width:max-content}.store-track-link{margin-right:12px}
 .combo-image{width:calc(100% + 34px);height:170px;max-width:none;margin:-17px -17px 2px;object-fit:cover;object-position:66% 58%;border-radius:15px 15px 8px 8px;box-shadow:0 8px 24px rgba(0,0,0,.24)}
+#pix-payment{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:14px 0 4px;border-top:1px solid rgba(212,173,79,.25)}
+#pix-payment strong,#pix-payment p{align-self:stretch}
+#pix-payment p{margin:0;color:var(--muted);font-size:12px}
+#pix-qr{width:min(280px,100%);height:auto;max-height:280px;object-fit:contain;margin:8px auto 12px;padding:8px;border-radius:10px;background:#fff}
+#pix-copy{width:100%;font-size:11px}
+#pix-copy-button{min-height:42px;padding:0 16px;border:0;border-radius:9px;background:var(--gold);color:#111;font-weight:800}
+#pix-ticket{color:var(--gold-light);font-weight:700}

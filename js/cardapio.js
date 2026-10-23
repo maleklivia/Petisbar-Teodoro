@@ -1,6 +1,6 @@
 const Cardapio = {
   storefront: null, reorderShortcuts: [], reorderChecked: false,
-  apiActive: false, products: [], promotions: [], cart: new Map(), productOptions: new Map(), combos: new Map(), pendingCustomization: null, pendingCombo: null, pendingComboCounts: new Map(), category: 'Todos', search: '', deliveryFee: 0, coupon: null, quote: null, quoteError: null, quoteSequence: 0, quoteBusy: false, tableNumber: '', refreshPromise: null, submitting: false,
+  apiActive: false, products: [], promotions: [], cart: new Map(), productOptions: new Map(), flavoredIce: new Map(), combos: new Map(), pendingCustomization: null, pendingCombo: null, pendingComboCounts: new Map(), category: 'Todos', search: '', deliveryFee: 0, coupon: null, quote: null, quoteError: null, quoteSequence: 0, quoteBusy: false, tableNumber: '', refreshPromise: null, submitting: false,
   normalizePostalCode(value){return String(value||'').replace(/\D/g,'').slice(0,8)},
   deliveryForPostalCode(value){const postalCode=this.normalizePostalCode(value),zones=this.storefront?.deliveryZones?.zones||[];const zone=zones
     .filter(item=>String(item?.prefixo||'').replace(/\D/g,'')&&postalCode.startsWith(String(item.prefixo).replace(/\D/g,'')))
@@ -32,7 +32,8 @@ const Cardapio = {
           for(const key of this.cart.keys())if(!products.some(p=>p.id===this.cartProductId(key))){this.cart.delete(key);this.productOptions.delete(key);this.flavoredIce.delete(key)}
           this.toast('Produto indisponível removido do carrinho.');
         }
-        for(const [instanceId,combo] of this.combos)if(!promotions.some(promotion=>promotion.id===combo.promotion.id)){this.combos.delete(instanceId);this.toast('Um combo saiu do cardápio e foi removido do carrinho.')}
+        for(const [instanceId,combo] of this.combos){const current=promotions.find(promotion=>promotion.id===combo.promotion.id);if(!current){this.combos.delete(instanceId);this.toast('Um combo saiu do cardápio e foi removido do carrinho.')}else combo.promotion=current;}
+        if(this.pendingCombo&&previousPromotions!==JSON.stringify(promotions)){this.closeCustomization();this.toast('A promoção foi atualizada. Monte o combo novamente com a regra atual.');}
         if(this.pendingCustomization&&!products.some(p=>p.id===this.pendingCustomization.product.id))this.closeCustomization();
         if(this.coupon&&(products.some(p=>previous.get(p.id)!==JSON.stringify([p.name,p.category,p.description,p.sale_price,p.photo_url,p.current_stock,p.option_prices]))||previousPromotions!==JSON.stringify(promotions)))this.coupon=null;
         this.renderStorefront();
@@ -77,7 +78,7 @@ const Cardapio = {
   },
   renderPromotions(){
     const el=document.getElementById('combo-catalog');if(!el)return;
-    const available=this.promotions.filter(p=>p.rule_type==='combo'&&p.combo_price!=null&&p.groups?.length);
+    const available=this.promotions.filter(p=>p.rule_type==='combo'&&(p.combo_price!=null||p.discount_percent!=null)&&p.groups?.length);
     const discounts=this.promotions.filter(p=>p.rule_type!=='combo');
     const text=document.getElementById('promotion-text');if(text)text.textContent=available.length||discounts.length?`${available.map(p=>p.name).join(' · ')}${discounts.length?' · Descontos aplicados automaticamente no carrinho':''}`:'Confira as promoções disponíveis no cardápio.';
     if(!available.length){el.classList.add('hidden');el.innerHTML='';return}
@@ -91,7 +92,8 @@ const Cardapio = {
       };
       const visual=comboImages[p.code];
       const image=visual?`<img class="combo-image" src="${visual[0]}" alt="${visual[1]}" loading="lazy">`:'';
-      return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>A partir de ${this.money(Number(p.combo_price))}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
+      const priceLabel=p.discount_percent!=null?`${Number(p.discount_percent)}% de desconto nos itens escolhidos`:`A partir de ${this.money(Number(p.combo_price))}`;
+      return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(p.description||groups)}</p><p>${groups}</p><strong>${priceLabel}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
     }).join('');
   },
   categoryOrder: ['Batatas Recheadas','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
@@ -190,12 +192,13 @@ const Cardapio = {
         const selected=allowed.find(product=>product.id===saved.productId)||allowed[0];if(!selected)return`<p>Este grupo não possui produtos disponíveis no catálogo.</p>`;
         const selectedGroup={...group,allowedOptions:Object.fromEntries(Object.entries(group.allowedOptions||{}).map(([key,values])=>[key,selected.allowedOptions?.[key]?values.filter(value=>selected.allowedOptions[key].includes(value)):values]))};
         const options=this.comboOptionMarkup(this.products.find(p=>p.id===selected.id),selectedGroup,index,saved.options);
-        return `<div class="combo-choice-slot" data-combo-slot data-group-id="${this.escape(group.id)}" data-slot="${index}"><label>Escolha ${this.escape(group.name.toLowerCase())} ${index+1}<select data-combo-product>${allowed.map(product=>`<option value="${this.escape(product.id)}" ${selected.id===product.id?'selected':''}>${this.escape(product.name)}${Number(product.surcharge)?` (+ ${this.money(Number(product.surcharge))})`:''}</option>`).join('')}</select></label>${options}</div>`;
+        return `<div class="combo-choice-slot" data-combo-slot data-group-id="${this.escape(group.id)}" data-slot="${index}"><label>Escolha ${this.escape(group.name.toLowerCase())} ${index+1}<select data-combo-product>${allowed.map(product=>`<option value="${this.escape(product.id)}" ${selected.id===product.id?'selected':''}>${this.escape(product.name)}${promotion.discount_percent!=null?` · ${this.money(Number(product.salePrice))}`:Number(product.surcharge)?` (+ ${this.money(Number(product.surcharge))})`:''}</option>`).join('')}</select></label>${options}</div>`;
       }).join('');
       return `<section class="combo-group-builder"><h3>${this.escape(group.name)} <small>${group.requiredQuantity} obrigatório(s)</small></h3>${slots}<div class="combo-group-actions">${count<group.maxQuantity?`<button type="button" data-combo-quantity="1" data-group-id="${this.escape(group.id)}">+ Adicionar unidade</button>`:''}${count>group.requiredQuantity?`<button type="button" data-combo-quantity="-1" data-group-id="${this.escape(group.id)}">− Remover unidade</button>`:''}</div></section>`;
     }).join('');
     document.getElementById('customization-title').textContent=promotion.name;
-    document.getElementById('customization-content').innerHTML=`<div class="customization-intro"><div><strong>${this.escape(promotion.description||promotion.name)}</strong><span>Preço base: ${this.money(Number(promotion.combo_price))}. Acréscimos por escolha aparecem ao lado dos itens.</span></div></div>${html}<p class="customization-help">Cada unidade pode ter opções próprias. O ERP confirma o estoque e recalcula o preço ao fechar o pedido.</p>`;
+    const pricingHelp=promotion.discount_percent!=null?`${Number(promotion.discount_percent)}% de desconto sobre o preço normal dos itens e opções escolhidos. Não há acréscimo separado por sabor.`:`Preço base: ${this.money(Number(promotion.combo_price))}. Acréscimos por escolha aparecem ao lado dos itens.`;
+    document.getElementById('customization-content').innerHTML=`<div class="customization-intro"><div><strong>${this.escape(promotion.description||promotion.name)}</strong><span>${pricingHelp}</span></div></div>${html}<p class="customization-help">Cada unidade pode ter opções próprias. O ERP confirma o estoque e recalcula o preço ao fechar o pedido.</p>`;
     document.getElementById('customization-add').textContent='Adicionar combo';
   },
   readComboSelection(){
@@ -237,12 +240,12 @@ const Cardapio = {
   comboLines(){return this.comboData().flatMap(combo=>combo.selections.flatMap(group=>group.items.map(item=>({...item,product:this.products.find(product=>product.id===item.productId),promotion:combo.promotion,groupId:group.groupId,groupName:combo.promotion.groups.find(groupInfo=>groupInfo.id===group.groupId)?.name}))))},
   allPromotionsPayload(){return this.comboData().map(combo=>({promotionId:combo.promotion.id,selections:combo.selections}))},
   cartPayloadItems(){return this.cartData().map(i=>({productId:i.product.id,quantity:i.quantity,expectedUnitPrice:this.productUnitPrice(i.product,i.options),options:i.options,flavoredIce:Boolean(i.options.flavoredIce)}))},
-  comboAppliedPrice(combo){let total=Number(combo.promotion.combo_price);for(const groupSelection of combo.selections){const group=combo.promotion.groups.find(item=>item.id===groupSelection.groupId);for(const selected of groupSelection.items){const product=this.products.find(item=>item.id===selected.productId);if(!product)continue;const allowed=group?.products.find(item=>item.id===selected.productId);const optionExtra=Math.max(0,this.productUnitPrice(product,selected.options||{})-Number(product.sale_price));total+=(Number(allowed?.surcharge||0)+optionExtra)*Number(selected.quantity||1)}}return Math.round((total+Number.EPSILON)*100)/100},
+  comboAppliedPrice(combo){const percent=combo.promotion.discount_percent;let total=percent!=null?0:Number(combo.promotion.combo_price);for(const groupSelection of combo.selections){const group=combo.promotion.groups.find(item=>item.id===groupSelection.groupId);for(const selected of groupSelection.items){const product=this.products.find(item=>item.id===selected.productId);if(!product)continue;if(percent!=null){total+=this.productUnitPrice(product,selected.options||{})*Number(selected.quantity||1);continue;}const allowed=group?.products.find(item=>item.id===selected.productId);const optionExtra=Math.max(0,this.productUnitPrice(product,selected.options||{})-Number(product.sale_price));total+=(Number(allowed?.surcharge||0)+optionExtra)*Number(selected.quantity||1)}}total=Math.round((total+Number.EPSILON)*100)/100;if(percent!=null)total-=Math.round((total*Number(percent)/100+Number.EPSILON)*100)/100;return Math.round((total+Number.EPSILON)*100)/100},
   subtotal(){const direct=this.cartData().reduce((s,i)=>s+this.productUnitPrice(i.product,i.options)*i.quantity,0);const combos=this.comboData().reduce((sum,combo)=>sum+this.comboAppliedPrice(combo),0);return Math.round((direct+combos+Number.EPSILON)*100)/100},
   hasAlcohol(){return [...this.cartData().map(i=>i.product),...this.comboLines().map(i=>i.product).filter(Boolean)].some(product=>['Drinks','Cervejas'].includes(product.category))},
   renderCart(){
     const data=this.cartData(),comboLines=this.comboLines(),comboCount=this.comboData().reduce((sum,combo)=>sum+combo.selections.reduce((n,group)=>n+group.items.reduce((m,item)=>m+item.quantity,0),0),0),count=data.reduce((s,i)=>s+i.quantity,0)+comboCount,subtotal=this.subtotal();
-    document.getElementById('cart-fab').classList.toggle('hidden',!count);document.getElementById('cart-count').textContent=count;document.getElementById('cart-fab-total').textContent=this.money(Math.max(0,subtotal-(this.quote?.promotionDiscount||0)-(this.coupon?.discount||0)));
+    document.getElementById('cart-fab').classList.toggle('hidden',!count);document.getElementById('cart-count').textContent=count;document.getElementById('cart-fab-total').textContent=this.money(Math.max(0,(this.quote?.subtotalNormal??subtotal)-(this.quote?.promotionDiscount||0)-(this.coupon?.discount||0)));
     const direct=data.map(i=>`<div class="cart-item"><div><strong>${this.escape(i.product.name)}</strong><small>${i.quantity} × ${Number.isFinite(this.productUnitPrice(i.product,i.options))?this.money(this.productUnitPrice(i.product,i.options)):'Preço indisponível'}${this.optionSummary(i.options)}</small></div><div class="qty-control"><button data-action="dec" data-id="${this.escape(i.key)}">−</button><output>${i.quantity}</output><button data-action="inc" data-id="${this.escape(i.key)}">+</button></div></div>`);
     const comboCards=[...this.combos.entries()].map(([instanceId,combo])=>{const summary=combo.selections.flatMap(group=>group.items.map(item=>{const product=this.products.find(p=>p.id===item.productId);const groupName=combo.promotion.groups.find(p=>p.id===group.groupId)?.name;return `${groupName}: ${product?.name||item.productId}${this.optionSummary(item.options)}`})).map(value=>this.escape(value)).join('<br>');return `<div class="combo-cart-item"><div><strong class="combo-cart-title">${this.escape(combo.promotion.name)} · ${this.money(this.comboAppliedPrice(combo))}</strong><small>${summary}</small></div><button type="button" data-combo-remove="${this.escape(instanceId)}">Remover</button></div>`});
     document.getElementById('cart-items').innerHTML=[...comboCards,...direct].join('');
@@ -278,16 +281,18 @@ const Cardapio = {
           await this.refresh();this.toast(body.error==='delivery_area_unavailable'?'Ainda não entregamos nessa área. Confira o CEP ou escolha retirada.':'O cardápio mudou. Confira preços, disponibilidade e pagamento antes de tentar novamente.');
         }else if(body.error==='store_closed'){
           await this.refresh();this.toast('A loja está fechada no momento.');
-        }else this.toast(this.couponError(body.error));
+        }else this.toast(this.couponError(body.error)+(body.error?` [${body.error}]`:''));
         return;
       }
+      const paymentIsPix=String(body.data?.paymentMethod||payload.paymentMethod||'').trim().toLowerCase()==='pix';
+      if(body.data?.trackingToken&&paymentIsPix) await this.startPixPayment(body.data.id,body.data.trackingToken);
       this.cart.clear();this.productOptions.clear();this.flavoredIce.clear();this.combos.clear();this.coupon=null;this.quote=null;sessionStorage.removeItem('petisbar-pending-order');
       this.renderPromotions();this.renderCatalog();this.renderCart();this.openCart(false);
       if(body.data.trackingToken)localStorage.setItem('petisbar.lastTrackingToken',body.data.trackingToken);
       if(body.data.trackingToken){
-        document.getElementById('order-confirmation-number').textContent=`Pedido #${body.data.orderNumber}`;
-        document.getElementById('order-confirmation').classList.remove('hidden');
-        document.getElementById('order-confirmation').scrollIntoView({behavior:'smooth',block:'center'});
+        const confirmationNumber=document.getElementById('order-confirmation-number'),confirmation=document.getElementById('order-confirmation');
+        if(confirmationNumber)confirmationNumber.textContent=`Pedido #${body.data.orderNumber}`;
+        if(confirmation){confirmation.classList.remove('hidden');confirmation.scrollIntoView({behavior:'smooth',block:'center'});}
       }
       this.toast(this.storefront?.allowOrdersWithoutStockForTesting?`Pedido de teste #${body.data.orderNumber} registrado!`:`Pedido #${body.data.orderNumber} recebido!`);
       form.reset();

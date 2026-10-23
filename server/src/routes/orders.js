@@ -20,6 +20,7 @@ const createSchema = z.object({
   source: z.enum(['WhatsApp', 'iFood', 'Site', 'Instagram', 'Balcão', 'Telefone']).default('Balcão'),
   paymentMethod: z.enum(['Dinheiro', 'Cartão Débito', 'Cartão Crédito', 'PIX', 'iFood', 'Fiado']),
   notes: z.string().trim().max(500).default(''),
+  scheduledFor:z.string().datetime().nullable().optional(),
   deliveryFee: z.number().nonnegative().max(10000).default(0),
   discount: z.number().nonnegative().max(10000).default(0),
   combos:z.array(z.object({promotionId:z.string().uuid(),selections:z.array(z.object({groupId:z.string().uuid(),items:z.array(z.object({productId:z.string().min(1),quantity:z.number().int().min(1).max(20),flavoredIce:z.boolean().default(false),options:z.record(z.string(),z.unknown()).default({})})).min(1)})).min(1)})).max(10).default([]),
@@ -51,6 +52,8 @@ function serializeOrder(row) {
     total: Number(row.total),
     paymentMethod: row.payment_method,
     notes: row.notes,
+    scheduledFor:row.scheduled_for,
+    tableNumber:row.table_number,
     fulfillmentType: row.fulfillment_type,
     deliveryAddress: row.delivery_address,
     effectsAppliedAt: row.effects_applied_at,
@@ -117,17 +120,18 @@ export default async function orderRoutes(app) {
         return reply.code(400).send({ error: 'invalid_discount' });
       }
       const total = roundMoney(priced.subtotal + input.deliveryFee - priced.promotionDiscount - input.discount);
+      if(input.scheduledFor&&new Date(input.scheduledFor)<=new Date()){await client.query('ROLLBACK');return reply.code(400).send({error:'schedule_must_be_future'});}
       await client.query(`
         INSERT INTO orders
           (id,order_number,source,client_id,client_name,status,subtotal,delivery_fee,discount,total,
-           payment_method,notes,fulfillment_type,created_by,promotion_discount)
-        VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           payment_method,notes,fulfillment_type,created_by,promotion_discount,scheduled_for)
+        VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       `, [id,orderNumber,input.source,clientId,clientName,priced.subtotal,input.deliveryFee,roundMoney(priced.promotionDiscount+input.discount),total,
-        input.paymentMethod,input.notes,input.deliveryFee > 0 ? 'entrega' : 'retirada',request.user.id,priced.promotionDiscount]);
+        input.paymentMethod,input.notes,input.deliveryFee > 0 ? 'entrega' : 'retirada',request.user.id,priced.promotionDiscount,input.scheduledFor||null]);
       const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items});
       if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}
       for(const application of priced.promotions)await client.query(`INSERT INTO promotion_applications(id,order_id,promotion_id,code,name,rule_type,discount_amount,normal_subtotal,applied_subtotal,item_snapshot)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[application.id,id,application.promotionId,application.code,application.name,application.ruleType,application.discount,application.normalSubtotal,application.appliedSubtotal,application.comboGroups||application.items]);
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[application.id,id,application.promotionId,application.code,application.name,application.ruleType,application.discount,application.normalSubtotal,application.appliedSubtotal,JSON.stringify(application.comboGroups||application.items||[])]);
       for (const item of priced.items) {
         await client.query(`
           INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options,list_unit_price,promotion_discount,promotion_application_id,combo_group_id,combo_group_name)

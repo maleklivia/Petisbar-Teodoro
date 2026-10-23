@@ -47,7 +47,7 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
     assert.ok(legacy.rows.length >= 0);
 
     const potatoCombo = await client.query(`
-      SELECT p.name,p.combo_price,
+      SELECT p.name,p.combo_price,p.discount_percent,
         g.code,g.required_quantity,g.max_quantity,g.allow_same_product,
         count(gp.product_id) FILTER (WHERE pr.active=true)::int AS active_products
       FROM ${schema}.promotions p
@@ -67,7 +67,8 @@ test('reproduz todas as migrações, verifica integridade e repete 017 sem dupli
     assert.equal(sodaGroup.required_quantity, 1);
     assert.equal(sodaGroup.max_quantity, 1);
     assert.equal(sodaGroup.active_products, 1);
-    assert.equal(Number(potatoGroup.combo_price), 57.76);
+    assert.equal(potatoGroup.combo_price,null);
+    assert.equal(Number(potatoGroup.discount_percent),5);
     const minimumNormal = await client.query(`
       SELECT 2*MIN(sale_price) FILTER (WHERE category='BATATAS RECHEADAS')
         + MIN(sale_price) FILTER (WHERE category='Refrigerantes') AS normal_price

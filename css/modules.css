@@ -580,6 +580,13 @@ button.ficha-produto-item { width:100%; color:inherit; font:inherit; text-align:
   display: block;
 }
 
+.product-photo-editor{display:grid;grid-template-columns:130px minmax(0,1fr);gap:20px;align-items:start}
+.product-photo-editor__controls{display:grid;gap:10px;min-width:0}
+.product-photo-icon--editor{width:130px;height:130px}
+.product-photo-editor small,.product-option-grid label,.product-option-row label{color:var(--text-secondary);line-height:1.5}
+.product-option-row{grid-template-columns:repeat(3,minmax(0,1fr));padding:14px;border:1px solid var(--border-default);border-radius:12px}
+.product-option-row .form-input,.product-option-row .form-select{width:100%;min-height:44px}
+@media(max-width:640px){.product-photo-editor{grid-template-columns:1fr}.product-option-row{grid-template-columns:1fr}.modal--wide{width:100%;max-width:100%}}
 /* ── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 900px) {

@@ -23,7 +23,7 @@ const promotionSchema = z.object({
   if(value.startsAt&&value.endsAt&&new Date(value.startsAt)>new Date(value.endsAt))ctx.addIssue({code:'custom',message:'invalid_period'});
   if(value.ruleType==='percentage'&&(!value.discountPercent||value.discountAmount||value.comboPrice!=null))ctx.addIssue({code:'custom',message:'invalid_percentage_rule'});
   if(value.ruleType==='fixed'&&(!value.discountAmount||value.discountPercent||value.comboPrice!=null))ctx.addIssue({code:'custom',message:'invalid_fixed_rule'});
-  if(value.ruleType==='combo'&&(value.discountPercent||value.discountAmount||value.productIds.length||!value.groups.length))ctx.addIssue({code:'custom',message:'invalid_combo_rule'});
+  if(value.ruleType==='combo'&&(value.discountAmount||(value.discountPercent!=null&&value.comboPrice!=null)||value.productIds.length||!value.groups.length))ctx.addIssue({code:'custom',message:'invalid_combo_rule'});
   if(value.ruleType!=='combo'&&(!value.productIds.length||value.groups.length))ctx.addIssue({code:'custom',message:'promotion_products_required'});
   if(new Set(value.groups.map(group=>group.code)).size!==value.groups.length)ctx.addIssue({code:'custom',message:'duplicate_group_code'});
 });
@@ -77,7 +77,7 @@ async function activationReadiness(db,id){
   const p=promo.rows[0];
   const refs=await db.query(`SELECT DISTINCT p.id,p.active FROM products p JOIN (SELECT product_id FROM promotion_products WHERE promotion_id=$1 UNION
     SELECT gp.product_id FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=$1 AND g.active=true) r ON r.product_id=p.id ORDER BY p.id`,[id]);
-  if(p.rule_type==='combo'&&p.combo_price===null)return {ok:false,reason:'promotion_price_unconfigured'};
+  if(p.rule_type==='combo'&&p.combo_price===null&&p.discount_percent===null)return {ok:false,reason:'promotion_price_unconfigured'};
   if(p.rule_type==='percentage'&&p.discount_percent===null)return {ok:false,reason:'promotion_value_unconfigured'};
   if(p.rule_type==='fixed'&&p.discount_amount===null)return {ok:false,reason:'promotion_value_unconfigured'};
   const groups=await db.query(`SELECT g.id,COUNT(gp.product_id)::int AS products FROM promotion_groups g LEFT JOIN promotion_group_products gp ON gp.group_id=g.id
@@ -85,7 +85,7 @@ async function activationReadiness(db,id){
   if(p.rule_type==='combo'&&(!groups.rowCount||groups.rows.some(group=>!group.products)))return {ok:false,reason:'combo_group_empty'};
   if(!refs.rowCount||refs.rows.some(row=>!row.active))return {ok:false,reason:'promotion_product_inactive_or_missing'};
   const estimate=(await listPromotions(db)).find(item=>item.id===id);
-  if(p.rule_type==='combo'&&Number(p.combo_price)>Number(estimate?.normalPriceEstimate||0))return {ok:false,reason:'combo_price_exceeds_normal',minimumNormalPrice:Number(estimate?.normalPriceEstimate||0)};
+  if(p.rule_type==='combo'&&p.combo_price!==null&&Number(p.combo_price)>Number(estimate?.normalPriceEstimate||0))return {ok:false,reason:'combo_price_exceeds_normal',minimumNormalPrice:Number(estimate?.normalPriceEstimate||0)};
   if(!estimate?.costComplete&&p.cmv_estimate_percent==null)return {ok:false,reason:'promotion_cost_incomplete',productIds:estimate?.missingCostProductIds||[],productNames:estimate?.missingCostProductNames||[]};
   if(!estimate?.costComplete&&Number(estimate?.estimatedMargin??0)<=0)return {ok:false,reason:'promotion_estimate_no_margin',estimatedCost:estimate?.estimatedCost,price:estimate?.combo_price};
   if(p.rule_type==='combo'&&Number(p.combo_price)<0)return {ok:false,reason:'promotion_price_invalid'};

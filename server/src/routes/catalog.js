@@ -29,6 +29,7 @@ const productSchema = z.object({
   custoCompra: z.number().nonnegative().nullable().optional(),
   ativo: z.boolean().default(true),
   tempoPreparo: z.number().int().nonnegative().default(0),
+  peso:z.number().nonnegative().max(1000000).optional(),
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
   foto: z.string().max(1_400_000).nullable().optional(),
@@ -104,6 +105,22 @@ export default async function catalogRoutes(app) {
     return { data: rows };
   });
 
+  app.get('/products/:id/usage', {preHandler:requirePermission('catalog.read')},async(request,reply)=>{
+    const id=z.string().min(1).max(100).parse(request.params.id);
+    const exists=await app.db.query('SELECT id FROM products WHERE id=$1',[id]);
+    if(!exists.rowCount)return reply.code(404).send({error:'product_not_found'});
+    const [products,promotions]=await Promise.all([
+      app.db.query(`SELECT DISTINCT owner.id,owner.name,owner.active,grp->>'label' AS "groupLabel",opt->>'label' AS "optionLabel"
+        FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
+        CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[id]),
+      app.db.query(`SELECT pr.id,pr.name,pr.active FROM promotions pr WHERE
+        EXISTS(SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
+        OR EXISTS(SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND gp.product_id=$1)
+        ORDER BY pr.name`,[id]),
+    ]);
+    return {data:{products:products.rows,promotions:promotions.rows}};
+  });
+
   app.post('/products', { bodyLimit: 2 * 1024 * 1024, preHandler: requirePermission('catalog.write') }, async (request, reply) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
@@ -141,8 +158,8 @@ export default async function catalogRoutes(app) {
       ) LIMIT 1`, [p.id]);
       const configured=await client.query(`SELECT 1 FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
         CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 LIMIT 1`,[p.id]);
-    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [id])).rows.map(row=>row.name) } });}
-    if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[id])).rows.map(row=>row.name)}});}
+    if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [p.id])).rows.map(row=>row.name) } });}
+    if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[p.id])).rows.map(row=>row.name)}});}
     }
     let photoUrl=photoInput.photoUrl;
     let photoSha256=null;
@@ -152,17 +169,17 @@ export default async function catalogRoutes(app) {
     }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
-        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups,weight_grams)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET sku=EXCLUDED.sku, name=EXCLUDED.name, category=EXCLUDED.category,
         description=EXCLUDED.description, sale_price=EXCLUDED.sale_price, purchase_cost=EXCLUDED.purchase_cost,
         active=EXCLUDED.active, preparation_minutes=EXCLUDED.preparation_minutes,
         current_stock=EXCLUDED.current_stock, minimum_stock=EXCLUDED.minimum_stock,
         photo_url=EXCLUDED.photo_url, ifood_price=EXCLUDED.ifood_price, ifood_active=EXCLUDED.ifood_active,
-        option_groups=EXCLUDED.option_groups, updated_at=now()
+        option_groups=EXCLUDED.option_groups,weight_grams=coalesce($16,products.weight_grams), updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,ifoodPrice,p.ativoIfood,JSON.stringify(p.optionGroups)]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,ifoodPrice,p.ativoIfood,JSON.stringify(p.optionGroups),p.peso??null]);
     if(photoInput.bytes){
       await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256)
         VALUES($1,$2,$3) ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,

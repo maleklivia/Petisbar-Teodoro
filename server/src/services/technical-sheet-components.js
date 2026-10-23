@@ -21,7 +21,7 @@ export async function expandProductTechnicalSheet(client, productId, quantity = 
   const preparationIds = preparationRows.rows.map(row => row.id);
   const recipeItems = preparationIds.length ? await client.query(`
     SELECT recipe_id AS "recipeId",item_name AS "itemName",ingredient_id AS "ingredientId",
-      preparation_id AS "preparationId",quantity,unit,is_packaging AS "isPackaging"
+      preparation_id AS "preparationId",quantity,unit,is_packaging AS "isPackaging",pending_note AS "pendingNote"
     FROM recipe_card_items WHERE recipe_id=ANY($1::text[]) ORDER BY recipe_id,sort_order
   `, [preparationIds]) : { rows: [] };
   const ingredientsResult = await client.query('SELECT id,name,unit,active FROM ingredients ORDER BY id');

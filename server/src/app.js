@@ -10,6 +10,12 @@ import customerAuthRoutes from './routes/customer-auth.js';
 import customerOrderRoutes from './routes/customer-orders.js';
 import catalogRoutes from './routes/catalog.js';
 import healthRoutes from './routes/health.js';
+import dashboardRoutes from './routes/dashboard.js';
+import paymentRoutes from './routes/payments.js';
+import operationsRoutes from './routes/operations.js';
+import documentRoutes from './routes/documents.js';
+import couponRoutes from './routes/coupons.js';
+import { startPaymentReconciliation } from './services/payment-reconciliation.js';
 import migrationRoutes from './routes/migration.js';
 import publicOrderRoutes from './routes/public-orders.js';
 import ifoodRoutes from './routes/ifood.js';
@@ -31,6 +37,17 @@ import { startIfoodWorker } from './services/ifood-worker.js';
 export async function buildApp() {
   const app = Fastify({ bodyLimit: 10 * 1024 * 1024, logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
   app.decorate('db', db);
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error({code:error.code||'internal_error',name:error.name},'Falha ao processar solicitação');
+    if(error.name==='ZodError')return reply.code(400).send({error:'validation_error'});
+    if(error.code==='23503')return reply.code(409).send({error:'record_in_use'});
+    if(error.code==='23505')return reply.code(409).send({error:'record_already_exists'});
+    const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+    reply.code(status).send({
+      error: status === 500 ? 'internal_error' : error.code || 'request_error',
+      ...(status < 500 && error.details ? { details: error.details } : {}),
+    });
+  });
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cookie, { secret: config.COOKIE_SECRET, hook: 'onRequest' });
   await app.register(cors, { origin: config.APP_ORIGIN, credentials: true, methods: ['GET','POST','PUT','PATCH','DELETE'] });
@@ -44,6 +61,11 @@ export async function buildApp() {
   });
 
   await app.register(healthRoutes, { prefix: '/api/v1' });
+  await app.register(dashboardRoutes, { prefix: '/api/v1' });
+  await app.register(paymentRoutes, { prefix: '/api/v1' });
+  await app.register(operationsRoutes, { prefix: '/api/v1' });
+  await app.register(documentRoutes, { prefix: '/api/v1' });
+  await app.register(couponRoutes, { prefix: '/api/v1' });
   await app.register(authRoutes, { prefix: '/api/v1' });
   await app.register(customerAuthRoutes, { prefix: '/api/v1' });
   await app.register(customerOrderRoutes, { prefix: '/api/v1' });
@@ -66,17 +88,10 @@ export async function buildApp() {
   await app.register(promotionRoutes, { prefix: '/api/v1' });
 
   let stopIfoodWorker = () => {};
-  app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); });
-  app.addHook('onClose', async () => { stopIfoodWorker(); });
+  let stopPayments=()=>{};
+  app.addHook('onReady', async () => { stopIfoodWorker = startIfoodWorker(app); stopPayments=startPaymentReconciliation(app); });
+  app.addHook('onClose', async () => { stopIfoodWorker(); stopPayments(); });
 
-  app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
-    const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
-    reply.code(status).send({
-      error: status === 500 ? 'internal_error' : error.code || 'request_error',
-      ...(status < 500 && error.details ? { details: error.details } : {}),
-    });
-  });
   return app;
 }
 

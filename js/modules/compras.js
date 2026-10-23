@@ -103,6 +103,7 @@ const ComprasModule = {
   _renderCompras(compras) {
     let data = compras.filter(c => c.status !== 'Recebido' && c.status !== 'Cancelado');
     if (this._filtroStatus !== 'todos') data = data.filter(c => c.status === this._filtroStatus);
+    const automaticDrafts = compras.filter(c => String(c.tipo).toLowerCase() === 'automatico' && c.status === 'Rascunho');
 
     return `
       <div class="module-toolbar">
@@ -112,6 +113,7 @@ const ComprasModule = {
         </select>
         <span style="flex:1"></span>
         ${this._canWrite ? '<button class="btn btn-ghost" id="btn-importar-cupom">📷 Importar Comprovante</button>' : ''}
+        ${this._canWrite && automaticDrafts.length ? `<button class="btn btn-ghost" id="btn-cancelar-automaticos">Cancelar ${automaticDrafts.length} rascunho(s) automático(s)</button>` : ''}
         ${this._canWrite ? '<button class="btn btn-primary" id="btn-nova-compra">+ Nova Compra</button>' : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
@@ -184,6 +186,10 @@ const ComprasModule = {
   _bindEvents() {
     const el = document.getElementById('compras-content');
     if (!el) return;
+    // The view is re-rendered frequently. Keep one delegated listener per
+    // container; otherwise each refresh makes a click execute N times.
+    if (this._boundComprasEvents === el) return;
+    this._boundComprasEvents = el;
 
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-cmp-tab]');
@@ -191,6 +197,7 @@ const ComprasModule = {
 
       if (e.target.closest('#btn-nova-compra'))      { if (this._canWrite) this._abrirModalNovaCompra(); return; }
       if (e.target.closest('#btn-importar-cupom'))  { if (this._canWrite) this._importarCupom(); return; }
+      if (e.target.closest('#btn-cancelar-automaticos')) { if (this._canWrite) this._cancelarRascunhosAutomaticos(); return; }
       if (e.target.closest('#btn-gerar-automatico')) { this._gerarSolicitacoesAutomaticas(true); return; }
 
       const action = e.target.closest('[data-cmp-action]');
@@ -202,6 +209,26 @@ const ComprasModule = {
     });
   },
 
+  async _cancelarRascunhosAutomaticos() {
+    const drafts=this._compras.filter(c=>String(c.tipo).toLowerCase()==='automatico'&&c.status==='Rascunho');
+    if(!drafts.length)return;
+    if(!confirm(`Cancelar os ${drafts.length} rascunhos automáticos?`))return;
+    const button=document.getElementById('btn-cancelar-automaticos');if(button)button.disabled=true;
+    try {
+      if(this._serverMode){
+        const updated=await Promise.all(drafts.map(c=>API.updateServerPurchaseStatus(c.id,'Cancelado')));
+        const byId=new Map(updated.map(c=>[c.id,c]));
+        this._compras=this._compras.map(c=>byId.get(c.id)||c);
+      } else {
+        const ids=new Set(drafts.map(c=>c.id));
+        this._compras=this._compras.map(c=>ids.has(c.id)?{...c,status:'Cancelado'}:c);
+        Stores.compras.set(this._compras);
+      }
+      this._render();this._bindEvents();UI.toast(`${drafts.length} rascunho(s) automático(s) cancelado(s).`,'success');
+    }catch(error){UI.toast('Não foi possível cancelar todos os rascunhos automáticos.','danger');}
+    finally{if(button)button.disabled=false;}
+  },
+
   async _executarAcao(id, action) {
     if (this._serverMode) {
       const compra = this._compras.find(c => c.id === id);
@@ -211,7 +238,7 @@ const ComprasModule = {
           : action === 'cancelar' ? 'Cancelado'
             : action === 'receber' ? 'Recebido'
               : compra.status;
-      if (action === 'cancelar' && !confirm('Cancelar este pedido?')) return;
+      if (action === 'cancelar' && String(compra.tipo).toLowerCase() !== 'automatico' && !confirm('Cancelar este pedido?')) return;
       try {
         const updated = await API.updateServerPurchaseStatus(id, nextStatus);
         const idx = this._compras.findIndex(c => c.id === id);
@@ -239,7 +266,7 @@ const ComprasModule = {
 
     if (action === 'aprovar')  compra.status = 'Aprovado';
     if (action === 'pedido')   compra.status = 'Pedido';
-    if (action === 'cancelar') { if (!confirm('Cancelar este pedido?')) return; compra.status = 'Cancelado'; }
+    if (action === 'cancelar') { if (String(compra.tipo).toLowerCase() !== 'automatico' && !confirm('Cancelar este pedido?')) return; compra.status = 'Cancelado'; }
     if (action === 'receber')  { this._confirmarRecebimento(compra); return; }
 
     Stores.compras.set(compras);

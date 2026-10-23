@@ -124,7 +124,7 @@ const FornecedoresModule = {
     const el = document.getElementById('fornecedores-content');
     if (!el) return;
 
-    el.addEventListener('click', e => {
+    el.onclick = e => {
       if (e.target.closest('#btn-novo-forn')) { if (this._canWrite) this._openForm(); return; }
 
       const edit = e.target.closest('[data-forn-edit]');
@@ -132,7 +132,7 @@ const FornecedoresModule = {
 
       const del = e.target.closest('[data-forn-del]');
       if (del) { this._excluir(del.dataset.fornDel); return; }
-    });
+    };
 
     const busca = el.querySelector('#forn-busca');
     if (busca) busca.addEventListener('input', e => { this._busca = e.target.value; this._render(); this._bindEvents(); });

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import fs from 'node:fs';
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -28,12 +29,22 @@ const schema = z.object({
   MAIL_PASSWORD: z.string().default(''),
   MAIL_FROM: z.string().email().default('petisbarteodoro@gmail.com'),
   GOOGLE_VISION_API_KEY: z.string().default(''),
+  MERCADOPAGO_ENABLED: z.string().default('false').transform(value => value === 'true'),
+  MERCADOPAGO_ACCESS_TOKEN_FILE: z.string().default('/etc/petisbar/mercadopago-sandbox-token'),
+  MERCADOPAGO_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
 }).superRefine((value, context) => {
   if (value.IFOOD_ENABLED && (!value.IFOOD_CLIENT_ID || !value.IFOOD_CLIENT_SECRET || !value.IFOOD_MERCHANT_ID)) {
     context.addIssue({ code: 'custom', message: 'Credenciais do iFood são obrigatórias quando IFOOD_ENABLED=true' });
   }
   if (value.AI_ENABLED && !value.OPENAI_API_KEY) {
     context.addIssue({ code: 'custom', message: 'OPENAI_API_KEY é obrigatória quando AI_ENABLED=true' });
+  }
+  if (value.MERCADOPAGO_ENABLED) {
+    try {
+      if (!fs.statSync(value.MERCADOPAGO_ACCESS_TOKEN_FILE).isFile()) throw new Error('not a file');
+    } catch {
+      context.addIssue({ code: 'custom', message: 'Arquivo de token do Mercado Pago não encontrado quando MERCADOPAGO_ENABLED=true' });
+    }
   }
 });
 

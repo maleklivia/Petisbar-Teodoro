@@ -10,6 +10,8 @@ const MarketingModule = {
   _canWritePromotions: false,
   _promotions: [],
   _promotionProducts: [],
+  _coupons:[],_clients:[],_orders:[],
+  _couponList(){return this._serverMode?this._coupons:Stores.cupons.get();},
 
   async init() {
     this._serverMode = API.isServerMode();
@@ -21,6 +23,12 @@ const MarketingModule = {
       try { [this._promotions,this._promotionProducts]=await Promise.all([API.getServerPromotions(),API.getServerPromotionProducts()]); }
       catch { if(el)el.innerHTML='<div class="empty-state"><p>Não foi possível carregar as promoções do ERP.</p></div>';return; }
     }
+    if(this._serverMode){
+      try{this._coupons=this._canReadPromotions?(await API._request('/coupons')).data:[];
+        this._clients=API.hasPermission('clients.read')?await API.getServerClients():[];
+        this._orders=API.hasPermission('orders.read')?(await API.getServerOrders()).filter(o=>!String(o.source).includes('(Teste)')).map(o=>({clienteId:o.clientId,status:o.status,total:o.total,dataCriacao:o.createdAt})):[];}
+      catch{document.getElementById('marketing-content').textContent='Não foi possível carregar os dados de marketing do servidor.';return;}
+    }
     this._render();
     this._bindEvents();
   },
@@ -28,9 +36,9 @@ const MarketingModule = {
   _render() {
     const el = document.getElementById('marketing-content');
     if (!el) return;
-    const cupons   = Stores.cupons.get();
-    const clientes = Stores.clientes.get();
-    const pedidos  = Stores.pedidos.get();
+    const cupons   = this._couponList();
+    const clientes = this._serverMode?this._clients:Stores.clientes.get();
+    const pedidos  = this._serverMode?this._orders:Stores.pedidos.get();
     const hoje     = new Date().toISOString().slice(0, 10);
     const inativos = this._getInativos(clientes, pedidos);
     const vips     = this._getVIPs(clientes, pedidos);
@@ -90,8 +98,8 @@ const MarketingModule = {
       ${missingSkol?'<div class="alert alert-warning" style="margin-bottom:var(--sp-4)">Skol não está cadastrada como produto ativo; ela não aparece nas opções do rascunho de cervejas.</div>':''}
       <div class="table-wrap"><table class="data-table"><thead><tr><th>Promoção</th><th>Regra</th><th>Preço / desconto</th><th>Período</th><th>Margem estimada</th><th>Status</th><th></th></tr></thead><tbody>
         ${this._promotions.length?this._promotions.map(p=>{
-          const type={percentage:'Percentual',fixed:'Desconto fixo',combo:'Combo fechado'}[p.rule_type]||p.rule_type;
-          const value=p.rule_type==='percentage'?`${p.discount_percent}%`:p.rule_type==='fixed'?Utils.currency(Number(p.discount_amount||0)):p.combo_price==null?'Preço pendente':Utils.currency(Number(p.combo_price));
+          const type=p.rule_type==='combo'&&p.discount_percent!=null?'Combo com desconto':{percentage:'Percentual',fixed:'Desconto fixo',combo:'Combo fechado'}[p.rule_type]||p.rule_type;
+          const value=p.discount_percent!=null?`${p.discount_percent}% sobre os itens escolhidos`:p.rule_type==='fixed'?Utils.currency(Number(p.discount_amount||0)):p.combo_price==null?'Preço pendente':Utils.currency(Number(p.combo_price));
           const active=p.active&&(!p.ends_at||new Date(p.ends_at)>=new Date())&&(!p.starts_at||new Date(p.starts_at)<=new Date());
           const margin=p.estimatedMargin==null?'Não calculável':`${Utils.currency(Number(p.estimatedMargin))} · margem ${Number(p.marginPercent).toFixed(1)}%${p.estimatedCmvPercent==null?'':` · CMV ${Number(p.estimatedCmvPercent).toFixed(1)}%`}`;
           const period=`${p.starts_at?Utils.formatShortDate(p.starts_at):'Sem início'} – ${p.ends_at?Utils.formatShortDate(p.ends_at):'Sem fim'}`;
@@ -110,7 +118,7 @@ const MarketingModule = {
     return `
       <div class="module-toolbar">
         <span style="flex:1"></span>
-        <button class="btn btn-primary" id="btn-novo-cupom">+ Novo Cupom</button>
+        ${!this._serverMode||this._canWritePromotions?'<button class="btn btn-primary" id="btn-novo-cupom">+ Novo Cupom</button>':''}
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -128,7 +136,7 @@ const MarketingModule = {
           <tbody>
             ${cupons.length ? cupons.map(c => {
               const expirado = c.validade < hoje;
-              const esgotado = c.usos >= c.limite;
+              const esgotado = c.limite!=null && c.usos >= c.limite;
               const ativo    = c.ativo && !expirado && !esgotado;
               return `
                 <tr>
@@ -137,7 +145,7 @@ const MarketingModule = {
                   </td>
                   <td style="font-size:var(--text-sm);color:var(--text-muted)">${c.tipo}</td>
                   <td style="font-weight:700">${c.tipo === 'percentual' ? `${c.valor}%` : Utils.currency(c.valor)}</td>
-                  <td style="font-size:var(--text-sm)">${c.usos} / ${c.limite}</td>
+                  <td style="font-size:var(--text-sm)">${c.usos} / ${c.limite??'sem limite'}</td>
                   <td style="font-size:var(--text-sm);color:${expirado ? 'var(--color-danger)' : 'var(--text-muted)'}">${Utils.formatShortDate(c.validade)}</td>
                   <td>
                     ${ativo ? '<span class="badge badge-success">Ativo</span>' : ''}
@@ -147,12 +155,12 @@ const MarketingModule = {
                   </td>
                   <td>
                     <div class="row-actions">
-                      <button class="btn-icon" data-mkt-toggle="${c.id}" title="${c.ativo ? 'Desativar' : 'Ativar'}">
+                      ${!this._serverMode||this._canWritePromotions?`<button class="btn-icon" data-mkt-toggle="${c.id}" title="${c.ativo ? 'Desativar' : 'Ativar'}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
-                      </button>
-                      <button class="btn-icon btn-icon--danger" data-mkt-del-cupom="${c.id}" title="Excluir">
+                      </button>`:''}
+                      ${!this._serverMode?`<button class="btn-icon btn-icon--danger" data-mkt-del-cupom="${c.id}" title="Excluir">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
-                      </button>
+                      </button>`:''}
                     </div>
                   </td>
                 </tr>
@@ -264,7 +272,7 @@ const MarketingModule = {
     if (el.dataset.marketingEventsBound === 'true') return;
     el.dataset.marketingEventsBound = 'true';
 
-    el.addEventListener('click', e => {
+    el.addEventListener('click', async e => {
       const tab = e.target.closest('[data-mkt-tab]');
       if (tab) { this._tab = tab.dataset.mktTab; this._render(); this._bindEvents(); return; }
 
@@ -278,6 +286,7 @@ const MarketingModule = {
 
       const toggle = e.target.closest('[data-mkt-toggle]');
       if (toggle) {
+        if(this._serverMode){const c=this._coupons.find(c=>c.id===toggle.dataset.mktToggle);if(!c)return;toggle.disabled=true;try{await API._request(`/coupons/${c.id}`,{method:'PATCH',body:JSON.stringify({active:!c.ativo})});c.ativo=!c.ativo;this._render();}catch{UI.toast('Não foi possível alterar o cupom.','danger');}finally{toggle.disabled=false;}return;}
         const cupons = Stores.cupons.get();
         const cup = cupons.find(c => c.id === toggle.dataset.mktToggle);
         if (cup) { cup.ativo = !cup.ativo; Stores.cupons.set(cupons); this._render(); this._bindEvents(); }
@@ -286,6 +295,7 @@ const MarketingModule = {
 
       const del = e.target.closest('[data-mkt-del-cupom]');
       if (del) {
+        if(this._serverMode){UI.toast('Desative o cupom para preservar o histórico de uso.','info');return;}
         if (!confirm('Excluir este cupom?')) return;
         Stores.cupons.set(Stores.cupons.get().filter(c => c.id !== del.dataset.mktDelCupom));
         this._render();
@@ -325,7 +335,7 @@ const MarketingModule = {
       <form id="promotion-form"><div class="form-row"><div class="form-group"><label class="form-label">Código interno</label><input class="form-input" name="code" value="${this._esc(promotion?.code||'')}" placeholder="COMBO-EXEMPLO" maxlength="40" required></div>
       <div class="form-group" style="flex:2"><label class="form-label">Nome comercial</label><input class="form-input" name="name" value="${this._esc(promotion?.name||'')}" maxlength="120" required></div></div>
       <div class="form-group"><label class="form-label">Descrição para o cliente</label><textarea class="form-input" name="description" maxlength="2000">${this._esc(promotion?.description||'')}</textarea></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Tipo de regra</label><select class="form-input" name="ruleType" data-promo-rule><option value="combo" ${promotion?.rule_type==='combo'||!promotion?'selected':''}>Combo com preço fechado</option><option value="percentage" ${promotion?.rule_type==='percentage'?'selected':''}>Desconto percentual</option><option value="fixed" ${promotion?.rule_type==='fixed'?'selected':''}>Desconto fixo</option></select></div>
+      <div class="form-row"><div class="form-group"><label class="form-label">Tipo de regra</label><select class="form-input" name="ruleType" data-promo-rule><option value="combo" ${(promotion?.rule_type==='combo'&&promotion?.discount_percent==null)||!promotion?'selected':''}>Combo com preço fechado</option><option value="combo_percentage" ${promotion?.rule_type==='combo'&&promotion?.discount_percent!=null?'selected':''}>Combo com desconto sobre escolhas</option><option value="percentage" ${promotion?.rule_type==='percentage'?'selected':''}>Desconto percentual</option><option value="fixed" ${promotion?.rule_type==='fixed'?'selected':''}>Desconto fixo</option></select></div>
       <div class="form-group promo-value" data-rule-value="combo"><label class="form-label">Preço fechado do combo</label><input class="form-input" name="comboPrice" type="number" min="0" step="0.01" value="${promotion?.combo_price??''}" placeholder="Deixe vazio até definir"></div>
       <div class="form-group promo-value" data-rule-value="percentage"><label class="form-label">Desconto (%)</label><input class="form-input" name="discountPercent" type="number" min="0.01" max="100" step="0.01" value="${promotion?.discount_percent??''}"></div>
       <div class="form-group promo-value" data-rule-value="fixed"><label class="form-label">Desconto (R$)</label><input class="form-input" name="discountAmount" type="number" min="0.01" step="0.01" value="${promotion?.discount_amount??''}"></div></div>
@@ -358,13 +368,13 @@ const MarketingModule = {
     group.querySelectorAll('[data-group-product]:not(:checked)').forEach(input=>{input.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value='0.00';});
   },
 
-  _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value;dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==type);dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==type);},
+  _syncPromotionForm(dialog){const type=dialog.querySelector('[data-promo-rule]').value,isCombo=type.startsWith('combo');dialog.querySelectorAll('[data-rule-section]').forEach(section=>section.hidden=section.dataset.ruleSection!==(isCombo?'combo':'targets'));dialog.querySelectorAll('[data-rule-value]').forEach(field=>field.hidden=field.dataset.ruleValue!==(type==='combo_percentage'?'percentage':type));},
 
   async _savePromotion(id){
     const form=UI._activeModal?.querySelector('#promotion-form');if(!form)return;
     try{
       const value=name=>form.elements[name]?.value||'';
-      const type=value('ruleType');
+      const selectedRule=value('ruleType'),type=selectedRule==='combo_percentage'?'combo':selectedRule;
       const groups=type==='combo'?[...form.querySelectorAll('[data-promo-group]')].map((group,index)=>{
         let allowedOptions={};try{allowedOptions=JSON.parse(group.querySelector('[data-group-options]').value||'{}');}catch{throw new Error('As opções do grupo precisam estar em JSON válido.');}
         const selected=[...group.querySelectorAll('[data-group-product]:checked')].map(check=>({productId:check.value,surcharge:Number(check.closest('.promo-product-choice').querySelector('[data-group-surcharge]').value||0),allowedOptions}));
@@ -372,8 +382,8 @@ const MarketingModule = {
       }):[];
       const starts=value('startsAt'),ends=value('endsAt');
       const data={code:value('code').trim().toUpperCase(),name:value('name').trim(),description:value('description').trim(),ruleType:type,
-        discountPercent:type==='percentage'?Number(value('discountPercent')):null,discountAmount:type==='fixed'?Number(value('discountAmount')):null,
-        comboPrice:type==='combo'&&value('comboPrice')!==''?Number(value('comboPrice')):null,startsAt:starts?new Date(starts).toISOString():null,endsAt:ends?new Date(ends).toISOString():null,
+        discountPercent:type==='percentage'||selectedRule==='combo_percentage'?Number(value('discountPercent')):null,discountAmount:type==='fixed'?Number(value('discountAmount')):null,
+        comboPrice:selectedRule==='combo'&&value('comboPrice')!==''?Number(value('comboPrice')):null,startsAt:starts?new Date(starts).toISOString():null,endsAt:ends?new Date(ends).toISOString():null,
         priority:Number(value('priority')||100),stackWithCoupon:form.elements.stackWithCoupon.checked,
         cmvEstimatePercent:value('cmvEstimatePercent')===''?null:Number(value('cmvEstimatePercent')),
         productIds:type==='combo'?[]:[...form.querySelectorAll('[data-promo-target]:checked')].map(check=>check.value),groups};
@@ -429,7 +439,7 @@ const MarketingModule = {
         </div>
       `,
       confirmLabel: 'Criar Cupom',
-      onConfirm: () => {
+      onConfirm: async () => {
         const codigo   = document.getElementById('cup-codigo')?.value?.trim().toUpperCase();
         const tipo     = document.getElementById('cup-tipo')?.value;
         const valor    = parseFloat(document.getElementById('cup-valor')?.value || 0);
@@ -439,8 +449,12 @@ const MarketingModule = {
 
         if (!codigo || !valor || valor <= 0 || !validade) { UI.toast('Preencha todos os campos.', 'error'); return; }
 
-        const cupons  = Stores.cupons.get();
+        const cupons  = this._couponList();
         if (cupons.some(c => c.codigo === codigo)) { UI.toast('Código já existe.', 'error'); return; }
+        if(this._serverMode){
+          try{const saved=(await API._request('/coupons',{method:'POST',body:JSON.stringify({codigo,tipo,valor,limite,validade,descricao:desc})})).data;this._coupons.unshift(saved);UI.closeModal();this._render();UI.toast('Cupom salvo no servidor.');}
+          catch{UI.toast('Não foi possível salvar o cupom. Confira código, desconto e validade.','danger');}return;
+        }
         const maxNum  = cupons.reduce((m, c) => Math.max(m, parseInt(c.id?.replace('cup-', '') || 0)), 0);
         cupons.unshift({ id: `cup-${String(maxNum + 1).padStart(3, '0')}`, codigo, tipo, valor, ativo: true, usos: 0, limite, validade, descricao: desc });
         Stores.cupons.set(cupons);

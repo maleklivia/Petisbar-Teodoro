@@ -35,6 +35,8 @@ const ProducaoModule = {
       numeroPedido: order.orderNumber,
       clienteNome: order.clientName,
       status: order.status,
+      formaPagamento:order.paymentMethod,
+      fulfillmentType:order.fulfillmentType,
       itens: (order.items || []).map(item => ({
         qty: Number(item.quantity),
         nome: item.name,
@@ -89,7 +91,7 @@ const ProducaoModule = {
   _renderCard(p) {
     const elapsed    = this._elapsed(p.dataCriacao);
     const resumo     = p.itens.map(i => `${i.qty}× ${i.nome}`).join(', ');
-    const next       = nextStatus(p.status);
+    const next       = nextStatus(p.status,p);
 
     return `
       <div class="kanban-card" data-id="${p.id}">
@@ -134,7 +136,7 @@ const ProducaoModule = {
     const pedido  = pedidos.find(p => p.id === pedidoId);
     if (!pedido) return;
 
-    const novo = nextStatus(pedido.status);
+    const novo = nextStatus(pedido.status,pedido);
     if (!novo) return;
 
     if (this._serverMode) {

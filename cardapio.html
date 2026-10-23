@@ -16,7 +16,7 @@
   </header>
 
   <main class="store-main">
-    <section id="order-confirmation" class="store-panel hidden" role="status" aria-live="polite"><strong id="order-confirmation-number"></strong><span>Seu pedido foi registrado.</span><a href="./pages/pedido.html">Acompanhar pedido</a></section>
+    <section id="order-confirmation" class="store-panel hidden" role="status" aria-live="polite"><strong id="order-confirmation-number"></strong><span>Seu pedido foi registrado.</span><div id="pix-payment" class="hidden"><strong>Pagamento Pix</strong><p id="pix-payment-help">Escaneie o QR Code ou copie o código Pix.</p><img id="pix-qr" alt="QR Code Pix" class="hidden"><input id="pix-copy" readonly aria-label="Pix copia e cola"><button id="pix-copy-button" type="button">Copiar código Pix</button><a id="pix-ticket" target="_blank" rel="noopener" class="hidden">Abrir pagamento</a></div><a href="./pages/pedido.html">Acompanhar pedido</a></section>
     <section id="reorder-shortcuts" class="reorder-shortcuts hidden" aria-label="Peça novamente"></section>
     <section class="store-highlights" aria-label="Informações da loja">
       <div><strong>Pedido mínimo</strong><span id="minimum-order">R$ 20,00</span></div>
@@ -87,7 +87,7 @@
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20261022-1"></script>
+  <script src="./js/cardapio.js?v=20261022-7"></script>
 </body>
 </html>
 

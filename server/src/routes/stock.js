@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
+import { convertQuantity } from '../domain/orders.js';
 
 const movementSchema = z.object({
   tipo: z.enum(['entrada', 'saída', 'saida', 'ajuste', 'perda']),
@@ -68,9 +69,14 @@ export default async function stockRoutes(app) {
       }
 
       const currentStock = Number(ingredient.rows[0].current_stock);
+      const quantity=convertQuantity(data.quantidade,data.unidade||ingredient.rows[0].unit,ingredient.rows[0].unit);
+      const reserved=await client.query("SELECT coalesce(sum(quantity),0) quantity FROM order_stock_reservations WHERE ingredient_id=$1 AND status='reserved'",[data.ingredienteId]);
+      if(['saída','perda'].includes(tipo)&&quantity>currentStock-Number(reserved.rows[0].quantity)){
+        await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});
+      }
       const nextStock = ['saída', 'perda'].includes(tipo)
-        ? Math.max(0, currentStock - data.quantidade)
-        : currentStock + data.quantidade;
+        ? currentStock - quantity
+        : currentStock + quantity;
 
       await client.query('UPDATE ingredients SET current_stock=$2, updated_at=now() WHERE id=$1', [data.ingredienteId, nextStock]);
       const id = `mov-${randomUUID()}`;
@@ -81,8 +87,8 @@ export default async function stockRoutes(app) {
         id,
         data.ingredienteId,
         tipo,
-        data.quantidade,
-        data.unidade || ingredient.rows[0].unit,
+        quantity,
+        ingredient.rows[0].unit,
         data.motivo || tipo,
         data.referencia || '',
         data.data,

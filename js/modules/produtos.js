@@ -46,6 +46,9 @@ const ProdutosModule = {
       FichasModule.preload();
     }
     this._bindTabs();
+    const categories=[...new Set([...CATEGORIAS_PRODUTO,...this._items.map(p=>p.categoria)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const filter=document.getElementById('cardapio-categoria');
+    if(filter)filter.innerHTML='<option value="">Todas categorias</option>'+categories.map(c=>`<option value="${Utils.escapeHtml(c)}">${Utils.escapeHtml(c)}</option>`).join('');
     this._switchTab('cardapio');
   },
 
@@ -102,7 +105,7 @@ const ProdutosModule = {
 
   getCusto(produtoId) {
     const ficha = FichasModule.getByProduto(produtoId);
-    if (ficha) return FichasModule.calcCusto(ficha);
+    if (ficha) return FichasModule._costComplete(ficha)?FichasModule.calcCusto(ficha):null;
     const produto = this._items.find(p => p.id === produtoId);
     return produto?.custoCompra ?? null;
   },
@@ -218,7 +221,7 @@ const ProdutosModule = {
     this._photoDraft = null;
     this._photoRemove = false;
 
-    const catOptions = CATEGORIAS_PRODUTO.map(c =>
+    const catOptions = [...new Set([...CATEGORIAS_PRODUTO,...this._items.map(p=>p.categoria),...(item?.categoria?[item.categoria]:[])])].map(c =>
       `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${Utils.escapeHtml(Utils.displayCategory(c))}</option>`
     ).join('');
 
@@ -228,6 +231,7 @@ const ProdutosModule = {
       body: `
         <form id="form-produto" autocomplete="off">
           <input type="hidden" name="id" value="${item?.id || ''}">
+          ${editing&&this._serverMode?'<section class="card" id="product-usage" aria-live="polite" style="margin-bottom:20px"><strong>Onde este produto é usado</strong><p>Consultando vínculos…</p></section>':''}
 
           <div class="form-group">
             <label class="form-label">Nome *</label>
@@ -279,7 +283,7 @@ const ProdutosModule = {
             <div class="form-group">
               <label class="form-label">Data de Cadastro</label>
               <input class="form-input" name="dataCadastro" type="date"
-                value="${item?.dataCadastro || Utils.today()}">
+                value="${item?.dataCadastro || Utils.today()}" ${this._serverMode?'readonly title="Data automática do cadastro no servidor"':''}>
             </div>
           </div>
 
@@ -318,6 +322,7 @@ const ProdutosModule = {
       onConfirm: () => this._submitForm(editing, item),
     });
     this._bindIfoodPriceEditor(item);
+    if(editing&&this._serverMode)this._loadProductUsage(item.id);
     this._bindProductPhotoEditor(item);
     this._drawOptionGroups(item?.optionGroups||[]);
     document.getElementById('product-option-groups').addEventListener('click',event=>{
@@ -330,6 +335,17 @@ const ProdutosModule = {
       this._drawOptionGroups(groups);
     });
     document.getElementById('add-product-option-group').addEventListener('click',()=>{const groups=this._collectOptionGroups();groups.push({key:`grupo${groups.length+1}`,label:'Novo grupo',type:'radio',required:false,options:[{value:'opcao1',label:'Opção 1',priceMode:'base'}]});this._drawOptionGroups(groups)});
+  },
+
+  async _loadProductUsage(id){
+    const target=document.getElementById('product-usage');
+    try{
+      const usage=(await API._request(`/products/${encodeURIComponent(id)}/usage`)).data;
+      if(!target?.isConnected)return;
+      const escape=Utils.escapeHtml;
+      const rows=[...usage.products.map(p=>`Produto: ${escape(p.name)}${p.active?'':' (inativo)'} · Grupo: ${escape(p.groupLabel||'Sem nome')} · Opção: ${escape(p.optionLabel||'Sem nome')}`),...usage.promotions.map(p=>`Promoção: ${escape(p.name)}${p.active?' (ativa)':' (inativa)'}`)];
+      target.innerHTML='<strong>Onde este produto é usado</strong>'+(rows.length?`<ul class="product-dependency-list">${rows.map(row=>`<li>${row}</li>`).join('')}</ul><p>Para remover um vínculo, edite o produto ou a promoção indicados. Desativar no cardápio não remove esses vínculos.</p>`:'<p>Nenhum vínculo em opções de produtos ou promoções. O histórico de pedidos é preservado.</p>');
+    }catch{if(target?.isConnected)target.innerHTML='<strong>Onde este produto é usado</strong><p>Não foi possível consultar os vínculos. Feche e reabra para tentar novamente; ausência de resposta não significa ausência de vínculo.</p>';}
   },
 
   _collectOptionGroups(){return [...document.querySelectorAll('[data-option-group]')].map(group=>({
@@ -565,14 +581,14 @@ const ProdutosModule = {
     if (!item) return;
 
     UI.openModal({
-      title: 'Excluir Produto',
+      title: this._serverMode?'Inativar Produto':'Excluir Produto',
       body: `
-        <p>Confirma a exclusão de <strong>${Utils.escapeHtml(item.nome)}</strong>?</p>
+        <p>Confirma ${this._serverMode?'a inativação':'a exclusão'} de <strong>${Utils.escapeHtml(item.nome)}</strong>?</p>
         <p style="margin-top:var(--sp-2);color:var(--text-muted);font-size:var(--text-sm)">
-          A ficha técnica associada também será removida permanentemente.
+          ${this._serverMode?'O produto sai do cardápio; pedidos, ficha técnica e histórico serão preservados.':'A ficha técnica associada também será removida permanentemente.'}
         </p>
       `,
-      confirmLabel: 'Excluir',
+      confirmLabel: this._serverMode?'Inativar':'Excluir',
       confirmClass: 'btn-danger',
       onConfirm: async () => {
         if (this._serverMode) {
@@ -604,6 +620,9 @@ const ProdutosModule = {
   /* ── Toolbar bindings (aba Cardápio) ───────────────────────── */
 
   _bindCardapioToolbar() {
+    const toolbar=document.getElementById('btn-novo-produto');
+    if(toolbar?.dataset.bound==='true')return;
+    if(toolbar)toolbar.dataset.bound='true';
     const search      = document.getElementById('cardapio-search');
     const catFilter   = document.getElementById('cardapio-categoria');
     const ativoFilter = document.getElementById('cardapio-ativo');

@@ -470,7 +470,9 @@ const STATUS_TRANSITIONS = {
 };
 
 /* Retorna o próximo status do fluxo principal (happy path) */
-function nextStatus(status) {
+function nextStatus(status,order={}) {
+  if(status==='Novo'&&['Dinheiro','Cartão na entrega','Cartão Débito','Cartão Crédito','Fiado'].includes(order.formaPagamento))return 'Em Produção';
+  if(status==='Pronto'&&order.fulfillmentType==='retirada')return 'Entregue';
   const map = {
     'Novo':                'Aguardando Pagamento',
     'Aguardando Pagamento':'Pago',

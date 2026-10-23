@@ -51,7 +51,7 @@ const FinanceiroModule = {
     el.innerHTML = `
       <div class="kpi-row" style="margin-bottom:var(--sp-5)">
         <article class="kpi-card">
-          <span class="kpi-card__label">Faturamento</span>
+          <span class="kpi-card__label">Entradas registradas</span>
           <strong class="kpi-card__value">${Utils.currency(rec)}</strong>
           <small class="kpi-card__sub">este mês</small>
         </article>
@@ -61,9 +61,9 @@ const FinanceiroModule = {
           <small class="kpi-card__sub">este mês</small>
         </article>
         <article class="kpi-card ${lucro < 0 ? 'kpi-card--warn' : 'kpi-card--ok'}">
-          <span class="kpi-card__label">Lucro Est.</span>
+          <span class="kpi-card__label">Resultado registrado</span>
           <strong class="kpi-card__value">${Utils.currency(lucro)}</strong>
-          <small class="kpi-card__sub">${Utils.pct(rec > 0 ? lucro / rec : 0)} margem</small>
+          <small class="kpi-card__sub">entradas menos saídas; não é lucro contábil</small>
         </article>
         <article class="kpi-card ${parseFloat(cmvPct) > 35 ? 'kpi-card--warn' : 'kpi-card--ok'}">
           <span class="kpi-card__label">CMV</span>
@@ -74,7 +74,7 @@ const FinanceiroModule = {
 
       <div class="module-tabs">
         <button class="tab-btn ${this._tab === 'extrato' ? 'active' : ''}" data-fin-tab="extrato">Extrato</button>
-        <button class="tab-btn ${this._tab === 'dre' ? 'active' : ''}" data-fin-tab="dre">DRE</button>
+        <button class="tab-btn ${this._tab === 'dre' ? 'active' : ''}" data-fin-tab="dre">Resumo por categoria</button>
         ${this._canWrite ? `<button class="tab-btn ${this._tab === 'lancamento' ? 'active' : ''}" data-fin-tab="lancamento">+ Lançamento</button>` : ''}
       </div>
 
@@ -170,10 +170,10 @@ const FinanceiroModule = {
       <div style="max-width:600px">
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);overflow:hidden">
           <div style="padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border-default);display:flex;align-items:center;justify-content:space-between">
-            <strong style="font-family:var(--font-display);letter-spacing:.04em;font-size:var(--text-lg)">DRE — ${mesLabel}</strong>
+            <strong style="font-family:var(--font-display);letter-spacing:.04em;font-size:var(--text-lg)">Resumo gerencial — ${mesLabel}</strong>
             <button class="btn btn-ghost" onclick="window.print()" style="font-size:var(--text-sm)">↓ Imprimir</button>
           </div>
-          <table class="data-table" style="border:none;border-radius:0">
+          <p style="padding:16px">Resumo dos lançamentos; não substitui DRE ou apuração contábil. Compras de estoque e CMV são fatos distintos e não devem ser somados para apurar o lucro.</p><table class="data-table" style="border:none;border-radius:0">
             <thead>
               <tr>
                 <th>Categoria</th>
@@ -259,7 +259,8 @@ const FinanceiroModule = {
   _bindEvents() {
     const el = document.getElementById('financeiro-content');
     if (!el) return;
-
+    if (el.dataset.financeEventsBound === 'true') return;
+    el.dataset.financeEventsBound = 'true';
     el.addEventListener('click', e => {
       const tab = e.target.closest('[data-fin-tab]');
       if (tab) { this._tab = tab.dataset.finTab; this._render(); this._bindEvents(); return; }

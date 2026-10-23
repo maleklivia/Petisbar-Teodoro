@@ -34,25 +34,25 @@ const Utils = {
 
   // Returns "2026-07-09"
   today() {
-    return new Date().toISOString().slice(0, 10);
+    return new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
   },
 
   // Returns "2026-07"
   currentMonth() {
-    return new Date().toISOString().slice(0, 7);
+    return this.today().slice(0,7);
   },
 
   // "2026-07-09" → "09/07/2026"
   formatDate(iso) {
     if (!iso) return '—';
-    const [y, m, d] = iso.split('-');
+    const [y, m, d] = String(iso).slice(0,10).split('-');
     return `${d}/${m}/${y}`;
   },
 
   // "2026-07-09" → "09/07"
   formatShortDate(iso) {
     if (!iso) return '—';
-    const [, m, d] = iso.split('-');
+    const [, m, d] = String(iso).slice(0,10).split('-');
     return `${d}/${m}`;
   },
 
@@ -130,9 +130,7 @@ const Utils = {
 
   productPhoto(product, modifier = '') {
     const photo = typeof product?.foto === 'string' ? product.foto : '';
-    const safeLocalPhoto = /^\.\.\/assets\/products\/[a-z0-9._-]+$/i.test(photo)
-      || /^\/api\/v1\/public\/products\/(?:[a-z0-9._~-]|%[a-f0-9]{2})+\/photo(?:\?v=[a-f0-9]{64})?$/i.test(photo)
-      || (photo.length <= 1_400_000 && /^data:image\/jpeg;base64,[a-z0-9+/]+={0,2}$/i.test(photo));
+    const safeLocalPhoto = /^(?:(?:\.\.\/|\/)?assets\/products\/[a-z0-9._-]+|\/api\/v1\/public\/products\/[a-z0-9._%~-]+\/photo(?:\?v=[a-f0-9]{1,64})?)$/i.test(photo);
     const className = `product-photo-icon${modifier ? ` ${modifier}` : ''}`;
     const label = `Foto de ${this.escapeHtml(product?.nome || 'produto')}`;
     const content = safeLocalPhoto

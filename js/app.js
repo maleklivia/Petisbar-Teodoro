@@ -29,6 +29,7 @@ const App = {
   state: null,
 
   async init(page) {
+    document.body.dataset.loadState='loading';
     const user = await API.requireSession();
     if (!user) return;
     this.state = Storage.getState();
@@ -42,11 +43,16 @@ const App = {
     UI.setHeaderDate();
     API.bindSessionControls(user);
     UI.initResponsiveNavigation();
-    if (API.isServerMode() && !['pedidos', 'producao', 'produtos', 'clientes', 'estoque', 'compras', 'fornecedores', 'financeiro', 'relatorios', 'central-ia'].includes(page)) UI.showTransitionNotice();
 
     // Run page-specific module
     if (Modules[page]) {
-      await Modules[page].init(this.state);
+      try{await Modules[page].init(this.state);document.body.dataset.loadState='ready';}
+      catch(error){
+        console.error('Falha ao carregar módulo',page,error);
+        document.body.dataset.loadState='error';
+        const content=document.getElementById('page-content');
+        if(content){content.textContent='Não foi possível carregar esta área. Recarregue a página para tentar novamente.';}
+      }
     }
   },
 
@@ -61,6 +67,13 @@ const Modules = {
   /* ── Dashboard ─────────────────────────────────────────────── */
   dashboard: {
     async init(state) {
+      const monthLabel=document.querySelector('.page-header .badge');
+      if(monthLabel)monthLabel.textContent=new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      if(API.isServerMode()) {
+        try { this._renderServer((await API._request('/dashboard')).data); }
+        catch { document.getElementById('kpi-row').textContent='Não foi possível carregar os dados do servidor. Atualize a página para tentar novamente.'; }
+        return;
+      }
       const currentState = this._buildCurrentState(state);
       this._renderKpis(currentState);
       this._renderOrderStats();
@@ -69,6 +82,25 @@ const Modules = {
       this._renderTopProducts(currentState);
       this._renderStockAlerts(currentState);
       this._renderAlertasCusto();
+    },
+
+    _renderServer(data) {
+      const esc=Utils.escapeHtml, money=Utils.currency;
+      const today=Utils.today(), month=Utils.currentMonth();
+      const monthly=Number(data.stats.monthly);
+      const f=data.finance;
+      const cards=[['Faturamento',f?money(f.revenue):'Sem acesso','vendas concluídas no mês'],['Resultado registrado',f?money(f.profit):'Sem acesso','movimentos financeiros; não é DRE'],
+        ['Pedidos',monthly,'reais concluídos no mês'],['Ticket Médio',f?money(monthly?f.revenue/monthly:0):'Sem acesso','vendas concluídas'],
+        ['CMV',f?`${f.revenue?Math.round(f.cmv/f.revenue*100):0}%`:'Sem acesso','este mês'],['Estoque Baixo',data.stock.length,'itens no ponto de reposição']];
+      document.getElementById('kpi-row').innerHTML=cards.map(([label,value,sub])=>`<article class="kpi-card"><span class="kpi-card__label">${esc(label)}</span><strong class="kpi-card__value">${esc(value)}</strong><small class="kpi-card__sub">${esc(sub)}</small></article>`).join('');
+      const stats=[['Pedidos Hoje',data.stats.today],['Pendentes',data.stats.pending],['Em Produção',data.stats.production],['Testes',data.stats.tests]];
+      document.getElementById('order-stats-bar').innerHTML=stats.map(([label,value])=>`<a class="order-stat" href="pedidos.html"><span class="order-stat__label">${esc(label)}</span><span class="order-stat__value">${value}</span></a>`).join('');
+      const c=data.catalog;
+      document.getElementById('catalog-bar').innerHTML=[['Produtos',c.products,`${c.active} ativos`],['Ingredientes',c.ingredients,'ativos'],['Fichas',c.sheets,'técnicas'],['Categorias',c.categories,'ativas']].map(([label,value,sub])=>`<div class="catalog-stat"><span class="catalog-stat__label">${esc(label)}</span><span class="catalog-stat__value">${value}</span><span class="catalog-stat__sub">${esc(sub)}</span></div>`).join('');
+      document.getElementById('recent-orders').innerHTML=data.orders.slice(0,8).map(o=>`<a class="order-row" href="pedidos.html"><strong>#${o.order_number}</strong><div class="order-row__info"><div>${esc(o.client_name)}</div><small>${esc(o.summary)}</small><div>${esc(o.status)} · ${esc(o.source)}</div></div><strong>${money(Number(o.total))}</strong></a>`).join('')||'<p>Nenhum pedido registrado.</p>';
+      this._renderTopProducts({products:data.top});
+      this._renderStockAlerts({stock:data.stock.map(i=>({name:i.name,quantity:Number(i.current_stock),min:Math.max(Number(i.minimum_stock),Number(i.average_daily_use)*Number(i.lead_time_days)),unit:i.unit}))});
+      document.getElementById('custo-alerts-panel').hidden=true;
     },
 
     _buildCurrentState(state) {
@@ -259,7 +291,7 @@ const Modules = {
       el.innerHTML = sorted.map((p, i) => `
         <div class="product-rank">
           <span class="product-rank__pos ${i === 0 ? 'top' : ''}">${i + 1}</span>
-          <span class="product-rank__name">${p.name}</span>
+          <span class="product-rank__name">${Utils.escapeHtml(p.name)}</span>
           <span class="product-rank__sold">${p.sold} vendas</span>
         </div>
       `).join('');
@@ -351,7 +383,7 @@ const Modules = {
     },
   },
 
-  'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') CentralIAModule.init(); } },
+  'central-ia': { async init() { if (typeof CentralIAModule !== 'undefined') return CentralIAModule.init(); } },
   financeiro:   { async init() { if (typeof FinanceiroModule   !== 'undefined') return FinanceiroModule.init();   } },
   pedidos:      { async init() { if (typeof PedidosModule      !== 'undefined') return PedidosModule.init(); } },
   producao:     { async init() { if (typeof ProducaoModule     !== 'undefined') return ProducaoModule.init();     } },
@@ -361,11 +393,11 @@ const Modules = {
   estoque:      { async init() { if (typeof EstoqueModule      !== 'undefined') return EstoqueModule.init();      } },
   compras:      { async init() { if (typeof ComprasModule      !== 'undefined') return ComprasModule.init();      } },
   fornecedores: { async init() { if (typeof FornecedoresModule !== 'undefined') return FornecedoresModule.init(); } },
-  marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') MarketingModule.init();    } },
-  documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') DocumentosModule.init();   } },
+  marketing:    { async init() { if (typeof MarketingModule    !== 'undefined') return MarketingModule.init();    } },
+  documentos:   { async init() { if (typeof DocumentosModule   !== 'undefined') return DocumentosModule.init();   } },
   relatorios:   { async init() { if (typeof RelatoriosModule   !== 'undefined') return RelatoriosModule.init();   } },
-  configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') ConfiguracoesModule.init();} },
-  'contabil-fiscal':{ async init() { if (typeof ContabilFiscalModule!== 'undefined') ContabilFiscalModule.init();} },
+  configuracoes:{ async init() { if (typeof ConfiguracoesModule!== 'undefined') return ConfiguracoesModule.init();} },
+  'contabil-fiscal':{ async init() { if (typeof ContabilFiscalModule!== 'undefined') return ContabilFiscalModule.init();} },
 };
 
 /* ── Auto-init via data-page attribute ───────────────────────── */
