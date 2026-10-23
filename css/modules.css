@@ -198,6 +198,42 @@
   height: 24px;
 }
 
+.product-photo-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.product-photo-icon--editor {
+  width: 104px;
+  height: 104px;
+  border-radius: var(--radius-md);
+}
+
+.product-photo-editor__controls {
+  display: grid;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.product-photo-editor__controls small {
+  color: var(--text-muted);
+}
+
+.product-photo-editor__controls button {
+  justify-self: start;
+}
+
+@media (max-width: 520px) {
+  .product-photo-editor {
+    flex-direction: column;
+  }
+}
+
 /* ── Ficha Layout ────────────────────────────────────────────── */
 
 .ficha-layout {
@@ -215,6 +251,8 @@
 .ficha-course-meta input,.ficha-course-meta select { min-width:110px; padding:7px; color:var(--text-primary,#f5f5f5); background:var(--surface,#1b1b1b); border:1px solid var(--border-color,#383838); border-radius:6px; }
 .ficha-course-item-name,.ficha-course-item-note { display:block; width:100%; box-sizing:border-box; margin:3px 0; padding:7px; color:var(--text-primary,#f5f5f5); background:var(--surface,#1b1b1b); border:1px solid var(--border-color,#383838); border-radius:6px; }
 .ficha-course-item-note { color:var(--text-muted); font-size:var(--text-xs); }
+.ficha-course-link { display:block; margin:3px 0; color:var(--text-muted); font-size:var(--text-xs); }
+.ficha-course-link--pending { color:var(--warning,#d99a24); }
 .ficha-table td { vertical-align:middle; }
 .ficha-table td select[data-row-field="ingredientId"],.ficha-table td select[data-row-field="preparationId"] { display:block; width:100%; margin:3px 0; }
 button.ficha-produto-item { width:100%; color:inherit; font:inherit; text-align:left; background:transparent; border-top:0; border-left:0; border-radius:0; }

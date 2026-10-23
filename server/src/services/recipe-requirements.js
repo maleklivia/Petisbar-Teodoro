@@ -1,4 +1,4 @@
-import { convertQuantity } from '../domain/orders.js';
+import {expandProductTechnicalSheet} from './technical-sheet-components.js';
 const invalid=(message='stock_recipe_incomplete')=>Object.assign(new Error(message),{code:message,statusCode:409});
 
 export function stockComponents(item){
@@ -22,38 +22,8 @@ export function stockComponents(item){
 }
 
 export async function recipeRequirements(db,productId,quantity=1){
-  const sheets=await db.query('SELECT id,yield FROM technical_sheets WHERE product_id=$1',[productId]);
-  if(!sheets.rowCount)return null;
-  const result=[];
-  const expand=async(items,factor,path)=>{
-    for(const item of items){
-      if(!(Number(item.quantity)>0))throw invalid();
-      if(item.ingredient_id){
-        const ingredient=await db.query('SELECT id,name,unit,active FROM ingredients WHERE id=$1',[item.ingredient_id]);
-        if(!ingredient.rowCount||!ingredient.rows[0].active)throw invalid();
-        const i=ingredient.rows[0];
-        result.push({ingredient_id:i.id,name:i.name,unit:i.unit,quantity:convertQuantity(Number(item.quantity)*factor,item.unit,i.unit)});
-      }else if(item.preparation_id){
-        if(path.includes(item.preparation_id)||path.length>20)throw invalid('recipe_cycle');
-        const preparation=await db.query("SELECT id,status,output_yield,output_unit FROM recipe_cards WHERE id=$1 AND recipe_type='preparation'",[item.preparation_id]);
-        const p=preparation.rows[0];if(!p||p.status!=='ready'||!(Number(p.output_yield)>0))throw invalid();
-        const children=await db.query('SELECT ingredient_id,preparation_id,quantity,unit FROM recipe_card_items WHERE recipe_id=$1 ORDER BY sort_order',[p.id]);
-        if(!children.rowCount)throw invalid();
-        await expand(children.rows,convertQuantity(Number(item.quantity)*factor,item.unit,p.output_unit)/Number(p.output_yield),[...path,p.id]);
-      }else throw invalid();
-    }
-  };
-  const items=await db.query('SELECT ingredient_id,preparation_id,quantity,unit FROM technical_sheet_items WHERE sheet_id=$1',[sheets.rows[0].id]);
-  if(!items.rowCount)throw invalid();
-  await expand(items.rows,Number(quantity)/Number(sheets.rows[0].yield||1),[]);
-  return result;
-}
-
-export async function recipeCost(db,productId){
-  let requirements;try{requirements=await recipeRequirements(db,productId);}catch{return null;}
-  if(requirements===null){const p=await db.query('SELECT purchase_cost FROM products WHERE id=$1',[productId]);return p.rows[0]?.purchase_cost==null?null:Number(p.rows[0].purchase_cost);}
-  const costs=await db.query('SELECT id,unit_cost FROM ingredients WHERE id=ANY($1::text[])',[[...new Set(requirements.map(i=>i.ingredient_id))]]);
-  const byId=new Map(costs.rows.map(i=>[i.id,Number(i.unit_cost)]));
-  if(requirements.some(i=>!(byId.get(i.ingredient_id)>0)))return null;
-  return requirements.reduce((sum,i)=>sum+i.quantity*byId.get(i.ingredient_id),0);
+  const expanded=await expandProductTechnicalSheet(db,productId,quantity);
+  if(expanded===null)return null;
+  if(expanded.error||!expanded.items.length)throw invalid(expanded.error||'stock_recipe_incomplete');
+  return expanded.items.map(i=>({ingredient_id:i.ingredientId,name:i.name,unit:i.unit,quantity:i.quantity}));
 }

@@ -11,7 +11,14 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
   return {async query(sql,params=[]){
     if(sql.includes('FROM promotions p'))return {rows:promotions};
     if(sql.includes('FROM promotion_groups g'))return {rows:groups};
-    if(sql.includes('LEFT JOIN technical_sheets'))return {rows:costs};
+    if(sql.includes('LEFT JOIN technical_sheets'))return {rows:products.map(product=>{
+      const cost=costs.find(item=>item.id===product.id);
+      return {id:product.id,name:product.name,sale_price:product.sale_price,purchase_cost:cost?.purchase_cost??null,
+        sheet_id:null,sheet_yield:null,ingredient_id:null,preparation_id:null,quantity:null,unit:null,component_name:null};
+    })};
+    if(sql.includes('SELECT id,name,unit,unit_cost,active FROM ingredients'))return {rows:[]};
+    if(sql.includes('FROM recipe_cards ORDER BY id'))return {rows:[]};
+    if(sql.includes('FROM recipe_card_items ri LEFT JOIN ingredients'))return {rows:[]};
     if(sql.includes('SELECT id,name,category,sale_price,current_stock'))return {rows:products.filter(product=>params[0].includes(product.id))};
     if(sql.includes('SELECT id,sale_price,current_stock FROM products'))return {rows:variants.filter(product=>params[0].includes(product.id))};
     if(sql.includes('SELECT p.* FROM promotions p WHERE id=ANY')){

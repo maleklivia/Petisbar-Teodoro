@@ -62,7 +62,7 @@ const EstoqueModule = {
   },
 
   _precisaComprar(item) {
-    return Number(item.estoqueAtual) <= this._pontoPedido(item);
+    return Number(item.estoqueAtual) < this._pontoPedido(item);
   },
 
   _render() {
@@ -145,7 +145,7 @@ const EstoqueModule = {
           const tracked = p.estoqueAtual !== null && p.estoqueAtual !== undefined;
           const qty = tracked ? Number(p.estoqueAtual) : null;
           const critical = tracked && qty <= Number(p.estoqueMinimo || 0);
-          return `<tr class="${critical ? 'row--alert' : ''}"><td style="font-weight:600">${Utils.escapeHtml(p.nome)}<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo || p.sku || '')}</div></td><td style="color:var(--text-muted)">${Utils.escapeHtml(p.categoria)}</td><td style="color:var(--text-muted);font-size:var(--text-sm)">${Utils.escapeHtml(p.descricao || '—')}</td><td style="text-align:right;font-weight:700;color:${critical ? 'var(--color-danger)' : 'var(--text-primary)'}">${tracked ? `${qty} un` : 'Sob demanda'}</td><td>${critical ? '<span class="badge badge-danger">Crítico</span>' : '<span class="badge badge-success">OK</span>'}</td></tr>`;
+          return `<tr class="${critical ? 'row--alert' : ''}"><td style="font-weight:600">${Utils.escapeHtml(p.nome)}<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo || p.sku || '')}</div></td><td style="color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</td><td style="color:var(--text-muted);font-size:var(--text-sm)">${Utils.escapeHtml(p.descricao || '—')}</td><td style="text-align:right;font-weight:700;color:${critical ? 'var(--color-danger)' : 'var(--text-primary)'}">${tracked ? `${qty} un` : 'Sob demanda'}</td><td>${critical ? '<span class="badge badge-danger">Crítico</span>' : '<span class="badge badge-success">OK</span>'}</td></tr>`;
         }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px">Nenhum produto encontrado.</td></tr>'}</tbody>
       </table></div>`;
   },

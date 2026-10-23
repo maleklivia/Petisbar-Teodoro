@@ -84,10 +84,10 @@ const Cardapio = {
     el.classList.remove('hidden');el.innerHTML=available.map(p=>{
       const selected=[...this.combos.values()].filter(combo=>combo.promotion.id===p.id).length,groups=(p.groups||[]).map(group=>`${group.requiredQuantity} ${this.escape(group.name.toLowerCase())}`).join(' + ');
       const comboImages={
-        'COMBO-BATATA-RECHEADA':['./assets/cardapio-cabecalho.webp','Batatas recheadas em cumbucas com bebidas'],
-        'COMBO-CAIPIRINHA-DOBRO':['./assets/products/caipirinha.jpg','Caipirinha'],
-        'COMBO-DUPLA-CERVEJAS':['./assets/products/beer.jpg','Cervejas'],
-        'COMBO-PETISCO-BEBIDA':['./assets/products/petiscos-referencia.jpg','Petiscos'],
+        'COMBO-BATATA-RECHEADA':['./assets/promotions/combo-duas-batatas-refrigerante.jpg','Duas batatas recheadas em cumbucas com refrigerante'],
+        'COMBO-CAIPIRINHA-DOBRO':['./assets/promotions/combo-caipirinha-dobro.jpg','Duas caipirinhas com limão, gelo e morango'],
+        'COMBO-DUPLA-CERVEJAS':['./assets/promotions/combo-dupla-cervejas.jpg','Duas cervejas geladas em copos'],
+        'COMBO-PETISCO-BEBIDA':['./assets/promotions/combo-petisco-bebida.jpg','Petiscos variados acompanhados de refrigerante e água'],
       };
       const visual=comboImages[p.code];
       const image=visual?`<img class="combo-image" src="${visual[0]}" alt="${visual[1]}" loading="lazy">`:'';

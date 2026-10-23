@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { COURSE_POTATO_RECIPES, calculateRecipeCardCosts, seedCoursePotatoRecipes } from '../src/domain/course-potato-recipes.js';
 
 const byCode=code=>COURSE_POTATO_RECIPES.find(recipe=>recipe.code===code);
@@ -50,6 +52,23 @@ test('produto calcula o componente pronto e não soma novamente os ingredientes 
   assert.equal(result.total,2.0625);
 });
 
+test('propaga custo parcial de preparação vinculada sem declarar custo completo',()=>{
+  const ingredients=new Map([['i-meat',{unit:'g',unitCost:.05,active:true}]]);
+  const base={id:'base',code:'BASE',recipeType:'preparation',status:'incomplete',outputYield:1000,items:[
+    {itemName:'Carne',ingredientId:'i-meat',preparationId:null,quantity:1000,unit:'g',isPackaging:false,pendingNote:''},
+    {itemName:'Tempero',ingredientId:null,preparationId:null,quantity:null,unit:null,isPackaging:false,pendingNote:'A gosto.'},
+  ],ingredientsById:ingredients};
+  const stroganoff={id:'stroganoff',code:'PEND-STROG',recipeType:'preparation',status:'draft',outputYield:1200,items:[
+    {itemName:'Iscas prontas',ingredientId:null,preparationId:'base',quantity:1000,unit:'g',isPackaging:false,pendingNote:''},
+  ],ingredientsById:ingredients};
+  const result=calculateRecipeCardCosts([base,stroganoff])[1].cost;
+  assert.equal(result.complete,false);
+  assert.equal(result.total,null);
+  assert.equal(result.partialTotal,50);
+  assert.equal(result.partialUnit,50/1200);
+  assert.ok(result.notes.some(note=>note.includes('Tempero')));
+});
+
 test('transcrição mantém embalagens separadas, capacidade em ml e ingredientes pendentes explícitos',()=>{
   const potato=byCode('BASE-01');
   assert.equal(potato.items.find(item=>item[0]==='Manteiga')[1],100);
@@ -64,11 +83,11 @@ test('transcrição mantém embalagens separadas, capacidade em ml e ingrediente
 });
 
 test('importação pode ser repetida sem duplicar fichas ou componentes',async()=>{
-  const recipes=new Map(),items=new Map();
+  const recipes=new Map(),items=new Map(),inserted=[];
   const client={async query(sql,params=[]){
     if(sql.includes('INSERT INTO recipe_cards')){recipes.set(params[1],params[0]);return {rowCount:1};}
     if(sql.includes('SELECT 1 FROM recipe_card_items WHERE recipe_id=$1 LIMIT 1'))return {rowCount:[...items.values()].some(item=>item.recipeId===params[0])?1:0};
-    if(sql.includes('INSERT INTO recipe_card_items')){items.set(params[0],{recipeId:params[1]});return {rowCount:1};}
+    if(sql.includes('INSERT INTO recipe_card_items')){items.set(params[0],{recipeId:params[1]});inserted.push({sql,params});return {rowCount:1};}
     throw new Error(`Consulta inesperada no teste: ${sql}`);
   }};
   await seedCoursePotatoRecipes(client);
@@ -76,4 +95,15 @@ test('importação pode ser repetida sem duplicar fichas ou componentes',async()
   await seedCoursePotatoRecipes(client);
   assert.equal(recipes.size,19); // 6 bases + 2 bases ainda pendentes + 11 produtos
   assert.equal(items.size,firstItemCount);
+  const chicken=inserted.find(row=>row.params[0]==='course-base-02-item-1');
+  const onion=inserted.find(row=>row.params[0]==='course-base-02-item-2');
+  assert.match(chicken.sql,/lower\(name\)='peito de frango'/);
+  assert.match(onion.sql,/lower\(name\)='cebola'/);
+});
+
+test('migration de vínculos atualiza somente as duas linhas originais e nomes canônicos únicos',()=>{
+  const sql=readFileSync(resolve(import.meta.dirname,'..','..','database','migrations','021_course_recipe_auto_links.sql'),'utf8');
+  assert.match(sql,/course-base-02-item-1[\s\S]*item_name = 'Frango sassami ou filé de peito'[\s\S]*count\(\*\).*peito de frango/i);
+  assert.match(sql,/course-base-02-item-2[\s\S]*item_name = 'Cebola média\/grande'[\s\S]*count\(\*\).*cebola/i);
+  assert.equal((sql.match(/item\.ingredient_id IS NULL/g)||[]).length,2);
 });

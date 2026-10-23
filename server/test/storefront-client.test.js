@@ -49,7 +49,11 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
     : [{ id: 'p-br003', name: 'Nome do ERP', category: 'BATATAS RECHEADAS', description: 'Descrição do ERP', sale_price: 29.9, photo_url: '../assets/products/batatas-recheadas-referencia.jpg', current_stock: 0 }];
   await client.refresh();
   assert.equal(client.apiActive, true);
+  assert.equal(client.categoryLabel('BATATAS RECHEADAS'), 'Batatas Recheadas');
+  assert.equal(client.categoryMatches(client.products[0], 'Batatas Recheadas'), true);
   assert.match(element('catalog').innerHTML, /Nome do ERP/);
+  assert.match(element('catalog').innerHTML, />Batatas Recheadas<\/span>/);
+  assert.doesNotMatch(element('catalog').innerHTML, /BATATAS RECHEADAS/);
   assert.match(element('catalog').innerHTML, /assets\/products\/batatas-recheadas-referencia.jpg/);
   assert.match(element('catalog').innerHTML, /Indisponível/);
   assert.match(element('catalog').innerHTML, /disabled.*aria-label="Adicionar"/);
@@ -143,15 +147,25 @@ test('Caipirinha aparece uma vez e aceita sabores diferentes no mesmo carrinho',
   assert.equal(client.subtotal(), 15.9);
 });
 
-test('destaca o combo de batatas recheadas com foto do cardápio', () => {
+test('exibe uma imagem própria para cada um dos quatro combos', () => {
   const { client, element } = loadClient();
-  client.promotions = [{
-    id: 'combo-batata', code: 'COMBO-BATATA-RECHEADA', rule_type: 'combo',
-    name: 'Combo Duas Batatas Recheadas + Refrigerante', description: 'Duas batatas e refrigerante',
-    combo_price: 57.76, groups: [{ name: 'Batatas recheadas', requiredQuantity: 2 }, { name: 'Refrigerante', requiredQuantity: 1 }],
-  }];
+  const combos = [
+    ['combo-batata', 'COMBO-BATATA-RECHEADA', 'Combo Duas Batatas Recheadas + Refrigerante', 'combo-duas-batatas-refrigerante.jpg', 'Duas batatas recheadas em cumbucas com refrigerante'],
+    ['combo-caipirinha', 'COMBO-CAIPIRINHA-DOBRO', 'Combo Caipirinha em Dobro', 'combo-caipirinha-dobro.jpg', 'Duas caipirinhas com limão, gelo e morango'],
+    ['combo-cerveja', 'COMBO-DUPLA-CERVEJAS', 'Combo Dupla de Cervejas', 'combo-dupla-cervejas.jpg', 'Duas cervejas geladas em copos'],
+    ['combo-petisco', 'COMBO-PETISCO-BEBIDA', 'Combo Petisco + Bebida', 'combo-petisco-bebida.jpg', 'Petiscos variados acompanhados de refrigerante e água'],
+  ];
+  client.promotions = combos.map(([id, code, name]) => ({
+    id, code, rule_type: 'combo', name, description: name,
+    combo_price: 57.76, groups: [{ name: 'Escolha', requiredQuantity: 1 }],
+  }));
   client.renderPromotions();
-  assert.match(element('combo-catalog').innerHTML, /class="combo-image" src="\.\/assets\/cardapio-cabecalho\.webp"/);
-  assert.match(element('combo-catalog').innerHTML, /alt="Batatas recheadas em cumbucas com bebidas"/);
-  assert.match(element('combo-catalog').innerHTML, /Combo Duas Batatas Recheadas \+ Refrigerante/);
+  const html = element('combo-catalog').innerHTML;
+  assert.equal((html.match(/class="combo-image"/g) || []).length, 4);
+  for (const [, , name, file, alt] of combos) {
+    assert.ok(html.includes(`src="./assets/promotions/${file}"`));
+    assert.ok(html.includes(`alt="${alt}"`));
+    assert.ok(html.includes(name));
+  }
+  assert.equal(new Set(combos.map(([, , , file]) => file)).size, 4);
 });

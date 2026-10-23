@@ -1,6 +1,21 @@
 import { z } from 'zod';
-import {createHash} from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { config } from '../config.js';
+import { resolveIfoodPrice } from '../domain/ifood-pricing.js';
 import { requirePermission } from '../middleware/auth.js';
+
+const uploadedPhotoUrl = (productId, version = '') => `/api/v1/public/products/${encodeURIComponent(productId)}/photo${version?`?v=${version}`:''}`;
+
+export function parseProductPhoto(value) {
+  if (typeof value !== 'string' || !value.startsWith('data:')) return { photoUrl: value || null };
+  const match = /^data:image\/jpeg;base64,([a-z0-9+/]+={0,2})$/i.exec(value);
+  if (!match) return { error: 'product_photo_invalid' };
+  const bytes = Buffer.from(match[1], 'base64');
+  if (bytes.length > 1_000_000 || bytes.toString('base64') !== match[1]
+    || bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff
+    || bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) return { error: 'product_photo_invalid' };
+  return { bytes };
+}
 
 const productSchema = z.object({
   id: z.string().min(1).max(100),
@@ -17,7 +32,7 @@ const productSchema = z.object({
   peso:z.number().nonnegative().max(1000000).optional(),
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
-  foto: z.string().max(1400000).nullable().optional(),
+  foto: z.string().max(1_400_000).nullable().optional(),
   optionGroups: z.array(z.object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),
     label: z.string().trim().min(1).max(100),
@@ -57,7 +72,7 @@ const technicalSheetSchema = z.object({
     preparacaoId: z.string().min(1).max(100).nullable().optional(),
     quantidade: z.number().positive(),
     unidade: z.string().min(1).max(20),
-  }).refine(item=>Boolean(item.ingredienteId)!==Boolean(item.preparacaoId),{message:'one_component_required'})).default([]),
+  }).refine(item => Boolean(item.ingredienteId) !== Boolean(item.preparacaoId), { message: 'exactly_one_component_required' })).default([]),
 });
 
 function sheetRows(rows) {
@@ -72,37 +87,28 @@ function sheetRows(rows) {
 }
 
 export default async function catalogRoutes(app) {
-  // Entrega as fotos armazenadas no PostgreSQL para o cardápio público.
   app.get('/public/products/:id/photo', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
     const id = z.string().min(1).max(100).parse(request.params.id);
-    const { rows } = await app.db.query('SELECT image_bytes,sha256 FROM product_photo_assets WHERE product_id=$1', [id]);
-    if (!rows[0]) return reply.code(404).send({ error: 'product_photo_not_found' });
-    const etag = `"${rows[0].sha256}"`;
-    reply.header('Cache-Control', 'public, max-age=300, must-revalidate')
-      .header('ETag', etag)
-      .header('X-Content-Type-Options', 'nosniff')
+    const { rows } = await app.db.query('SELECT image_bytes,sha256 FROM product_photo_assets WHERE product_id=$1',[id]);
+    if(!rows[0])return reply.code(404).send({error:'product_photo_not_found'});
+    const etag=`"${rows[0].sha256}"`;
+    reply.header('Cache-Control','public, max-age=300, must-revalidate')
+      .header('ETag',etag)
+      .header('X-Content-Type-Options','nosniff')
       .type('image/jpeg');
-    if (request.headers['if-none-match'] === etag) return reply.code(304).send();
+    if(request.headers['if-none-match']===etag)return reply.code(304).send();
     return reply.send(rows[0].image_bytes);
   });
+
   app.get('/products', { preHandler: requirePermission('catalog.read') }, async () => {
     const { rows } = await app.db.query('SELECT * FROM products ORDER BY category, name');
     return { data: rows };
   });
 
-  app.post('/products', { preHandler: requirePermission('catalog.write') }, async (request, reply) => {
+  app.post('/products', { bodyLimit: 2 * 1024 * 1024, preHandler: requirePermission('catalog.write') }, async (request, reply) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
     const p = parsed.data;
-    let photoBytes=null,photoHash=null;
-    if(p.foto?.startsWith('data:')){
-      const match=/^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(p.foto);
-      if(match)photoBytes=Buffer.from(match[1],'base64');
-      if(!photoBytes||photoBytes.length<4||photoBytes.length>1000000||photoBytes[0]!==255||photoBytes[1]!==216||photoBytes[2]!==255||photoBytes.at(-2)!==255||photoBytes.at(-1)!==217)
-        return reply.code(400).send({error:'product_photo_invalid'});
-      photoHash=createHash('sha256').update(photoBytes).digest('hex');
-      p.foto=`/api/v1/public/products/${encodeURIComponent(p.id)}/photo?v=${photoHash.slice(0,16)}`;
-    }else if(p.foto&&(p.foto.length>500||!(/^(?:(?:\.\.\/|\/)?assets\/|\/api\/v1\/public\/products\/|https:\/\/)/.test(p.foto))))return reply.code(400).send({error:'product_photo_invalid'});
     if (new Set(p.optionGroups.map(group=>group.key)).size !== p.optionGroups.length || p.optionGroups.some(group=>new Set(group.options.map(option=>option.value)).size!==group.options.length))
       return reply.code(400).send({error:'product_options_ambiguous'});
     for(const group of p.optionGroups){
@@ -111,12 +117,23 @@ export default async function catalogRoutes(app) {
       if(group.options.some(option=>option.stockMode!=='none'&&!option.priceProductId))return reply.code(400).send({error:'product_options_invalid'});
     }
     if(p.optionGroups.filter(group=>group.options.some(option=>option.priceMode==='replace')).length>1)return reply.code(400).send({error:'product_options_ambiguous'});
+    const photoInput=parseProductPhoto(p.foto);
+    if(photoInput.error)return reply.code(400).send({error:photoInput.error});
     const client=await app.db.connect();
     try {
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[p.id]);
     const priceProductIds=[...new Set(p.optionGroups.flatMap(group=>group.options.map(option=>option.priceProductId).filter(Boolean)))];
     const lockedIds=[...new Set([p.id,...priceProductIds])].sort();
     await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[lockedIds]);
+    const existingPrice = await client.query('SELECT sale_price,ifood_price FROM products WHERE id=$1',[p.id]);
+    const existing = existingPrice.rows[0];
+    const ifoodPrice = resolveIfoodPrice({
+      newSalePrice: p.precoVenda,
+      submittedIfoodPrice: p.precoIfood,
+      currentSalePrice: existing?.sale_price,
+      currentIfoodPrice: existing?.ifood_price,
+    }, config.IFOOD_TOTAL_FEE_PERCENT);
     if(priceProductIds.length){const referenced=await client.query('SELECT id FROM products WHERE id=ANY($1::text[]) ORDER BY id',[priceProductIds]);if(referenced.rowCount!==priceProductIds.length){await client.query('ROLLBACK');return reply.code(409).send({error:'product_option_price_product_missing'});}}
     if (!p.ativo) {
       const referenced = await client.query(`SELECT 1 FROM promotions pr WHERE pr.active=true AND (
@@ -128,6 +145,12 @@ export default async function catalogRoutes(app) {
     if (referenced.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({ error: 'product_used_by_active_promotion', details: { promotions: (await app.db.query(`SELECT pr.name FROM promotions pr WHERE pr.active=true AND (EXISTS (SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1) OR EXISTS (SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND g.active=true AND gp.product_id=$1)) ORDER BY pr.name`, [p.id])).rows.map(row=>row.name) } });}
     if (configured.rowCount) {await client.query('ROLLBACK');return reply.code(409).send({error:'product_used_by_product_options',details:{products:(await app.db.query(`SELECT DISTINCT owner.name FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[p.id])).rows.map(row=>row.name)}});}
     }
+    let photoUrl=photoInput.photoUrl;
+    let photoSha256=null;
+    if(photoInput.bytes){
+      photoSha256=createHash('sha256').update(photoInput.bytes).digest('hex');
+      photoUrl=uploadedPhotoUrl(p.id,photoSha256);
+    }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
         preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups,weight_grams)
@@ -137,13 +160,17 @@ export default async function catalogRoutes(app) {
         active=EXCLUDED.active, preparation_minutes=EXCLUDED.preparation_minutes,
         current_stock=EXCLUDED.current_stock, minimum_stock=EXCLUDED.minimum_stock,
         photo_url=EXCLUDED.photo_url, ifood_price=EXCLUDED.ifood_price, ifood_active=EXCLUDED.ifood_active,
-        option_groups=EXCLUDED.option_groups, weight_grams=coalesce($16,products.weight_grams),updated_at=now()
+        option_groups=EXCLUDED.option_groups,weight_grams=coalesce($16,products.weight_grams), updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups),p.peso??null]);
-    if(photoBytes)await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256) VALUES($1,$2,$3)
-      ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,sha256=EXCLUDED.sha256,updated_at=now()`,[p.id,photoBytes,photoHash]);
-    else if(!p.foto)await client.query('DELETE FROM product_photo_assets WHERE product_id=$1',[p.id]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,photoUrl,ifoodPrice,p.ativoIfood,JSON.stringify(p.optionGroups),p.peso??null]);
+    if(photoInput.bytes){
+      await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256)
+        VALUES($1,$2,$3) ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,
+        sha256=EXCLUDED.sha256,updated_at=now()`,[p.id,photoInput.bytes,photoSha256]);
+    } else if(!photoUrl?.startsWith(uploadedPhotoUrl(p.id))) {
+      await client.query('DELETE FROM product_photo_assets WHERE product_id=$1',[p.id]);
+    }
     await client.query('COMMIT');
     return reply.code(201).send({ data: rows[0] });
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -215,13 +242,15 @@ export default async function catalogRoutes(app) {
     const { rows } = await app.db.query(`
       SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
         COALESCE(json_agg(json_build_object(
-          'ingredientId', tsi.ingredient_id,'preparationId',tsi.preparation_id,
+          'ingredientId', tsi.ingredient_id,
+          'preparationId', tsi.preparation_id,
           'quantity', tsi.quantity,
           'unit', tsi.unit
-        ) ORDER BY i.name) FILTER (WHERE tsi.id IS NOT NULL), '[]'::json) AS items
+        ) ORDER BY COALESCE(i.name,rc.code)) FILTER (WHERE tsi.ingredient_id IS NOT NULL OR tsi.preparation_id IS NOT NULL), '[]'::json) AS items
       FROM technical_sheets ts
       LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
       LEFT JOIN ingredients i ON i.id = tsi.ingredient_id
+      LEFT JOIN recipe_cards rc ON rc.id = tsi.preparation_id
       GROUP BY ts.id
       ORDER BY ts.product_id
     `);
@@ -233,14 +262,13 @@ export default async function catalogRoutes(app) {
     const parsed = technicalSheetSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
 
-    const uniqueIngredientIds = new Set();
-    const uniquePreparationIds = new Set();
+    const uniqueComponentIds = new Set();
     for (const item of parsed.data.itens) {
-      if(item.preparacaoId){if(uniquePreparationIds.has(item.preparacaoId))return reply.code(400).send({error:'duplicate_preparation'});uniquePreparationIds.add(item.preparacaoId);continue;}
-      if (uniqueIngredientIds.has(item.ingredienteId)) {
-        return reply.code(400).send({ error: 'duplicate_ingredient' });
+      const componentId = item.ingredienteId ? `ingredient:${item.ingredienteId}` : `preparation:${item.preparacaoId}`;
+      if (uniqueComponentIds.has(componentId)) {
+        return reply.code(400).send({ error: 'duplicate_component' });
       }
-      uniqueIngredientIds.add(item.ingredienteId);
+      uniqueComponentIds.add(componentId);
     }
 
     const client = await app.db.connect();
@@ -252,16 +280,25 @@ export default async function catalogRoutes(app) {
         return reply.code(404).send({ error: 'product_not_found' });
       }
 
-      if (uniqueIngredientIds.size) {
-        const ingredients = await client.query('SELECT id FROM ingredients WHERE id = ANY($1::text[])', [[...uniqueIngredientIds]]);
-        if (ingredients.rowCount !== uniqueIngredientIds.size) {
+      const ingredientIds = [...new Set(parsed.data.itens.map(item => item.ingredienteId).filter(Boolean))];
+      if (ingredientIds.length) {
+        const ingredients = await client.query('SELECT id FROM ingredients WHERE id = ANY($1::text[])', [ingredientIds]);
+        if (ingredients.rowCount !== ingredientIds.length) {
           await client.query('ROLLBACK');
           return reply.code(400).send({ error: 'ingredient_not_found' });
         }
       }
 
+      const preparationIds = [...new Set(parsed.data.itens.map(item => item.preparacaoId).filter(Boolean))];
+      if (preparationIds.length) {
+        const preparations = await client.query("SELECT id FROM recipe_cards WHERE id=ANY($1::text[]) AND recipe_type='preparation'", [preparationIds]);
+        if (preparations.rowCount !== preparationIds.length) {
+          await client.query('ROLLBACK');
+          return reply.code(400).send({ error: 'preparation_not_found' });
+        }
+      }
+
       const sheetId = parsed.data.id || `ts-${productId}`;
-      if(uniquePreparationIds.size){const found=await client.query("SELECT id FROM recipe_cards WHERE id=ANY($1::text[]) AND recipe_type='preparation'",[[...uniquePreparationIds]]);if(found.rowCount!==uniquePreparationIds.size){await client.query('ROLLBACK');return reply.code(400).send({error:'preparation_not_found'});}}
       const sheet = await client.query(`
         INSERT INTO technical_sheets (id, product_id, yield, preparation_method, updated_at)
         VALUES ($1,$2,$3,COALESCE($4::text,''),now())
@@ -273,21 +310,23 @@ export default async function catalogRoutes(app) {
       await client.query('DELETE FROM technical_sheet_items WHERE sheet_id=$1', [sheet.rows[0].id]);
       for (const item of parsed.data.itens) {
         await client.query(`
-          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, quantity, unit,preparation_id)
+          INSERT INTO technical_sheet_items (sheet_id, ingredient_id, preparation_id, quantity, unit)
           VALUES ($1,$2,$3,$4,$5)
-        `, [sheet.rows[0].id, item.ingredienteId||null, item.quantidade, item.unidade,item.preparacaoId||null]);
+        `, [sheet.rows[0].id, item.ingredienteId || null, item.preparacaoId || null, item.quantidade, item.unidade]);
       }
 
       const { rows } = await client.query(`
         SELECT ts.id, ts.product_id, ts.yield, ts.preparation_method, ts.updated_at,
           COALESCE(json_agg(json_build_object(
-            'ingredientId', tsi.ingredient_id,'preparationId',tsi.preparation_id,
+            'ingredientId', tsi.ingredient_id,
+            'preparationId', tsi.preparation_id,
             'quantity', tsi.quantity,
             'unit', tsi.unit
-          ) ORDER BY i.name) FILTER (WHERE tsi.id IS NOT NULL), '[]'::json) AS items
+          ) ORDER BY COALESCE(i.name,rc.code)) FILTER (WHERE tsi.ingredient_id IS NOT NULL OR tsi.preparation_id IS NOT NULL), '[]'::json) AS items
         FROM technical_sheets ts
         LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id = ts.id
         LEFT JOIN ingredients i ON i.id = tsi.ingredient_id
+        LEFT JOIN recipe_cards rc ON rc.id = tsi.preparation_id
         WHERE ts.product_id=$1
         GROUP BY ts.id
       `, [productId]);

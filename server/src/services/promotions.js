@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { priceOrderItems, roundMoney } from './order-pricing.js';
-import {recipeCost} from './recipe-requirements.js';
+import { calculateTechnicalSheetCost } from '../domain/technical-sheet-costs.js';
+import { loadCourseRecipeCosts } from './course-recipe-costs.js';
 
 const activeNow = "p.active=true AND (p.starts_at IS NULL OR p.starts_at<=now()) AND (p.ends_at IS NULL OR p.ends_at>=now())";
 const money = value => roundMoney(Number(value || 0));
@@ -35,17 +36,25 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
       allowedOptions: group.allowed_options, products: group.products });
     groupsByPromotion.set(group.promotion_id, list);
   }
-  const costs = await db.query(`
-    SELECT p.id,p.name,p.purchase_cost,p.sale_price,(ts.id IS NOT NULL) AS has_sheet,ts.product_id,ts.yield,COUNT(tsi.ingredient_id)::int AS ingredient_count,
-      COUNT(*) FILTER (WHERE i.id IS NULL OR i.active=false OR i.unit<>tsi.unit OR i.unit_cost IS NULL OR i.unit_cost<=0)::int AS incomplete_count,
-      COALESCE(SUM(tsi.quantity/NULLIF(ts.yield,0)*i.unit_cost),0) AS recipe_cost
+  const [costs,ingredients,preparationCosts] = await Promise.all([db.query(`
+    SELECT p.id,p.name,p.purchase_cost,p.sale_price,ts.id AS sheet_id,ts.yield AS sheet_yield,
+      tsi.ingredient_id,tsi.preparation_id,tsi.quantity,tsi.unit,COALESCE(i.name,rc.name) AS component_name
     FROM products p LEFT JOIN technical_sheets ts ON ts.product_id=p.id
     LEFT JOIN technical_sheet_items tsi ON tsi.sheet_id=ts.id
     LEFT JOIN ingredients i ON i.id=tsi.ingredient_id
-    GROUP BY p.id,ts.id,ts.product_id,ts.yield
-  `);
-  for(const row of costs.rows)if(row.has_sheet){const cost=await recipeCost(db,row.id);row.recipe_cost=cost;row.incomplete_count=cost===null?1:0;row.ingredient_count=1;}
-  const costById = new Map(costs.rows.map(row => [row.id, row]));
+    LEFT JOIN recipe_cards rc ON rc.id=tsi.preparation_id ORDER BY p.id,COALESCE(i.name,rc.name)
+  `),db.query('SELECT id,name,unit,unit_cost,active FROM ingredients ORDER BY id'),loadCourseRecipeCosts(db)]);
+  const groupedCosts=new Map();
+  for(const row of costs.rows){
+    let product=groupedCosts.get(row.id);
+    if(!product){product={id:row.id,name:row.name,purchase_cost:row.purchase_cost,sale_price:row.sale_price,has_sheet:Boolean(row.sheet_id),sheetYield:row.sheet_yield,items:[]};groupedCosts.set(row.id,product);}
+    if(row.ingredient_id||row.preparation_id)product.items.push({ingredientId:row.ingredient_id,preparationId:row.preparation_id,quantity:Number(row.quantity),unit:row.unit,name:row.component_name});
+  }
+  const ingredientMap=new Map(ingredients.rows.map(row=>[row.id,{id:row.id,name:row.name,unit:row.unit,unitCost:row.unit_cost===null?null:Number(row.unit_cost),active:Boolean(row.active)}]));
+  const costById=new Map([...groupedCosts.values()].map(product=>{
+    const calculated=product.has_sheet?calculateTechnicalSheetCost({sheet:{yield:product.sheetYield},items:product.items,ingredients:ingredientMap,preparations:preparationCosts}):null;
+    return [product.id,{...product,ingredient_count:product.items.length,incomplete_count:calculated&&!calculated.complete?1:0,recipe_cost:calculated?.total??null,costComplete:calculated?.complete??product.purchase_cost!==null}];
+  }));
   const optionVariants = {
     'p-drk001': { flavor: { morango: 'p-drk002', maracuja: 'p-drk003' } },
     'p-pet001': { size: { G: 'p-pet006' } },
@@ -78,13 +87,13 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
     const missingCosts = [...new Set([...uniqueRefs, ...variantRefs])].filter(id => {
       const row = costById.get(id);
       if (!row) return true;
-      if (row.has_sheet) return Number(row.ingredient_count) === 0 || Number(row.incomplete_count) > 0;
+      if (row.has_sheet) return !row.costComplete;
       return row.purchase_cost === null;
     });
     const productCost = id => {
       const row = costById.get(id);
       if (!row) return null;
-      if (row.has_sheet) return Number(row.ingredient_count) === 0 || Number(row.incomplete_count) ? null : Number(row.recipe_cost);
+      if (row.has_sheet) return row.costComplete ? Number(row.recipe_cost) : null;
       return row.purchase_cost === null ? null : Number(row.purchase_cost);
     };
     const costsComplete = missingCosts.length === 0 && uniqueRefs.length > 0;
@@ -262,10 +271,11 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       if (lineIndexes.some(index=>used.has(index))) { rejected.push({ promotionId:promo.id,code:promo.code,reason:'priority_conflict' }); continue; }
       const normal = money(lineIndexes.reduce((sum,index)=>sum+items[index].listSubtotal,0));
       const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
-      // A promoção nunca pode deixar o combo mais caro que os mesmos itens avulsos.
-      // Isso também protege combinações com produtos abaixo do preço de referência:
-      // nesses casos o cliente paga o preço normal, sem desconto, mas o pedido segue.
-      const total = money(Math.min(Number(promo.combo_price) + selectedSurcharges, normal));
+      const total = Math.min(normal,money(Number(promo.combo_price) + selectedSurcharges));
+      if (total > normal) {
+        rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
+        return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };
+      }
       const appId = randomUUID();
       const alloc = allocateDiscount(items,lineIndexes,money(normal-total));
       for (const index of lineIndexes) { used.add(index); items[index].promotionId=promo.id; items[index].promotionApplicationId=appId; }

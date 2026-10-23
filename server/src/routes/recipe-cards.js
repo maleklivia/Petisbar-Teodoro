@@ -1,5 +1,6 @@
 import { requirePermission } from '../middleware/auth.js';
 import { calculateRecipeCardCosts } from '../domain/course-potato-recipes.js';
+import { resolveRecipeComponentLink } from '../domain/recipe-card-linking.js';
 import { z } from 'zod';
 
 const itemSchema=z.object({
@@ -38,7 +39,7 @@ export default async function recipeCardRoutes(app) {
       app.db.query(`
         SELECT ri.id,ri.recipe_id,ri.sort_order,ri.item_name,ri.ingredient_id,ri.preparation_id,
           ri.quantity,ri.unit,ri.is_packaging,ri.pending_note,
-          i.name AS ingredient_name,i.unit AS ingredient_unit,i.unit_cost AS ingredient_unit_cost,
+          i.name AS ingredient_name,i.unit AS ingredient_unit,i.unit_cost AS ingredient_unit_cost,i.active AS ingredient_active,
           p.name AS preparation_name
         FROM recipe_card_items ri
         LEFT JOIN ingredients i ON i.id=ri.ingredient_id
@@ -61,7 +62,7 @@ export default async function recipeCardRoutes(app) {
     const byId=new Map(cards.map(card=>[card.id,card]));
     for(const row of itemsResult.rows){
       const card=byId.get(row.recipe_id);if(!card)continue;
-      if(row.ingredient_id)ingredientsById.set(row.ingredient_id,{id:row.ingredient_id,name:row.ingredient_name,unit:row.ingredient_unit,unitCost:Number(row.ingredient_unit_cost||0)});
+      if(row.ingredient_id)ingredientsById.set(row.ingredient_id,{id:row.ingredient_id,name:row.ingredient_name,unit:row.ingredient_unit,unitCost:Number(row.ingredient_unit_cost||0),active:Boolean(row.ingredient_active)});
       card.items.push({
         id:row.id,itemName:row.item_name,ingredientId:row.ingredient_id,preparationId:row.preparation_id,
         preparationName:row.preparation_name,quantity:row.quantity===null?null:Number(row.quantity),unit:row.unit,
@@ -123,10 +124,23 @@ export default async function recipeCardRoutes(app) {
       for(let index=0;index<card.items.length;index++){
         const item=card.items[index];
         const itemId=item.id||`${id}-item-edit-${Date.now()}-${index}`;
+        let ingredientId=item.ingredientId||null;
+        let preparationId=item.preparationId||null;
+        let isPackaging=item.isPackaging;
+        if(!ingredientId&&!preparationId){
+          const [ingredients,preparations]=await Promise.all([
+            client.query('SELECT id,name,category FROM ingredients WHERE lower(btrim(name))=lower(btrim($1)) AND active=true',[item.itemName]),
+            client.query("SELECT id,name FROM recipe_cards WHERE recipe_type='preparation' AND lower(btrim(name))=lower(btrim($1))",[item.itemName]),
+          ]);
+          const linked=resolveRecipeComponentLink(item,{ingredients:ingredients.rows,preparations:preparations.rows});
+          ingredientId=linked.ingredientId||null;
+          preparationId=linked.preparationId||null;
+          isPackaging=linked.isPackaging;
+        }
         await client.query(`
           INSERT INTO recipe_card_items(id,recipe_id,sort_order,item_name,ingredient_id,preparation_id,quantity,unit,is_packaging,pending_note)
           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        `,[itemId,id,index+1,item.itemName,item.ingredientId||null,item.preparationId||null,item.quantity,item.unit||null,item.isPackaging,item.pendingNote]);
+        `,[itemId,id,index+1,item.itemName,ingredientId,preparationId,item.quantity,item.unit||null,isPackaging,item.pendingNote]);
       }
       await client.query('COMMIT');
       return {data:{id:updated.rows[0].id,updated:true}};
