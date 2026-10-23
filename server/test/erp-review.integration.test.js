@@ -148,7 +148,9 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       const cart={items:[],combos:[{promotionId:promo.id,selections}]};
       const quote=(await call('POST','/public/pricing/quote',cart,false)).data;
       assert.equal(quote.totalAfterPromotions,Math.round((quote.subtotalNormal-Math.round((quote.subtotalNormal*.05+Number.EPSILON)*100)/100+Number.EPSILON)*100)/100);
-      const potatoGroup=promo.groups.find(g=>g.code==='batata'),sodaGroup=promo.groups.find(g=>g.code==='refrigerante');
+      const sodaGroup=promo.groups.find(g=>g.products.some(p=>p.id==='p-ref001'));
+      assert.ok(sodaGroup);const potatoGroups=promo.groups.filter(g=>g.id!==sodaGroup.id);assert.equal(potatoGroups.length,1);
+      const potatoGroup=potatoGroups[0];
       for(const potato of potatoGroup.products.filter(p=>p.active))for(const sodaFlavor of ['coca-cola','guarana','sprite']){
         const choices=[{groupId:potatoGroup.id,items:[{productId:potato.id,quantity:2,options:{}}]},
           {groupId:sodaGroup.id,items:[{productId:'p-ref001',quantity:1,options:{sodaFlavor}}]}];
