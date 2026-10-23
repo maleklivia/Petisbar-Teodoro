@@ -74,6 +74,10 @@ Referências oficiais consultadas:
 
 ## Publicação e rollback
 
+PR 117 mesclado em `9000517` após CI aprovada. **Publicação não concluída.** A preservação do runtime como commit pelo usuário petisbar falhou porque `.git/COMMIT_EDITMSG` pertence a `root:root` (644). O índice ficou com os onze arquivos conhecidos preparados para o snapshot; o HEAD continuou em `f0a1900`, na branch de preservação. Backups anteriores continuam disponíveis. A restrição não foi contornada nem foram mudadas permissões.
+
+Execução de deploy `39891046450` falhou antes de conectar: destino/usuário VPS não estavam disponíveis no ambiente do GitHub; o shell também informou terminador de heredoc ausente no workflow. Não foi atualização parcial da aplicação. Conferência posterior: HEAD original, arquivos originais e serviço ativo. Retomar somente após decisão explícita sobre a propriedade dos metadados do Git e o canal de publicação. Ainda faltam migrações 026/027 e validação da instalação publicada. O workflow também precisa corrigir o terminador e validar configurações obrigatórias antes do SSH; não copiar credenciais para contornar sua ausência.
+
 Registrar SHA, migração, serviço, health, logs, autorização e interface efetiva. CI verde não substitui isso. Antes da troca de checkout, preservar runtime modificado em snapshot recuperável. Em falha, voltar ao snapshot exato e reiniciar; não restaurar banco indiscriminadamente sobre novas movimentações.
 
 Harness e túnel são temporários. Bases de homologação e backups protegidos não são segunda produção.
