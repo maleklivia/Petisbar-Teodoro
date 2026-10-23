@@ -19,7 +19,7 @@ function smtpCommand(socket, command, expected = /^2/) {
   });
 }
 
-async function sendViaGmail({ email, code, host, port, user, password, from }) {
+async function sendViaGmail({ email, subject, text, host, port, user, password, from }) {
   const socket = tls.connect({ host, port, servername: host });
   await new Promise((resolve, reject) => { socket.once('secureConnect', resolve); socket.once('error', reject); });
   await new Promise((resolve, reject) => { const onData = chunk => { const text = chunk.toString(); if (/^220[ -]/m.test(text)) { socket.off('data', onData); resolve(); } }; socket.on('data', onData); socket.once('error', reject); });
@@ -30,9 +30,17 @@ async function sendViaGmail({ email, code, host, port, user, password, from }) {
   await smtpCommand(socket, `MAIL FROM:<${from}>`, /^2/);
   await smtpCommand(socket, `RCPT TO:<${email}>`, /^2/);
   await smtpCommand(socket, 'DATA', /^3/);
-  await smtpCommand(socket, `From: Petisbar Teodoro <${from}>\r\nTo: ${email}\r\nSubject: Seu código de acesso ao Petisbar\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nSeu código de acesso é ${code}. Ele expira em 10 minutos. Se você não solicitou este código, ignore esta mensagem.\r\n.`, /^2/);
+  await smtpCommand(socket, `From: Petisbar Teodoro <${from}>\r\nTo: ${email}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n.`, /^2/);
   await smtpCommand(socket, 'QUIT', /^2/).catch(() => {});
   socket.end();
+}
+
+export async function sendCustomerEmail({ email, subject, text }) {
+  const user = process.env.MAIL_USER || config.MAIL_USER;
+  const password = process.env.MAIL_PASSWORD || config.MAIL_PASSWORD;
+  if (!user || !password) return { sent: false, reason: 'email_provider_not_configured' };
+  await sendViaGmail({ email, subject, text, host: process.env.MAIL_HOST || config.MAIL_HOST, port: Number(process.env.MAIL_PORT || config.MAIL_PORT), user, password, from: process.env.MAIL_FROM || config.MAIL_FROM });
+  return { sent: true, provider: 'gmail' };
 }
 
 export async function sendCustomerLoginCode({ email, code }) {
@@ -40,7 +48,7 @@ export async function sendCustomerLoginCode({ email, code }) {
   const mailUser = process.env.MAIL_USER || config.MAIL_USER;
   const mailPassword = process.env.MAIL_PASSWORD || config.MAIL_PASSWORD;
   if (mailUser && mailPassword) {
-    await sendViaGmail({ email, code, host: process.env.MAIL_HOST || config.MAIL_HOST, port: Number(process.env.MAIL_PORT || config.MAIL_PORT), user: mailUser, password: mailPassword, from: process.env.MAIL_FROM || config.MAIL_FROM });
+    await sendViaGmail({ email, subject: 'Seu código de acesso ao Petisbar', text: `Seu código de acesso é ${code}. Ele expira em 10 minutos. Se você não solicitou este código, ignore esta mensagem.`, host: process.env.MAIL_HOST || config.MAIL_HOST, port: Number(process.env.MAIL_PORT || config.MAIL_PORT), user: mailUser, password: mailPassword, from: process.env.MAIL_FROM || config.MAIL_FROM });
     return { sent: true, provider: 'gmail' };
   }
   const from = process.env.MAIL_FROM || config.MAIL_FROM;
