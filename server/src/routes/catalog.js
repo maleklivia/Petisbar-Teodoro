@@ -14,6 +14,7 @@ const productSchema = z.object({
   custoCompra: z.number().nonnegative().nullable().optional(),
   ativo: z.boolean().default(true),
   tempoPreparo: z.number().int().nonnegative().default(0),
+  peso:z.number().nonnegative().max(1000000).optional(),
   estoqueAtual: z.number().nonnegative().nullable().optional(),
   estoqueMinimo: z.number().nonnegative().nullable().optional(),
   foto: z.string().max(1400000).nullable().optional(),
@@ -129,17 +130,17 @@ export default async function catalogRoutes(app) {
     }
     const { rows } = await client.query(`
       INSERT INTO products (id, sku, name, category, description, sale_price, purchase_cost, active,
-        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        preparation_minutes, current_stock, minimum_stock, photo_url, ifood_price, ifood_active, option_groups,weight_grams)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET sku=EXCLUDED.sku, name=EXCLUDED.name, category=EXCLUDED.category,
         description=EXCLUDED.description, sale_price=EXCLUDED.sale_price, purchase_cost=EXCLUDED.purchase_cost,
         active=EXCLUDED.active, preparation_minutes=EXCLUDED.preparation_minutes,
         current_stock=EXCLUDED.current_stock, minimum_stock=EXCLUDED.minimum_stock,
         photo_url=EXCLUDED.photo_url, ifood_price=EXCLUDED.ifood_price, ifood_active=EXCLUDED.ifood_active,
-        option_groups=EXCLUDED.option_groups, updated_at=now()
+        option_groups=EXCLUDED.option_groups, weight_grams=coalesce($16,products.weight_grams),updated_at=now()
       RETURNING *
     `, [p.id,p.sku||null,p.nome,p.categoria,p.descricao,p.precoVenda,p.custoCompra??null,p.ativo,
-      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups)]);
+      p.tempoPreparo,p.estoqueAtual??null,p.estoqueMinimo??null,p.foto??null,p.precoIfood??null,p.ativoIfood,JSON.stringify(p.optionGroups),p.peso??null]);
     if(photoBytes)await client.query(`INSERT INTO product_photo_assets(product_id,image_bytes,sha256) VALUES($1,$2,$3)
       ON CONFLICT(product_id) DO UPDATE SET image_bytes=EXCLUDED.image_bytes,sha256=EXCLUDED.sha256,updated_at=now()`,[p.id,photoBytes,photoHash]);
     else if(!p.foto)await client.query('DELETE FROM product_photo_assets WHERE product_id=$1',[p.id]);

@@ -80,14 +80,13 @@ const Modules = {
     _renderServer(data) {
       const esc=Utils.escapeHtml, money=Utils.currency;
       const today=Utils.today(), month=Utils.currentMonth();
-      const realOrders=data.orders.filter(o=>!String(o.source).includes('(Teste)'));
-      const monthly=realOrders.filter(o=>o.created_at.slice(0,7)===month);
+      const monthly=Number(data.stats.monthly);
       const f=data.finance;
-      const cards=[['Faturamento',f?money(f.revenue):'Sem acesso','este mês'],['Lucro Est.',f?money(f.profit):'Sem acesso','entradas menos saídas'],
-        ['Pedidos',monthly.length,'reais neste mês'],['Ticket Médio',f?money(monthly.length?f.revenue/monthly.length:0):'Sem acesso','pedidos reais'],
+      const cards=[['Faturamento',f?money(f.revenue):'Sem acesso','vendas concluídas no mês'],['Resultado registrado',f?money(f.profit):'Sem acesso','movimentos financeiros; não é DRE'],
+        ['Pedidos',monthly,'reais concluídos no mês'],['Ticket Médio',f?money(monthly?f.revenue/monthly:0):'Sem acesso','vendas concluídas'],
         ['CMV',f?`${f.revenue?Math.round(f.cmv/f.revenue*100):0}%`:'Sem acesso','este mês'],['Estoque Baixo',data.stock.length,'itens no ponto de reposição']];
       document.getElementById('kpi-row').innerHTML=cards.map(([label,value,sub])=>`<article class="kpi-card"><span class="kpi-card__label">${esc(label)}</span><strong class="kpi-card__value">${esc(value)}</strong><small class="kpi-card__sub">${esc(sub)}</small></article>`).join('');
-      const stats=[['Pedidos Hoje',data.orders.filter(o=>o.created_at.slice(0,10)===today).length],['Pendentes',data.orders.filter(o=>['Novo','Aguardando Pagamento','Pago','Confirmado'].includes(o.status)).length],['Em Produção',data.orders.filter(o=>o.status==='Em Produção').length],['Testes',data.orders.filter(o=>String(o.source).includes('(Teste)')).length]];
+      const stats=[['Pedidos Hoje',data.stats.today],['Pendentes',data.stats.pending],['Em Produção',data.stats.production],['Testes',data.stats.tests]];
       document.getElementById('order-stats-bar').innerHTML=stats.map(([label,value])=>`<a class="order-stat" href="pedidos.html"><span class="order-stat__label">${esc(label)}</span><span class="order-stat__value">${value}</span></a>`).join('');
       const c=data.catalog;
       document.getElementById('catalog-bar').innerHTML=[['Produtos',c.products,`${c.active} ativos`],['Ingredientes',c.ingredients,'ativos'],['Fichas',c.sheets,'técnicas'],['Categorias',c.categories,'ativas']].map(([label,value,sub])=>`<div class="catalog-stat"><span class="catalog-stat__label">${esc(label)}</span><span class="catalog-stat__value">${value}</span><span class="catalog-stat__sub">${esc(sub)}</span></div>`).join('');

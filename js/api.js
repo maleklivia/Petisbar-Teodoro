@@ -146,7 +146,7 @@ const API = {
   async saveServerProduct(product) {
     return this._mapServerProduct((await this._request('/products', {
       method: 'POST',
-      body: JSON.stringify(product),
+      body: JSON.stringify({...product,sku:product.codigo??product.sku}),
     })).data);
   },
 
@@ -329,11 +329,12 @@ const API = {
       custoCompra: product.purchase_cost === null || product.purchase_cost === undefined ? null : Number(product.purchase_cost),
       ativo: Boolean(product.active),
       tempoPreparo: Number(product.preparation_minutes || 0),
+      peso:product.weight_grams==null?null:Number(product.weight_grams),
       estoqueAtual: product.current_stock === null || product.current_stock === undefined ? null : Number(product.current_stock),
       estoqueMinimo: product.minimum_stock === null || product.minimum_stock === undefined ? null : Number(product.minimum_stock),
       foto: product.photo_url || '',
       optionGroups: Array.isArray(product.option_groups) ? product.option_groups : [],
-      dataCadastro: product.created_at,
+      dataCadastro: String(product.created_at||'').slice(0,10),
       dataAtualizacao: product.updated_at,
     };
   },

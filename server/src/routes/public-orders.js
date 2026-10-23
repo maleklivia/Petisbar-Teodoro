@@ -49,7 +49,7 @@ async function couponEligibility(db, coupon, phone) {
   const used = await db.query('SELECT 1 FROM coupon_redemptions WHERE coupon_id=$1 AND phone_normalized=$2', [coupon.id, phone]);
   if (used.rowCount) return 'coupon_already_used';
   if (coupon.first_order_only) {
-    const previous = await db.query("SELECT 1 FROM orders WHERE right(regexp_replace(coalesce(customer_phone,''),'\\D','','g'),11)=$1 AND source NOT LIKE '%(Teste)' AND notes NOT LIKE '[TESTE SEM ESTOQUE]%' LIMIT 1", [phone]);
+    const previous = await db.query("SELECT 1 FROM orders WHERE right(regexp_replace(coalesce(customer_phone,''),'\\D','','g'),11)=$1 AND source NOT LIKE '%(Teste)' LIMIT 1", [phone]);
     if (previous.rowCount) return 'first_order_only';
   }
   return '';
@@ -190,7 +190,7 @@ export default async function publicOrderRoutes(app) {
       const rawNotes=input.tableNumber?`Mesa ${input.tableNumber}${input.notes?` — ${input.notes}`:''}`:input.notes;
       const notes=testStockMode?`[TESTE SEM ESTOQUE] ${rawNotes}`.trim():rawNotes;
       const initialStatus=input.paymentMethod==='Pix'?'Aguardando Pagamento':'Em Produção';
-      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code,customer_account_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",[id,orderNumber,source,input.customer.name,input.customer.phone,initialStatus,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null,request.customer?.id||null]);
+      await client.query("INSERT INTO orders (id,order_number,source,client_name,customer_phone,status,subtotal,delivery_fee,discount,total,payment_method,notes,fulfillment_type,delivery_address,promotion_discount,coupon_discount,coupon_code,customer_account_id,table_number,client_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)",[id,orderNumber,source,input.customer.name,input.customer.phone,initialStatus,priced.subtotal,deliveryFee,discount,total,input.paymentMethod,notes,input.fulfillmentType,input.address,priced.promotionDiscount,couponDiscount,coupon?.code||null,request.customer?.id||null,input.tableNumber||null,request.customer?.client_id||null]);
       const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items,allowWithoutStock:testStockMode});
       if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}
       for(const application of priced.promotions){

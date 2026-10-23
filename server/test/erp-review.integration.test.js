@@ -45,9 +45,10 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       await call('POST','/products',{id:variant,nome:tag+' variante',categoria:'Teste',precoVenda:15,estoqueAtual:10},true,201);
       const groups=[{key:'sabor',label:'Sabor',type:'radio',required:true,options:[{value:'tradicional',label:'Tradicional',priceMode:'replace',stockMode:'replace',priceProductId:variant}]}];
       const bytes=await readFile(new URL('../../assets/products/soda.jpg',import.meta.url));
-      const payload={id:owner,nome:tag+' com foto',categoria:'Teste',precoVenda:10,optionGroups:groups,foto:'data:image/jpeg;base64,'+bytes.toString('base64')};
+      const payload={id:owner,sku:tag,nome:tag+' com foto',categoria:'Teste',precoVenda:10,peso:400,optionGroups:groups,foto:'data:image/jpeg;base64,'+bytes.toString('base64')};
       const saved=(await call('POST','/products',payload,true,201)).data;
       assert.deepEqual(saved.option_groups,groups);assert.match(saved.photo_url,/^\/api\/v1\/public\/products\//);
+      assert.equal(Number(saved.weight_grams),400);assert.equal(saved.sku,tag);
       const photo=await app.inject({method:'GET',url:saved.photo_url});assert.equal(photo.statusCode,200);assert.deepEqual(photo.rawPayload,bytes);
       const cached=await app.inject({method:'GET',url:saved.photo_url,headers:{'if-none-match':photo.headers.etag}});assert.equal(cached.statusCode,304);
       await call('POST','/products',{id:variant,nome:tag,categoria:'Teste',precoVenda:15,ativo:false},true,409);
@@ -75,7 +76,7 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
     await call('PUT','/settings',{'storefront.isOpen':true,'storefront.hours':'Segunda à Domingo - 00h até 23h','storefront.minimumOrder':1,'storefront.allowOrdersWithoutStockForTesting':false});
     let order;
     await t.test('pedido público, repetição concorrente, produção, retirada e estorno',async()=>{
-      const payload=publicOrder();const orders=await Promise.all([call('POST','/public/orders',payload,false,201),call('POST','/public/orders',payload,false,201)]);assert.equal(orders[0].data.id,orders[1].data.id);order=orders[0].data;
+      const payload={...publicOrder(),notes:'[TESTE SEM ESTOQUE] texto do cliente'};const orders=await Promise.all([call('POST','/public/orders',payload,false,201),call('POST','/public/orders',payload,false,201)]);assert.equal(orders[0].data.id,orders[1].data.id);order=orders[0].data;
       assert.equal(order.status,'Em Produção');
       await call('PATCH',`/orders/${order.id}/status`,{status:'Pronto'});
       // Altering a recipe after acceptance must not change the reservation snapshot.
@@ -143,7 +144,7 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       const challenge=(await q("INSERT INTO customer_login_challenges(customer_account_id,code_hash,expires_at) VALUES($1,$2,now()+interval '10 minutes') RETURNING id",[ca.id,hash])).rows[0];
       for(let n=0;n<5;n++)await call('POST','/customer/auth/verify',{email,code:'000000'},false,401);
       await call('POST','/customer/auth/verify',{email,code:'123456'},false,401);
-      assert.equal(Number((await q('SELECT attempts FROM customer_login_challenges WHERE id=$1',[challenge.id])).rows[0].attempts),6);
+      assert.equal(Number((await q('SELECT attempts FROM customer_login_challenges WHERE id=$1',[challenge.id])).rows[0].attempts),5);
       assert.equal((await q('SELECT 1 FROM customer_sessions WHERE customer_account_id=$1',[ca.id])).rowCount,0);
     });
     await t.test('usuário sem privilégios não lê financeiro nem altera cadastros',async()=>{

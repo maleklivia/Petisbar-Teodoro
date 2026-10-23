@@ -8,7 +8,7 @@ export default async function operationsRoutes(app){
   const expected=async(c,s)=>{
     const sales=await c.query(`SELECT coalesce(sum(total),0) amount FROM orders WHERE payment_method='Dinheiro'
       AND status IN ('Entregue','Concluído') AND effects_applied_at >= $1 AND effects_reversed_at IS NULL
-      AND coalesce(source,'') NOT LIKE '%(Teste)' AND coalesce(notes,'') NOT LIKE '[TESTE SEM ESTOQUE]%'`,[s.opened_at]);
+      AND coalesce(source,'') NOT LIKE '%(Teste)'`,[s.opened_at]);
     const moves=await c.query("SELECT coalesce(sum(CASE WHEN movement_type='entrada' THEN amount ELSE -amount END),0) amount FROM cash_movements WHERE session_id=$1",[s.id]);
     return Math.round((Number(s.opening_amount)+Number(sales.rows[0].amount)+Number(moves.rows[0].amount))*100)/100;
   };

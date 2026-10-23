@@ -38,7 +38,7 @@ export async function buildApp() {
   const app = Fastify({ bodyLimit: 10 * 1024 * 1024, logger: { redact: ['req.headers.authorization', 'req.headers.cookie'] }, trustProxy: true });
   app.decorate('db', db);
   app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
+    request.log.error({code:error.code||'internal_error',name:error.name},'Falha ao processar solicitação');
     if(error.name==='ZodError')return reply.code(400).send({error:'validation_error'});
     if(error.code==='23503')return reply.code(409).send({error:'record_in_use'});
     if(error.code==='23505')return reply.code(409).send({error:'record_already_exists'});

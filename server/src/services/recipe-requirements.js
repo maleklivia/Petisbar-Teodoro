@@ -48,3 +48,12 @@ export async function recipeRequirements(db,productId,quantity=1){
   await expand(items.rows,Number(quantity)/Number(sheets.rows[0].yield||1),[]);
   return result;
 }
+
+export async function recipeCost(db,productId){
+  let requirements;try{requirements=await recipeRequirements(db,productId);}catch{return null;}
+  if(requirements===null){const p=await db.query('SELECT purchase_cost FROM products WHERE id=$1',[productId]);return p.rows[0]?.purchase_cost==null?null:Number(p.rows[0].purchase_cost);}
+  const costs=await db.query('SELECT id,unit_cost FROM ingredients WHERE id=ANY($1::text[])',[[...new Set(requirements.map(i=>i.ingredient_id))]]);
+  const byId=new Map(costs.rows.map(i=>[i.id,Number(i.unit_cost)]));
+  if(requirements.some(i=>!(byId.get(i.ingredient_id)>0)))return null;
+  return requirements.reduce((sum,i)=>sum+i.quantity*byId.get(i.ingredient_id),0);
+}

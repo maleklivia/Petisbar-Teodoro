@@ -46,6 +46,9 @@ const ProdutosModule = {
       FichasModule.preload();
     }
     this._bindTabs();
+    const categories=[...new Set([...CATEGORIAS_PRODUTO,...this._items.map(p=>p.categoria)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const filter=document.getElementById('cardapio-categoria');
+    if(filter)filter.innerHTML='<option value="">Todas categorias</option>'+categories.map(c=>`<option value="${Utils.escapeHtml(c)}">${Utils.escapeHtml(c)}</option>`).join('');
     this._switchTab('cardapio');
   },
 
@@ -218,7 +221,7 @@ const ProdutosModule = {
     this._photoDraft = null;
     this._photoRemove = false;
 
-    const catOptions = CATEGORIAS_PRODUTO.map(c =>
+    const catOptions = [...new Set([...CATEGORIAS_PRODUTO,...this._items.map(p=>p.categoria),...(item?.categoria?[item.categoria]:[])])].map(c =>
       `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${Utils.escapeHtml(Utils.displayCategory(c))}</option>`
     ).join('');
 
@@ -279,7 +282,7 @@ const ProdutosModule = {
             <div class="form-group">
               <label class="form-label">Data de Cadastro</label>
               <input class="form-input" name="dataCadastro" type="date"
-                value="${item?.dataCadastro || Utils.today()}">
+                value="${item?.dataCadastro || Utils.today()}" ${this._serverMode?'readonly title="Data automática do cadastro no servidor"':''}>
             </div>
           </div>
 
@@ -565,14 +568,14 @@ const ProdutosModule = {
     if (!item) return;
 
     UI.openModal({
-      title: 'Excluir Produto',
+      title: this._serverMode?'Inativar Produto':'Excluir Produto',
       body: `
-        <p>Confirma a exclusão de <strong>${Utils.escapeHtml(item.nome)}</strong>?</p>
+        <p>Confirma ${this._serverMode?'a inativação':'a exclusão'} de <strong>${Utils.escapeHtml(item.nome)}</strong>?</p>
         <p style="margin-top:var(--sp-2);color:var(--text-muted);font-size:var(--text-sm)">
-          A ficha técnica associada também será removida permanentemente.
+          ${this._serverMode?'O produto sai do cardápio; pedidos, ficha técnica e histórico serão preservados.':'A ficha técnica associada também será removida permanentemente.'}
         </p>
       `,
-      confirmLabel: 'Excluir',
+      confirmLabel: this._serverMode?'Inativar':'Excluir',
       confirmClass: 'btn-danger',
       onConfirm: async () => {
         if (this._serverMode) {
@@ -604,6 +607,9 @@ const ProdutosModule = {
   /* ── Toolbar bindings (aba Cardápio) ───────────────────────── */
 
   _bindCardapioToolbar() {
+    const toolbar=document.getElementById('btn-novo-produto');
+    if(toolbar?.dataset.bound==='true')return;
+    if(toolbar)toolbar.dataset.bound='true';
     const search      = document.getElementById('cardapio-search');
     const catFilter   = document.getElementById('cardapio-categoria');
     const ativoFilter = document.getElementById('cardapio-ativo');

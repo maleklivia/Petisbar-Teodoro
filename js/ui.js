@@ -159,9 +159,9 @@ const UI = {
     overlay.className = 'modal-overlay';
     overlay.id = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal ${sizeClass}" role="dialog" aria-modal="true">
+      <div class="modal ${sizeClass}" role="dialog" aria-modal="true" aria-label="${Utils.escapeHtml(title)}">
         <div class="modal__header">
-          <h2 class="modal__title">${title}</h2>
+          <h2 class="modal__title">${Utils.escapeHtml(title)}</h2>
           <button class="modal__close" id="modal-close" aria-label="Fechar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -180,6 +180,18 @@ const UI = {
 
     document.body.appendChild(overlay);
     this._activeModal = overlay;
+    overlay.querySelectorAll('.form-group').forEach((group,index)=>{
+      const label=group.querySelector('label.form-label'),field=group.querySelector('input:not([type="hidden"]),select,textarea');
+      if(label&&field&&!label.htmlFor){if(!field.id)field.id=`modal-field-${index}`;label.htmlFor=field.id;}
+    });
+    overlay.querySelectorAll('form').forEach(form=>form.addEventListener('submit',e=>{e.preventDefault();overlay.querySelector('#modal-confirm').click();}));
+    overlay.addEventListener('keydown',e=>{
+      if(e.key!=='Tab')return;
+      const fields=[...overlay.querySelectorAll('button,input,select,textarea,a[href]')].filter(x=>!x.disabled&&x.getClientRects().length);
+      const first=fields[0],last=fields.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
+    });
 
     // Focus trap
     const firstInput = overlay.querySelector('input, select, textarea');

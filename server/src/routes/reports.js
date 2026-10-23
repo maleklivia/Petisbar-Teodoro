@@ -1,5 +1,5 @@
 import { requirePermission } from '../middleware/auth.js';
-import { convertQuantity } from '../domain/orders.js';
+import {recipeCost} from '../services/recipe-requirements.js';
 
 const completedStatuses = ['Entregue', 'Concluído'];
 const dateOnly = value => value instanceof Date
@@ -29,7 +29,7 @@ export default async function reportsRoutes(app) {
       app.db.query(`
         SELECT id, client_id, client_name, total, created_at
         FROM orders
-        WHERE status = ANY($1::text[]) AND source NOT LIKE '%(Teste)' AND notes NOT LIKE '[TESTE SEM ESTOQUE]%'
+        WHERE status = ANY($1::text[]) AND source NOT LIKE '%(Teste)'
       `, [completedStatuses]),
       app.db.query('SELECT id, name, category, sale_price, active FROM products ORDER BY category, name'),
       app.db.query('SELECT id, name, unit, unit_cost, current_stock, minimum_stock, category, active FROM ingredients ORDER BY category, name'),
@@ -42,32 +42,13 @@ export default async function reportsRoutes(app) {
       app.db.query(`SELECT code,name,rule_type AS "ruleType",COUNT(DISTINCT pa.order_id)::int AS orders,
         SUM(discount_amount)::numeric(12,2) AS discount,SUM(applied_subtotal)::numeric(12,2) AS promoted_sales
         FROM promotion_applications pa JOIN orders o ON o.id=pa.order_id
-        WHERE o.status=ANY($1::text[]) AND o.source NOT LIKE '%(Teste)' AND o.notes NOT LIKE '[TESTE SEM ESTOQUE]%' GROUP BY code,name,rule_type ORDER BY SUM(discount_amount) DESC,code`,[completedStatuses]),
+        WHERE o.status=ANY($1::text[]) AND o.source NOT LIKE '%(Teste)' GROUP BY code,name,rule_type ORDER BY SUM(discount_amount) DESC,code`,[completedStatuses]),
     ]);
 
-    const ingredientsById = new Map(ingredients.rows.map(item => [item.id, item]));
-    const sheetItemsByProduct = new Map();
-    for (const item of sheets.rows) {
-      const list = sheetItemsByProduct.get(item.product_id) || [];
-      list.push(item);
-      sheetItemsByProduct.set(item.product_id, list);
-    }
-
-    const productCmv = products.rows
+    const productCmv = (await Promise.all(products.rows
       .filter(product => product.active)
-      .map(product => {
-        let cost = 0;
-        for (const item of sheetItemsByProduct.get(product.id) || []) {
-          const ingredient = ingredientsById.get(item.ingredient_id);
-          if (!ingredient) continue;
-          let stockQuantity = Number(item.quantity);
-          try {
-            stockQuantity = convertQuantity(Number(item.quantity), item.unit, ingredient.unit);
-          } catch {
-            stockQuantity = 0;
-          }
-          cost += stockQuantity * Number(ingredient.unit_cost || 0);
-        }
+      .map(async product => {
+        const cost=await recipeCost(app.db,product.id);
         const salePrice = Number(product.sale_price || 0);
         return {
           id: product.id,
@@ -75,9 +56,9 @@ export default async function reportsRoutes(app) {
           categoria: product.category,
           precoVenda: salePrice,
           custo: cost,
-          cmvPct: salePrice > 0 ? (cost / salePrice) * 100 : 0,
+          cmvPct: cost===null?null:salePrice > 0 ? (cost / salePrice) * 100 : 0,
         };
-      })
+      })))
       .sort((a, b) => b.cmvPct - a.cmvPct);
 
     const clientsById = new Map(clients.rows.map(client => [client.id, client]));

@@ -4,6 +4,7 @@
    ============================================================ */
 
 const Utils = {
+  displayCategory(value) {return String(value??'').trim();},
   /* ── Formatters ─────────────────────────────────────────────── */
 
   currency(value) {
@@ -25,25 +26,25 @@ const Utils = {
 
   // Returns "2026-07-09"
   today() {
-    return new Date().toISOString().slice(0, 10);
+    return new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
   },
 
   // Returns "2026-07"
   currentMonth() {
-    return new Date().toISOString().slice(0, 7);
+    return this.today().slice(0,7);
   },
 
   // "2026-07-09" → "09/07/2026"
   formatDate(iso) {
     if (!iso) return '—';
-    const [y, m, d] = iso.split('-');
+    const [y, m, d] = String(iso).slice(0,10).split('-');
     return `${d}/${m}/${y}`;
   },
 
   // "2026-07-09" → "09/07"
   formatShortDate(iso) {
     if (!iso) return '—';
-    const [, m, d] = iso.split('-');
+    const [, m, d] = String(iso).slice(0,10).split('-');
     return `${d}/${m}`;
   },
 

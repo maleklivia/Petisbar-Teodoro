@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { priceOrderItems, roundMoney } from './order-pricing.js';
+import {recipeCost} from './recipe-requirements.js';
 
 const activeNow = "p.active=true AND (p.starts_at IS NULL OR p.starts_at<=now()) AND (p.ends_at IS NULL OR p.ends_at>=now())";
 const money = value => roundMoney(Number(value || 0));
@@ -43,6 +44,7 @@ export async function listPromotions(db, { publicOnly = false, activeOnly = fals
     LEFT JOIN ingredients i ON i.id=tsi.ingredient_id
     GROUP BY p.id,ts.id,ts.product_id,ts.yield
   `);
+  for(const row of costs.rows)if(row.has_sheet){const cost=await recipeCost(db,row.id);row.recipe_cost=cost;row.incomplete_count=cost===null?1:0;row.ingredient_count=1;}
   const costById = new Map(costs.rows.map(row => [row.id, row]));
   const optionVariants = {
     'p-drk001': { flavor: { morango: 'p-drk002', maracuja: 'p-drk003' } },

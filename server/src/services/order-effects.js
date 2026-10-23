@@ -5,7 +5,8 @@ import { recipeRequirements,stockComponents } from './recipe-requirements.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
-const isTestOrder = order => String(order.notes || '').startsWith('[TESTE SEM ESTOQUE]');
+// A customer's free-text notes must never control stock or financial effects.
+const isTestOrder = order => ['Cardápio Digital (Teste)','Mesa QR (Teste)'].includes(order.source);
 
 function businessError(code, statusCode = 409, details) {
   const error = new Error(code);
@@ -123,7 +124,7 @@ async function applyFinancialEntries(client, order, cmv) {
 async function applyEffects(client, order) {
   if (order.effects_applied_at && !order.effects_reversed_at) return;
   if (order.effects_reversed_at) throw businessError('order_effects_already_reversed');
-  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+  if (isTestOrder(order)) {
     await setOrderReservationsStatus(client,order.id,'released');
     await client.query('UPDATE orders SET effects_applied_at=now() WHERE id=$1',[order.id]);
     return;
@@ -141,7 +142,7 @@ async function reverseEffects(client, order) {
     await setOrderReservationsStatus(client,order.id,'released');
     return;
   }
-  if (isTestOrder(order) || order.source?.includes('(Teste)')) {
+  if (isTestOrder(order)) {
     await client.query('UPDATE orders SET effects_reversed_at=now() WHERE id=$1',[order.id]);
     await setOrderReservationsStatus(client,order.id,'released');
     return;

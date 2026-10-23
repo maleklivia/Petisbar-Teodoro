@@ -35,7 +35,7 @@ export async function applyPaymentSnapshot(client, paymentId, snapshot) {
   const payload=snapshot.payload||{};
   if(payload.external_reference!==order.id||Math.round(Number(payload.total_amount)*100)!==Math.round(Number(order.total)*100))
     throw Object.assign(new Error('payment_reference_mismatch'),{statusCode:409,code:'payment_reference_mismatch'});
-  const isTest=String(order.source).includes('(Teste)')||String(order.notes).startsWith('[TESTE SEM ESTOQUE]');
+  const isTest=['Cardápio Digital (Teste)','Mesa QR (Teste)'].includes(order.source);
   if(payload.live_mode===false&&!isTest)throw Object.assign(new Error('sandbox_payment_for_live_order'),{statusCode:409,code:'sandbox_payment_for_live_order'});
   const fee=snapshot.feeAmount;
   await client.query(`UPDATE order_payments SET status=$2,status_detail=$3,provider_payload=$4,

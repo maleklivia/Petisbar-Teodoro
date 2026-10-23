@@ -205,10 +205,10 @@ const RelatoriosModule = {
                   <td style="font-weight:600">${Utils.escapeHtml(r.nome)}</td>
                   <td style="font-size:var(--text-sm);color:var(--text-muted)">${Utils.escapeHtml(r.categoria)}</td>
                   <td style="text-align:right">${Utils.currency(r.precoVenda)}</td>
-                  <td style="text-align:right">${Utils.currency(r.custo)}</td>
-                  <td style="text-align:right;font-weight:700;color:${sobre ? 'var(--color-danger)' : 'var(--color-success)'}">${r.cmvPct.toFixed(1)}%</td>
-                  <td style="text-align:right">${margem}%</td>
-                  <td>${sobre ? '<span class="badge badge-danger">Acima da meta</span>' : '<span class="badge badge-success">OK</span>'}</td>
+                  <td style="text-align:right">${r.custo==null?'Pendente':Utils.currency(r.custo)}</td>
+                  <td style="text-align:right;font-weight:700;color:${sobre ? 'var(--color-danger)' : 'var(--color-success)'}">${r.cmvPct==null?'—':r.cmvPct.toFixed(1)+'%'}</td>
+                  <td style="text-align:right">${r.custo==null?'—':margem+'%'}</td>
+                  <td>${r.custo==null?'<span class="badge badge-warning">Ficha/custo incompleto</span>':sobre ? '<span class="badge badge-danger">Acima da meta</span>' : '<span class="badge badge-success">OK</span>'}</td>
                 </tr>
               `;
             }).join('') :
