@@ -59,7 +59,7 @@ export default async function operationsRoutes(app){
     return{data:(await app.db.query('UPDATE delivery_drivers SET available=coalesce($2,available),active=coalesce($3,active) WHERE id=$1 RETURNING *',[uuid.parse(request.params.id),b.available??null,b.active??null])).rows[0]};
   });
   app.put('/operations/loyalty',{preHandler:requirePermission('settings.manage')},async request=>{
-    const b=z.object({active:z.literal(false),percent:z.number().min(0).max(30),days:z.number().int().min(1).max(365)}).parse(request.body);
-    return{data:(await app.db.query('INSERT INTO loyalty_settings(id,active,cashback_percent,expires_in_days) VALUES(true,false,$1,$2) ON CONFLICT(id) DO UPDATE SET active=false,cashback_percent=$1,expires_in_days=$2,updated_at=now() RETURNING *',[b.percent,b.days])).rows[0]};
+    const b=z.object({active:z.boolean(),percent:z.number().min(0).max(30),days:z.number().int().min(1).max(365)}).parse(request.body);
+    return{data:(await app.db.query('INSERT INTO loyalty_settings(id,active,cashback_percent,expires_in_days) VALUES(true,$1,$2,$3) ON CONFLICT(id) DO UPDATE SET active=$1,cashback_percent=$2,expires_in_days=$3,updated_at=now() RETURNING *',[b.active,b.percent,b.days])).rows[0]};
   });
 }

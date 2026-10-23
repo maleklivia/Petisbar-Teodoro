@@ -7,6 +7,27 @@ const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) /
 const roundStock = value => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
 // A customer's free-text notes must never control stock or financial effects.
 const isTestOrder = order => ['Cardápio Digital (Teste)','Mesa QR (Teste)'].includes(order.source);
+async function applyLoyaltyCredit(client, order) {
+  if (isTestOrder(order) || !order.customer_account_id) return;
+  const setting = await client.query('SELECT active,cashback_percent,expires_in_days FROM loyalty_settings WHERE id=true FOR SHARE');
+  if (!setting.rows[0]?.active || Number(setting.rows[0].cashback_percent) <= 0) return;
+  const amount = roundMoney(Number(order.total) * Number(setting.rows[0].cashback_percent) / 100);
+  if (amount <= 0) return;
+  await client.query(`INSERT INTO cashback_ledger(customer_account_id,client_id,order_id,entry_type,amount,expires_at)
+    SELECT $1,client_id,$2,'credito',$3,now()+make_interval(days => $4)
+    FROM customer_accounts WHERE id=$1 AND client_id IS NOT NULL
+    ON CONFLICT (order_id) WHERE entry_type='credito' DO NOTHING`,
+    [order.customer_account_id, order.id, amount, Number(setting.rows[0].expires_in_days)]);
+}
+async function reverseLoyaltyCredit(client, order) {
+  if (!order.customer_account_id || isTestOrder(order)) return;
+  const credit = await client.query(`SELECT amount FROM cashback_ledger WHERE order_id=$1 AND entry_type='credito' FOR UPDATE`, [order.id]);
+  if (!credit.rowCount) return;
+  const reversed = await client.query(`SELECT 1 FROM cashback_ledger WHERE order_id=$1 AND entry_type='ajuste' LIMIT 1`, [order.id]);
+  if (reversed.rowCount) return;
+  await client.query(`INSERT INTO cashback_ledger(customer_account_id,client_id,order_id,entry_type,amount)
+    SELECT customer_account_id,client_id,order_id,'ajuste',amount FROM cashback_ledger WHERE order_id=$1 AND entry_type='credito'`, [order.id]);
+}
 
 function businessError(code, statusCode = 409, details) {
   const error = new Error(code);
@@ -133,6 +154,7 @@ async function applyEffects(client, order) {
   const cmv = await applyInventory(client, order);
   await applyFinancialEntries(client, order, cmv);
   await setOrderReservationsStatus(client,order.id,'consumed');
+  await applyLoyaltyCredit(client, order);
   await client.query('UPDATE orders SET effects_applied_at=clock_timestamp() WHERE id=$1', [order.id]);
 }
 
@@ -147,6 +169,7 @@ async function reverseEffects(client, order) {
     await setOrderReservationsStatus(client,order.id,'released');
     return;
   }
+  await reverseLoyaltyCredit(client, order);
   const { rows: movements } = await client.query(`
     SELECT ingredient_id,product_id,quantity,unit
     FROM stock_movements
