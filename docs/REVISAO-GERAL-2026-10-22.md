@@ -39,9 +39,9 @@ Notas digitadas pelo cliente não permitem ignorar estoque. A identidade de test
 
 ## Evidências de testes
 
-- Suite final em PostgreSQL isolado: **95 aprovados, zero falhas, zero ignorados**. Arquivo `full-tests-v5.tap` no diretório de backup; cerca de sete segundos após restauração/migração.
-- Banco vazio de migração/efeitos: `petisbar_review_full_20261022_v5`.
-- Cópia restaurada: `petisbar_review_cloned_20261022_v5`.
+- Suite em PostgreSQL isolado: **97 aprovados, zero falhas, zero ignorados**. Arquivo `full-tests-v7.tap` no diretório de backup; cerca de nove segundos após restauração/migração. A correção subsequente do total flutuante também passou no teste de interface automatizado.
+- Banco vazio de migração/efeitos: `petisbar_review_full_20261022_v7`.
+- Cópia restaurada: `petisbar_review_cloned_20261022_v7`.
 - UI isolada: `/opt/petisbar/review-20261022`, loopback e base `petisbar_review_20261022`; sem pagamentos, IA ou envio de e-mails externos.
 - Cobertura: autorização de todas as áreas de API, cadastros sintéticos, estoque insuficiente, conversão de unidades, foto/opções/vínculos, recebimento concorrente, pedido repetido concorrente, ficha alterada após reserva, conclusão/estorno, confirmação simulada de pagamento/taxa única, caixa, arquivos, obrigação sem transmissão e bloqueio do login.
 - Combo do catálogo restaurado com variante de refrigerante: cotação e criação com valores iguais; teste sem efeitos reais.
@@ -51,6 +51,12 @@ Notas digitadas pelo cliente não permitem ignorar estoque. A identidade de test
 ## Interface
 
 As 16 abas principais foram abertas. Rechecadas subabas de catálogo (três), marketing (quatro), relatórios (quatro), configuração (sete) e contábil/fiscal (quatro).
+
+Decisão comercial explícita da Lívia: combo de duas batatas + refrigerante com **5% sobre os itens e opções escolhidos**, e não preço fechado mais acréscimos. Migração 027 reutiliza o campo canônico de desconto, altera somente a promoção identificada pelo código exato e registra antes/depois no audit log, sem recalcular pedidos passados. Todos os sabores ativos do catálogo restaurado foram cotados com Coca-Cola, Guaraná e Sprite; em todos houve desconto de 5% arredondado em centavos, sem acréscimo duplicado.
+
+Jornada visual completa: pedido isolado #61, duas Bacon & Cheddar e Coca-Cola, subtotal R$ 65,80, desconto R$ 3,29, total R$ 62,51. Cartão na entrega liberou Em Produção, passou a Pronto e Entregue pelos botões da cozinha; o acompanhamento do cliente refletiu as três etapas e manteve o total. O total flutuante foi corrigido para não deduzir a promoção duas vezes.
+
+Lívia confirmou que todos os pedidos existentes são testes. Essa declaração não foi usada para apagar histórico, zerar saldos ou reclassificar silenciosamente lançamentos antigos.
 
 Criado produto sintético pela interface com foto, código, peso e opção. Após recarregar/reabrir, campos persistidos e foto com largura natural de 800 pixels. Caixa e cadastro de mesa também exercitados pela interface. Sem erros JavaScript nas últimas navegações verificadas.
 
