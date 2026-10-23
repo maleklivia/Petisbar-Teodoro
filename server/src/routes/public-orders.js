@@ -210,7 +210,7 @@ export default async function publicOrderRoutes(app) {
       if(coupon&&!testStockMode)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,couponDiscount]);
       if(loyaltyDiscount>0&&!testStockMode){
         await client.query(`INSERT INTO cashback_ledger(customer_account_id,client_id,order_id,entry_type,amount)
-          SELECT $1,client_id,$2,'uso',$3 FROM customer_accounts WHERE id=$1 AND client_id IS NOT NULL`,[request.customer.id,id,loyaltyDiscount]);
+          SELECT $1,client_id,$2,'uso',$3 FROM customer_accounts WHERE id=$1`,[request.customer.id,id,loyaltyDiscount]);
       }
       await client.query(`INSERT INTO order_status_history (order_id,status,previous_status,changed_by,source,metadata) VALUES ($1,$2,NULL,NULL,'public',$3)`,[id,initialStatus,JSON.stringify({created:true,paymentAtDelivery:initialStatus==='Em Produção'})]);
       const trackingToken=randomBytes(32).toString('hex');

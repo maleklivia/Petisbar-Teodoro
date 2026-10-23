@@ -15,7 +15,7 @@ async function applyLoyaltyCredit(client, order) {
   if (amount <= 0) return;
   await client.query(`INSERT INTO cashback_ledger(customer_account_id,client_id,order_id,entry_type,amount,expires_at)
     SELECT $1,client_id,$2,'credito',$3,now()+make_interval(days => $4)
-    FROM customer_accounts WHERE id=$1 AND client_id IS NOT NULL
+    FROM customer_accounts WHERE id=$1
     ON CONFLICT (order_id) WHERE entry_type='credito' DO NOTHING`,
     [order.customer_account_id, order.id, amount, Number(setting.rows[0].expires_in_days)]);
 }
