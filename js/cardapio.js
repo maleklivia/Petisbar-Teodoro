@@ -38,6 +38,7 @@ const Cardapio = {
         if(this.coupon&&(products.some(p=>previous.get(p.id)!==JSON.stringify([p.name,p.category,p.description,p.sale_price,p.photo_url,p.current_stock,p.option_prices]))||previousPromotions!==JSON.stringify(promotions)))this.coupon=null;
         this.renderStorefront();
         this.renderPromotions();
+        this.renderFeatured();
         const notice=document.getElementById('service-notice');
         const testMode=storefront.allowOrdersWithoutStockForTesting===true;
         const closedOutsideHours=!storefront.isOpen&&storefront.closedReason==='outside_hours';
@@ -60,7 +61,7 @@ const Cardapio = {
         status.classList.remove('open');status.classList.add('closed');status.querySelector('strong').textContent='Cardápio indisponível';
         for(const id of ['minimum-order','delivery-time','payment-summary','opening-hours'])document.getElementById(id).textContent='Indisponível';
       }
-      this.renderCategories();this.renderCatalog();this.renderCart();this.loadReorderShortcuts();if((this.cart.size||this.combos.size)&&typeof document.querySelector==='function')this.refreshQuote();
+      this.renderCategories();this.renderFeatured();this.renderCatalog();this.renderCart();this.loadReorderShortcuts();if((this.cart.size||this.combos.size)&&typeof document.querySelector==='function')this.refreshQuote();
     })().finally(()=>{this.refreshPromise=null});
     return this.refreshPromise;
   },
@@ -97,6 +98,8 @@ const Cardapio = {
     }).join('');
   },
   categoryOrder: ['Batatas Recheadas','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
+  featuredProducts(){const preferred=['p-bat001','p-bat002','p-bat006','p-bat007','p-pet001'],byId=new Map(this.products.map(product=>[product.id,product])),selected=preferred.map(id=>byId.get(id)).filter(product=>product&&this.stockLimit(product)>0);return selected.length?selected:this.products.filter(product=>this.stockLimit(product)>0).slice(0,5)},
+  renderFeatured(){const element=document.getElementById('featured-catalog');if(!element)return;const products=this.featuredProducts();if(!products.length){element.classList.add('hidden');element.innerHTML='';return}element.classList.remove('hidden');element.innerHTML=`<div class="section-heading"><div><span class="product-category">ESCOLHAS DO PETISBAR</span><h2>Sabores para começar</h2></div><span>Produtos disponíveis agora</span></div><div class="featured-grid">${products.map(product=>`<article class="featured-card"><img src="${this.escape(this.image(product.photo_url))}" alt="${this.escape(product.name)}" loading="lazy" onerror="this.onerror=null;this.src='./assets/products/snacks.jpg'"><div><strong>${this.escape(product.name)}</strong><span>${this.money(Number(product.sale_price))}</span><button type="button" data-featured-add="${this.escape(product.id)}">Adicionar</button></div></article>`).join('')}</div>`},
   async loadReorderShortcuts(){if(this.reorderChecked||!this.apiActive)return;this.reorderChecked=true;try{const response=await fetch(this.endpoint('/customer/reorder-shortcuts'),{headers:{Accept:'application/json'},credentials:'include',cache:'no-store',signal:AbortSignal.timeout(5000)});if(!response.ok)return;const body=await response.json();this.reorderShortcuts=body.data||[];const element=document.getElementById('reorder-shortcuts');if(!element||!this.reorderShortcuts.length)return;element.classList.remove('hidden');element.innerHTML=this.reorderShortcuts.map(order=>{const count=(order.items||[]).reduce((sum,item)=>sum+Number(item.quantity||1),0);return `<article class="reorder-card"><strong>Pedido #${this.escape(order.orderNumber)}</strong><span>${count} item(ns) · ${this.money(Number(order.total))}</span><button type="button" data-reorder="${this.escape(order.id)}">Pedir novamente</button></article>`}).join('')}catch{}},
   reorderOptions(options={}){return Object.fromEntries(Object.entries(options||{}).filter(([key])=>!key.startsWith('_')))},
   addReorderItem(item){const productId=item.productId||item.product_id,product=this.products.find(p=>p.id===productId);if(!product)return;const options=this.reorderOptions(item.options),key=this.cartKey(productId,options),current=this.cart.get(key)||0,limit=this.stockLimit(product),next=Math.min(limit,this.qty(productId)+Number(item.quantity||1));if(next>current){this.cart.set(key,current+next-this.qty(productId));this.productOptions.set(key,options)}},
@@ -122,6 +125,7 @@ const Cardapio = {
     document.getElementById('category-list').addEventListener('click',e=>{const button=e.target.closest('[data-category]');if(!button)return;this.category=button.dataset.category;this.renderCategories();this.renderCatalog()});
     document.getElementById('catalog').addEventListener('click',e=>{if(e.target.closest('[data-retry]')){this.refresh();return}const button=e.target.closest('[data-action]');if(button){if(button.dataset.action==='inc')this.beginAdd(button.dataset.id);else this.change(button.dataset.id,-1)}});
     document.getElementById('combo-catalog').addEventListener('click',e=>{const button=e.target.closest('[data-combo-add]');if(button){const promotion=this.promotions.find(item=>item.id===button.dataset.comboAdd);if(promotion)this.beginCombo(promotion);}});
+    document.getElementById('featured-catalog').addEventListener('click',e=>{const button=e.target.closest('[data-featured-add]');if(button)this.beginAdd(button.dataset.featuredAdd)});
     document.getElementById('customization-content').addEventListener('change',e=>{if(this.pendingCombo&&(e.target.matches('[data-combo-product]'))){this.captureComboDraft();this.renderComboCustomization();}});
     document.getElementById('customization-content').addEventListener('click',e=>{const button=e.target.closest('[data-combo-quantity]');if(!button||!this.pendingCombo)return;const group=this.pendingCombo.groups.find(item=>item.id===button.dataset.groupId);if(!group)return;this.captureComboDraft();const count=this.pendingComboCounts.get(group.id)||group.requiredQuantity;const next=Math.max(group.requiredQuantity,Math.min(group.maxQuantity,count+Number(button.dataset.comboQuantity)));this.pendingComboCounts.set(group.id,next);this.renderComboCustomization();});
     document.getElementById('catalog').addEventListener('change',e=>{if(e.target.matches('[data-flavored-ice]')){this.flavoredIce.set(e.target.dataset.flavoredIce,e.target.checked);if(this.coupon)this.clearCoupon('Opção alterada. Aplique o cupom novamente.');this.renderCart()}});
