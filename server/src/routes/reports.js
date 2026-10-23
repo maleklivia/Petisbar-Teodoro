@@ -26,7 +26,6 @@ export default async function reportsRoutes(app) {
         SELECT id, entry_date, description, category, entry_type, amount
         FROM financial_entries
         ORDER BY entry_date DESC, created_at DESC
-        LIMIT 1000
       `),
       app.db.query(`
         SELECT id, client_id, client_name, total, created_at
@@ -109,6 +108,7 @@ export default async function reportsRoutes(app) {
       data: {
         finance: finance.rows.map(entry),
         deliveredOrders: delivered.rowCount,
+        deliveredOrderDates: delivered.rows.map(order=>dateOnly(order.created_at)),
         productCmv,
         stock: ingredients.rows.filter(item => item.active).map(item => ({
           id: item.id,

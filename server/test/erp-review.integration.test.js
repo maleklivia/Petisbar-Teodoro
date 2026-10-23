@@ -73,7 +73,12 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       await call('PATCH',`/purchases/${draft.data.id}/status`,{status:'Recebido'},true,409);
     });
     const publicOrder=(paymentMethod='Cartão na entrega')=>({idempotencyKey:randomUUID(),customer:{name:tag,phone:'21999999999'},fulfillmentType:'retirada',paymentMethod,items:[{productId:product,quantity:1,expectedUnitPrice:25,options:{}}]});
-    await call('PUT','/settings',{'storefront.isOpen':true,'storefront.hours':'Segunda à Domingo - 00h até 23h','storefront.minimumOrder':1,'storefront.allowOrdersWithoutStockForTesting':false});
+    // Keep the acceptance fixture open across midnight and late-night test runs.
+    // Production still validates its actual configured schedule.
+    const clockParts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+    const minuteOfDay=Number(clockParts.find(p=>p.type==='hour').value)*60+Number(clockParts.find(p=>p.type==='minute').value);
+    const clockAt=offset=>{const minute=(minuteOfDay+offset+1440)%1440;return `${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}`;};
+    await call('PUT','/settings',{'storefront.isOpen':true,'storefront.hours':`Segunda à Domingo - ${clockAt(-60)} até ${clockAt(60)}`,'storefront.minimumOrder':1,'storefront.allowOrdersWithoutStockForTesting':false});
     let order;
     await t.test('pedido público, repetição concorrente, produção, retirada e estorno',async()=>{
       const payload={...publicOrder(),notes:'[TESTE SEM ESTOQUE] texto do cliente'};const orders=await Promise.all([call('POST','/public/orders',payload,false,201),call('POST','/public/orders',payload,false,201)]);assert.equal(orders[0].data.id,orders[1].data.id);order=orders[0].data;

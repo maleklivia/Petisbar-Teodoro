@@ -13,3 +13,15 @@ test('foto do PostgreSQL aparece no editor e URLs executáveis são rejeitadas',
   assert.match(utils.productPhoto({nome:'Produto',foto:'../assets/products/soda.jpg'}),/<img /);
   assert.doesNotMatch(utils.productPhoto({nome:'Produto',foto:'javascript:alert(1)'}),/<img /);
 });
+
+test('relatórios filtram sete dias e pedidos com o mesmo período sem chamar saldo de margem',async()=>{
+  const report=vm.runInNewContext((await readFile(new URL('js/modules/relatorios.js',root),'utf8'))+';RelatoriosModule',{
+    Utils:{...utils,today:()=> '2026-10-22',currentMonth:()=> '2026-10'},Date,
+  });
+  report._serverMode=true;report._periodo='semana';
+  report._data={finance:[],deliveredOrderDates:['2026-10-15','2026-10-16','2026-10-22','2026-10-23']};
+  assert.equal(report._deliveredOrdersCount(),2);
+  assert.equal(report._inPeriod('2026-10-15'),false);
+  const html=report._renderVendas();
+  assert.match(html,/não é lucro contábil/);assert.doesNotMatch(html,/% margem|Pedidos \(v0.3\)/);
+});

@@ -32,12 +32,12 @@ async function operationalSnapshot(db) {
       ORDER BY
         CASE WHEN average_daily_use > 0 THEN current_stock / average_daily_use ELSE 999999 END,
         name
-      LIMIT 20
     `),
     db.query(`
       SELECT
         count(*) FILTER (WHERE active = true) AS active_products,
         count(*) FILTER (WHERE active = true AND ts.id IS NULL) AS products_without_sheet,
+        COALESCE(json_agg(json_build_object('id',p.id,'nome',p.name)) FILTER (WHERE active=true AND ts.id IS NULL),'[]'::json) AS missing_sheet_products,
         count(*) FILTER (WHERE active = true AND purchase_cost IS NULL) AS products_without_cost
       FROM products p
       LEFT JOIN technical_sheets ts ON ts.product_id = p.id
@@ -72,6 +72,7 @@ async function operationalSnapshot(db) {
     catalog: {
       activeProducts: Number(catalog.rows[0].active_products),
       productsWithoutTechnicalSheet: Number(catalog.rows[0].products_without_sheet),
+      missingSheetProducts: catalog.rows[0].missing_sheet_products,
       productsWithoutCost: Number(catalog.rows[0].products_without_cost),
     },
     purchases: { pending: Number(purchases.rows[0].pending) },

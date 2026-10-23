@@ -30,10 +30,21 @@ const RelatoriosModule = {
     return this._serverMode ? (this._data?.finance || []) : (Storage.getState().finance || []);
   },
 
+  _inPeriod(date) {
+    const value=String(date||'').slice(0,10),today=Utils.today();
+    if(this._periodo==='hoje')return value===today;
+    if(this._periodo==='semana'){
+      const start=new Date(`${today}T12:00:00`);start.setDate(start.getDate()-6);
+      const lower=`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+      return value>=lower&&value<=today;
+    }
+    return value.startsWith(Utils.currentMonth())&&value<=today;
+  },
+
   _deliveredOrdersCount() {
     return this._serverMode
-      ? (this._data?.deliveredOrders || 0)
-      : Stores.pedidos.get().filter(p => p.status === 'Entregue' || p.status === 'Concluído').length;
+      ? (this._data?.deliveredOrderDates||[]).filter(date=>this._inPeriod(date)).length
+      : Stores.pedidos.get().filter(p => ['Entregue','Concluído'].includes(p.status)&&this._inPeriod(p.dataCriacao)).length;
   },
 
   _render() {
@@ -62,16 +73,7 @@ const RelatoriosModule = {
 
   _renderVendas() {
     const finance = this._finance();
-    const mes     = Utils.currentMonth();
-
-    const filtrar = (f) => {
-      if (this._periodo === 'hoje') return (f.date || '').startsWith(Utils.today());
-      if (this._periodo === 'semana') {
-        const d = new Date(); d.setDate(d.getDate() - 7);
-        return (f.date || '') >= d.toISOString().slice(0, 10);
-      }
-      return (f.date || '').startsWith(mes);
-    };
+    const filtrar = f => this._inPeriod(f.date);
 
     const data      = finance.filter(filtrar);
     const receita   = data.filter(f => f.type === 'Entrada').reduce((s, f) => s + (f.value || 0), 0);
@@ -100,22 +102,22 @@ const RelatoriosModule = {
 
       <div class="kpi-row" style="margin-bottom:var(--sp-5)">
         <article class="kpi-card kpi-card--ok">
-          <span class="kpi-card__label">Receita</span>
+          <span class="kpi-card__label">Entradas registradas</span>
           <strong class="kpi-card__value">${Utils.currency(receita)}</strong>
           <small class="kpi-card__sub">entradas</small>
         </article>
         <article class="kpi-card">
-          <span class="kpi-card__label">Despesas</span>
+          <span class="kpi-card__label">Saídas registradas</span>
           <strong class="kpi-card__value">${Utils.currency(despesas)}</strong>
           <small class="kpi-card__sub">saídas</small>
         </article>
         <article class="kpi-card ${lucro < 0 ? 'kpi-card--warn' : 'kpi-card--ok'}">
-          <span class="kpi-card__label">Resultado</span>
+          <span class="kpi-card__label">Saldo dos lançamentos</span>
           <strong class="kpi-card__value">${Utils.currency(lucro)}</strong>
-          <small class="kpi-card__sub">${Utils.pct(receita > 0 ? lucro / receita : 0)} margem</small>
+          <small class="kpi-card__sub">entradas menos saídas; não é lucro contábil</small>
         </article>
         <article class="kpi-card">
-          <span class="kpi-card__label">Pedidos (v0.3)</span>
+          <span class="kpi-card__label">Pedidos no período</span>
           <strong class="kpi-card__value">${this._deliveredOrdersCount()}</strong>
           <small class="kpi-card__sub">entregues</small>
         </article>

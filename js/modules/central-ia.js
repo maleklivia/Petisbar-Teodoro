@@ -15,7 +15,7 @@ const CentralIAModule = {
     if(API.isServerMode()){
       try{const s=(await API._request('/ai/snapshot')).data;this.snapshot={...this.snapshot,ordersToday:s.orders.today,pendingOrders:s.orders.pending,pendingPurchases:s.purchases.pending,
         criticalStock:s.criticalStock.map(i=>({...i,nome:i.name,unidade:i.unit,categoria:i.category,coverageDays:i.averageDailyUse>0?i.current/i.averageDailyUse:null,leadDays:i.leadTimeDays,purchaseQuantity:Math.max(0,i.reorderPoint-i.current)})),
-        productsWithoutSheet:Array.from({length:s.catalog.productsWithoutTechnicalSheet},()=>({nome:'Consulte Produtos'})),provisionalCosts:[],finance:s.financeThisMonth};}
+        productsWithoutSheet:s.catalog.missingSheetProducts||[],provisionalCosts:[],finance:s.financeThisMonth};}
       catch{this.snapshot=null;document.getElementById('ai-recommendations').textContent='Não foi possível carregar os dados do servidor. Atualize para tentar novamente.';throw new Error('snapshot_unavailable');}
     }
     this.recommendations = this.buildRecommendations(this.snapshot);
@@ -86,7 +86,7 @@ const CentralIAModule = {
     if (data.productsWithoutSheet.length) {
       list.push({
         level: 'warning', icon: 'ƒ', title: 'Completar fichas técnicas',
-        description: `${data.productsWithoutSheet.length} produto(s) ativo(s) ainda não têm ficha completa. Sem ela, margem e baixa de estoque ficam imprecisas.`,
+        description: `${data.productsWithoutSheet.length} produto(s) ativo(s) ainda não têm ficha técnica cadastrada. Confira também os custos e a composição em Produtos.`,
         evidence: data.productsWithoutSheet.slice(0, 4).map(item => item.nome).join(', '),
       });
     }
