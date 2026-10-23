@@ -231,6 +231,7 @@ const ProdutosModule = {
       body: `
         <form id="form-produto" autocomplete="off">
           <input type="hidden" name="id" value="${item?.id || ''}">
+          ${editing&&this._serverMode?'<section class="card" id="product-usage" aria-live="polite" style="margin-bottom:20px"><strong>Onde este produto é usado</strong><p>Consultando vínculos…</p></section>':''}
 
           <div class="form-group">
             <label class="form-label">Nome *</label>
@@ -321,6 +322,7 @@ const ProdutosModule = {
       onConfirm: () => this._submitForm(editing, item),
     });
     this._bindIfoodPriceEditor(item);
+    if(editing&&this._serverMode)this._loadProductUsage(item.id);
     this._bindProductPhotoEditor(item);
     this._drawOptionGroups(item?.optionGroups||[]);
     document.getElementById('product-option-groups').addEventListener('click',event=>{
@@ -333,6 +335,17 @@ const ProdutosModule = {
       this._drawOptionGroups(groups);
     });
     document.getElementById('add-product-option-group').addEventListener('click',()=>{const groups=this._collectOptionGroups();groups.push({key:`grupo${groups.length+1}`,label:'Novo grupo',type:'radio',required:false,options:[{value:'opcao1',label:'Opção 1',priceMode:'base'}]});this._drawOptionGroups(groups)});
+  },
+
+  async _loadProductUsage(id){
+    const target=document.getElementById('product-usage');
+    try{
+      const usage=(await API._request(`/products/${encodeURIComponent(id)}/usage`)).data;
+      if(!target?.isConnected)return;
+      const escape=Utils.escapeHtml;
+      const rows=[...usage.products.map(p=>`Produto: ${escape(p.name)}${p.active?'':' (inativo)'} · Grupo: ${escape(p.groupLabel||'Sem nome')} · Opção: ${escape(p.optionLabel||'Sem nome')}`),...usage.promotions.map(p=>`Promoção: ${escape(p.name)}${p.active?' (ativa)':' (inativa)'}`)];
+      target.innerHTML='<strong>Onde este produto é usado</strong>'+(rows.length?`<ul class="product-dependency-list">${rows.map(row=>`<li>${row}</li>`).join('')}</ul><p>Para remover um vínculo, edite o produto ou a promoção indicados. Desativar no cardápio não remove esses vínculos.</p>`:'<p>Nenhum vínculo em opções de produtos ou promoções. O histórico de pedidos é preservado.</p>');
+    }catch{if(target?.isConnected)target.innerHTML='<strong>Onde este produto é usado</strong><p>Não foi possível consultar os vínculos. Feche e reabra para tentar novamente; ausência de resposta não significa ausência de vínculo.</p>';}
   },
 
   _collectOptionGroups(){return [...document.querySelectorAll('[data-option-group]')].map(group=>({

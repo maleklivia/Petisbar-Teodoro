@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requirePermission } from '../middleware/auth.js';
 
 const entrySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.iso.date(),
   description: z.string().min(1).max(500),
   category: z.string().min(1).max(100),
   type: z.enum(['Entrada', 'Saída', 'Saida']),
@@ -32,7 +32,6 @@ export default async function financeRoutes(app) {
       SELECT *
       FROM financial_entries
       ORDER BY entry_date DESC, created_at DESC
-      LIMIT 1000
     `);
     return { data: rows.map(mapEntry) };
   });

@@ -17,7 +17,7 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
   const tag=`review-${randomUUID()}`;let cookie='',requests=0;
   const call=async(method,url,payload,auth=true,expected=200)=>{
     const r=await app.inject({method,url:`/api/v1${url}`,payload,remoteAddress:`127.1.${Math.floor(requests/200)}.${++requests%200+1}`,headers:auth?{cookie}: {}});
-    assert.equal(r.statusCode,expected,`${method} ${url}: ${r.body}`);return r.json();
+    assert.equal(r.statusCode,expected,`${method} ${url}: ${r.body}`);return r.statusCode===204?null:r.json();
   };
   const q=(sql,params)=>db.query(sql,params);
   const role=await q("SELECT id FROM roles WHERE name='admin'");
@@ -26,10 +26,27 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
   assert.equal(login.statusCode,200);cookie=login.headers['set-cookie'].split(';')[0];
   try{
     await t.test('autorização em todas as áreas e leituras administrativas',async()=>{
-      for(const path of ['/products','/ingredients','/technical-sheets','/clients','/suppliers','/purchases','/stock/movements','/finance/entries','/reports/overview','/settings','/promotions','/coupons','/documents','/operations','/dashboard','/ai/snapshot']){
+      for(const path of ['/products','/ingredients','/technical-sheets','/clients','/suppliers','/purchases','/stock/movements','/finance/entries','/reports/overview','/settings','/promotions','/coupons','/documents','/operations','/dashboard','/ai/snapshot','/accounting-fiscal/profile','/accounting-fiscal/documents','/accounting-fiscal/obligations','/accounting-fiscal/monthly-report?month=2026-10']){
         await call('GET',path,undefined,false,401);await call('GET',path);
       }
       await call('POST','/operations/tables',{number:''},true,400);
+    });
+    await t.test('lançamentos e arquivo fiscal são internos, persistentes e coerentes no resumo',async()=>{
+      await call('POST','/finance/entries',{date:'2026-02-30',description:tag,category:'Outros',type:'Entrada',value:1},true,400);
+      const expense=(await call('POST','/finance/entries',{date:'2099-01-10',description:tag,category:'Outros',type:'Saída',value:7},true,201)).data;
+      assert.equal(expense.value,-7);
+      const report=(await call('GET','/accounting-fiscal/monthly-report?month=2099-01')).data;
+      assert.ok(report.entries.some(row=>row.description===tag&&row.value===-7));
+      await call('DELETE',`/finance/entries/${expense.id}`,undefined,true,204);
+      await call('PUT','/accounting-fiscal/profile',{razao:tag,fantasia:'Homologação isolada'});
+      assert.equal((await call('GET','/accounting-fiscal/profile')).data.razao,tag);
+      const document=(await call('POST','/accounting-fiscal/documents',{documentType:'entrada',issueDate:'2099-01-10',counterparty:tag,amount:7},true,201)).data;
+      assert.ok((await call('GET','/accounting-fiscal/documents')).data.some(row=>row.id===document.id));
+      await call('DELETE',`/accounting-fiscal/documents/${document.id}`,undefined,true,204);
+      const obligation={competence:'2099-01-01',type:'das_mei',dueDate:'2099-02-20',amount:0,status:'aberta'};
+      const saved=(await call('POST','/accounting-fiscal/obligations',obligation,true,201)).data;
+      await call('POST','/accounting-fiscal/obligations',obligation,true,409);
+      assert.equal((await call('PATCH',`/accounting-fiscal/obligations/${saved.id}`,{...obligation,status:'cancelada'})).data.status,'cancelada');
     });
     const ingredient=`i-${tag}`,product=`p-${tag}`;
     await t.test('cadastros, ficha e movimento de estoque com conversão e bloqueio de saldo',async()=>{
@@ -49,6 +66,8 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
       const saved=(await call('POST','/products',payload,true,201)).data;
       assert.deepEqual(saved.option_groups,groups);assert.match(saved.photo_url,/^\/api\/v1\/public\/products\//);
       assert.equal(Number(saved.weight_grams),400);assert.equal(saved.sku,tag);
+      const usage=(await call('GET',`/products/${variant}/usage`)).data;
+      assert.equal(usage.products[0].id,owner);assert.equal(usage.products[0].groupLabel,'Sabor');assert.equal(usage.products[0].optionLabel,'Tradicional');
       const photo=await app.inject({method:'GET',url:saved.photo_url});assert.equal(photo.statusCode,200);assert.deepEqual(photo.rawPayload,bytes);
       const cached=await app.inject({method:'GET',url:saved.photo_url,headers:{'if-none-match':photo.headers.etag}});assert.equal(cached.statusCode,304);
       await call('POST','/products',{id:variant,nome:tag,categoria:'Teste',precoVenda:15,ativo:false},true,409);

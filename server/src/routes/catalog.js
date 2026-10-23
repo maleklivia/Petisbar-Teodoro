@@ -105,6 +105,22 @@ export default async function catalogRoutes(app) {
     return { data: rows };
   });
 
+  app.get('/products/:id/usage', {preHandler:requirePermission('catalog.read')},async(request,reply)=>{
+    const id=z.string().min(1).max(100).parse(request.params.id);
+    const exists=await app.db.query('SELECT id FROM products WHERE id=$1',[id]);
+    if(!exists.rowCount)return reply.code(404).send({error:'product_not_found'});
+    const [products,promotions]=await Promise.all([
+      app.db.query(`SELECT DISTINCT owner.id,owner.name,owner.active,grp->>'label' AS "groupLabel",opt->>'label' AS "optionLabel"
+        FROM products owner CROSS JOIN LATERAL jsonb_array_elements(owner.option_groups) grp
+        CROSS JOIN LATERAL jsonb_array_elements(grp->'options') opt WHERE opt->>'priceProductId'=$1 ORDER BY owner.name`,[id]),
+      app.db.query(`SELECT pr.id,pr.name,pr.active FROM promotions pr WHERE
+        EXISTS(SELECT 1 FROM promotion_products pp WHERE pp.promotion_id=pr.id AND pp.product_id=$1)
+        OR EXISTS(SELECT 1 FROM promotion_groups g JOIN promotion_group_products gp ON gp.group_id=g.id WHERE g.promotion_id=pr.id AND gp.product_id=$1)
+        ORDER BY pr.name`,[id]),
+    ]);
+    return {data:{products:products.rows,promotions:promotions.rows}};
+  });
+
   app.post('/products', { bodyLimit: 2 * 1024 * 1024, preHandler: requirePermission('catalog.write') }, async (request, reply) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'validation_error', details: parsed.error.flatten() });
