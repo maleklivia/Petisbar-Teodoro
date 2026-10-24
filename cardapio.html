@@ -7,7 +7,7 @@
   <meta name="description" content="Cardápio digital do Petisbar Teodoro. Faça seu pedido para retirada ou entrega.">
   <title>Peça online — Petisbar Teodoro</title>
   <link rel="stylesheet" href="./css/variables.css">
-  <link rel="stylesheet" href="./css/cardapio.css?v=20261023-6">
+  <link rel="stylesheet" href="./css/cardapio.css?v=20261023-15">
 </head>
 <body>
   <header class="store-header">
@@ -19,15 +19,15 @@
     <section id="order-confirmation" class="store-panel hidden" role="status" aria-live="polite"><strong id="order-confirmation-number"></strong><span>Seu pedido foi registrado.</span><div id="pix-payment" class="hidden"><strong>Pagamento Pix</strong><p id="pix-payment-help">Escaneie o QR Code ou copie o código Pix.</p><img id="pix-qr" alt="QR Code Pix" class="hidden"><input id="pix-copy" readonly aria-label="Pix copia e cola"><button id="pix-copy-button" type="button">Copiar código Pix</button><a id="pix-ticket" target="_blank" rel="noopener" class="hidden">Abrir pagamento</a></div><a href="./pages/pedido.html">Acompanhar pedido</a></section>
     <section id="reorder-shortcuts" class="reorder-shortcuts hidden" aria-label="Peça novamente"></section>
     <section class="store-highlights" aria-label="Informações da loja">
-      <div><strong>Pedido mínimo</strong><span id="minimum-order">R$ 20,00</span></div>
-      <div><strong>Entrega</strong><span id="delivery-time">30–60 min</span></div>
+      <div><strong>Pedido mínimo</strong><span id="minimum-order">R$ 20,00 em produtos; entrega à parte</span></div>
+      <div><strong>Entrega</strong><span id="delivery-time">30–60 min após confirmação</span></div>
       <div><strong>Pagamento</strong><span id="payment-summary">Pix, dinheiro e cartão</span></div>
       <div><strong>Funcionamento</strong><span id="opening-hours">Consultar horários</span></div>
     </section>
-    <nav class="store-tabs" aria-label="Informações do estabelecimento"><button type="button" class="store-tab active" data-store-tab="promocoes">Promoções</button><button type="button" class="store-tab" data-store-tab="avaliacoes">Avaliações</button><button type="button" class="store-tab" data-store-tab="contato">Contato</button></nav>
-    <section id="store-panel-promocoes" class="store-panel"><strong>Ofertas do Petisbar</strong><span id="promotion-text">Confira as promoções disponíveis no cardápio.</span><small class="commercial-note">Descontos e combos são confirmados pelo ERP no fechamento do pedido.</small></section>
+    <nav class="store-tabs" aria-label="Informações do estabelecimento"><button type="button" class="store-tab active" data-store-tab="avaliacoes">Avaliações</button><button type="button" class="store-tab" data-store-tab="contato">Contato</button><button type="button" class="store-tab" data-store-tab="duvidas">Dúvidas frequentes</button></nav>
     <section id="store-panel-avaliacoes" class="store-panel hidden"><strong>Avaliações</strong><span>As avaliações dos clientes aparecerão aqui.</span></section>
-    <section id="store-panel-contato" class="store-panel hidden"><strong>Fale com o Petisbar</strong><span>Pedidos e dúvidas pelo WhatsApp do estabelecimento.</span><a href="https://wa.me/5521975816050" target="_blank" rel="noopener">Abrir WhatsApp</a></section>
+    <section id="store-panel-contato" class="store-panel hidden"><strong>Fale com o Petisbar</strong><span>Pedidos e dúvidas pelo WhatsApp. Atendimento durante o horário de funcionamento; retirada e entrega dependem da confirmação do estabelecimento.</span><span id="delivery-info">Entrega por CEP e retirada: consulte as condições abaixo.</span><a href="https://wa.me/5521975816050" target="_blank" rel="noopener">Abrir WhatsApp</a></section>
+    <section id="store-panel-duvidas" class="store-panel hidden faq-panel" aria-labelledby="faq-title"><div class="section-heading"><div><span class="product-category">INFORMAÇÕES IMPORTANTES</span><h2 id="faq-title">Dúvidas frequentes</h2></div></div><div class="faq-list"><details><summary>Como funciona a entrega?</summary><p>A entrega é consultada pelo CEP informado no pedido. A área e a taxa são confirmadas pelo cardápio; se o CEP não for atendido, escolha retirada.</p></details><details><summary>Qual é o prazo?</summary><p>O prazo estimado é de 30 a 60 minutos após a confirmação do pedido. Pode variar conforme o movimento e a distância.</p></details><details><summary>Posso retirar no local?</summary><p>Sim. Selecione “Retirada” no checkout e aguarde a confirmação do Petisbar antes de se deslocar.</p></details><details><summary>Quais são as formas de pagamento?</summary><p>As opções exibidas no checkout são as válidas para o pedido. Confira a informação antes de confirmar.</p></details><details><summary>Posso pedir alterações ou cancelar?</summary><p>Fale com o Petisbar pelo WhatsApp o quanto antes. Depois que o preparo começar, alterações ou cancelamento podem não ser possíveis.</p></details></div></section>
     <div id="service-notice" class="service-notice hidden" role="status"></div>
     <div class="catalog-tools">
       <label class="search-box"><span>⌕</span><input id="catalog-search" type="search" placeholder="Buscar no cardápio" aria-label="Buscar no cardápio"></label>
@@ -62,6 +62,7 @@
         <div id="coupon-section" class="coupon-section hidden">
           <label for="coupon-code">Cupom de desconto</label>
           <div class="coupon-row"><input id="coupon-code" name="couponCode" maxlength="40" autocomplete="off" placeholder="Digite seu cupom"><button id="coupon-apply" type="button">Aplicar</button></div>
+          <label class="loyalty-check"><input id="use-loyalty" name="useLoyalty" type="checkbox"> Usar saldo de fidelidade (login necessário)</label>
           <p id="coupon-status" class="coupon-status" role="status"></p>
         </div>
         <label>Observações<textarea name="notes" rows="2" maxlength="500" placeholder="Ex.: sem gelo"></textarea></label>
@@ -88,7 +89,7 @@
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20261023-6"></script>
+  <script src="./js/cardapio.js?v=20261023-15"></script>
 </body>
 </html>
 

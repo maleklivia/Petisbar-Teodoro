@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import tls from 'node:tls';
+import net from 'node:net';
 
 function smtpCommand(socket, command, expected = /^2/) {
   return new Promise((resolve, reject) => {
@@ -20,9 +21,30 @@ function smtpCommand(socket, command, expected = /^2/) {
 }
 
 async function sendViaGmail({ email, subject, text, host, port, user, password, from }) {
+  if (Number(port) === 587) return sendViaGmailStartTls({ email, subject, text, host, user, password, from });
   const socket = tls.connect({ host, port, servername: host });
   await new Promise((resolve, reject) => { socket.once('secureConnect', resolve); socket.once('error', reject); });
   await new Promise((resolve, reject) => { const onData = chunk => { const text = chunk.toString(); if (/^220[ -]/m.test(text)) { socket.off('data', onData); resolve(); } }; socket.on('data', onData); socket.once('error', reject); });
+  await smtpCommand(socket, 'EHLO petisbarteodoro.local', /^2/);
+  await smtpCommand(socket, 'AUTH LOGIN', /^3/);
+  await smtpCommand(socket, Buffer.from(user).toString('base64'), /^3/);
+  await smtpCommand(socket, Buffer.from(password).toString('base64'), /^2/);
+  await smtpCommand(socket, `MAIL FROM:<${from}>`, /^2/);
+  await smtpCommand(socket, `RCPT TO:<${email}>`, /^2/);
+  await smtpCommand(socket, 'DATA', /^3/);
+  await smtpCommand(socket, `From: Petisbar Teodoro <${from}>\r\nTo: ${email}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n.`, /^2/);
+  await smtpCommand(socket, 'QUIT', /^2/).catch(() => {});
+  socket.end();
+}
+
+async function sendViaGmailStartTls({ email, subject, text, host, user, password, from }) {
+  const plain = net.connect({ host, port: 587 });
+  await new Promise((resolve, reject) => { plain.once('connect', resolve); plain.once('error', reject); });
+  await smtpCommand(plain, '', /^2/);
+  await smtpCommand(plain, 'EHLO petisbarteodoro.local', /^2/);
+  await smtpCommand(plain, 'STARTTLS', /^2/);
+  const socket = tls.connect({ socket: plain, servername: host });
+  await new Promise((resolve, reject) => { socket.once('secureConnect', resolve); socket.once('error', reject); });
   await smtpCommand(socket, 'EHLO petisbarteodoro.local', /^2/);
   await smtpCommand(socket, 'AUTH LOGIN', /^3/);
   await smtpCommand(socket, Buffer.from(user).toString('base64'), /^3/);

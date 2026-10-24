@@ -19,7 +19,7 @@ const orderSchema = z.object({
   address: z.object({ postalCode:z.string().trim().max(12).default(''), city:z.string().trim().max(100).default(''), street:z.string().trim().max(160).default(''), number:z.string().trim().max(30).default(''), district:z.string().trim().max(100).default(''), complement:z.string().trim().max(120).default(''), reference:z.string().trim().max(180).default('') }).default({}),
   paymentMethod: z.enum(['Pix', 'Dinheiro', 'Cartão na entrega']), notes: z.string().trim().max(500).default(''),
   couponCode: z.string().trim().max(40).default(''), adultConfirmed: z.boolean().default(false), website: z.string().max(0).optional(),
-  idempotencyKey:z.string().uuid(), items: z.array(itemSchema).max(30).default([]), combos:z.array(comboSchema).max(10).default([]),
+  idempotencyKey:z.string().uuid(), useLoyalty:z.boolean().default(false), items: z.array(itemSchema).max(30).default([]), combos:z.array(comboSchema).max(10).default([]),
 }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
 const idempotencySchema = z.string().trim().min(16).max(200);
 
@@ -178,7 +178,15 @@ export default async function publicOrderRoutes(app) {
       if(!stockAllowsOrder(priced.items,testStockMode)){await client.query('ROLLBACK');return reply.code(409).send({error:'insufficient_stock'});}
       let coupon=null,couponDiscount=0;
       if(input.couponCode){if(!couponCanStack(priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'coupon_not_combinable'});}coupon=await findCoupon(client,input.couponCode,true);if(!coupon){await client.query('ROLLBACK');return reply.code(404).send({error:'coupon_not_found'});}const reason=await couponEligibility(client,coupon,phone);if(reason){await client.query('ROLLBACK');return reply.code(409).send({error:reason});}couponDiscount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));}
-      const discount=roundMoney(priced.promotionDiscount+couponDiscount);
+      const discountBeforeLoyalty=roundMoney(priced.promotionDiscount+couponDiscount);
+      let loyaltyDiscount=0;
+      if(input.useLoyalty && request.customer?.id){
+        await client.query('SELECT pg_advisory_xact_lock(71652202)');
+        const loyalty=await client.query(`SELECT COALESCE(SUM(CASE WHEN entry_type IN ('credito','ajuste') THEN amount ELSE -amount END),0) AS balance
+          FROM cashback_ledger WHERE customer_account_id=$1 AND (expires_at IS NULL OR expires_at>now())`,[request.customer.id]);
+        loyaltyDiscount=roundMoney(Math.min(Math.max(0,Number(loyalty.rows[0]?.balance||0)),Math.max(0,priced.subtotal-discountBeforeLoyalty)));
+      }
+      const discount=roundMoney(discountBeforeLoyalty+loyaltyDiscount);
       let deliveryFee=0;
       if(input.fulfillmentType==='entrega'){
         const delivery=deliveryForPostalCode(input.address.postalCode, deliveryZones);
@@ -200,11 +208,15 @@ export default async function publicOrderRoutes(app) {
       }
       for(const item of priced.items)await client.query(`INSERT INTO order_items (order_id,product_id,name,quantity,unit_price,subtotal,options,list_unit_price,promotion_discount,promotion_application_id,combo_group_id,combo_group_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[id,item.productId,item.name,item.quantity,item.unitPrice,item.subtotal,JSON.stringify(item.options||{}),item.listUnitPrice,item.promotionDiscount,item.promotionApplicationId,item.comboGroupId,item.comboGroupName]);
       if(coupon&&!testStockMode)await client.query('INSERT INTO coupon_redemptions (coupon_id,order_id,phone_normalized,discount_amount) VALUES ($1,$2,$3,$4)',[coupon.id,id,phone,couponDiscount]);
+      if(loyaltyDiscount>0&&!testStockMode){
+        await client.query(`INSERT INTO cashback_ledger(customer_account_id,client_id,order_id,entry_type,amount)
+          SELECT $1,client_id,$2,'uso',$3 FROM customer_accounts WHERE id=$1`,[request.customer.id,id,loyaltyDiscount]);
+      }
       await client.query(`INSERT INTO order_status_history (order_id,status,previous_status,changed_by,source,metadata) VALUES ($1,$2,NULL,NULL,'public',$3)`,[id,initialStatus,JSON.stringify({created:true,paymentAtDelivery:initialStatus==='Em Produção'})]);
       const trackingToken=randomBytes(32).toString('hex');
       await client.query(`INSERT INTO order_tracking_tokens (order_id,token_hash,expires_at) VALUES ($1,$2,now()+interval '30 days')`,[id,hashToken(trackingToken)]);
       if(idempotencyKey)await client.query(`INSERT INTO order_idempotency_keys (idempotency_key_hash,request_hash,order_id,customer_account_id,expires_at) VALUES ($1,$2,$3,$4,now()+interval '30 days')`,[hashToken(idempotencyKey),requestHash,id,request.customer?.id||null]);
-      const response={data:{id,orderNumber,status:initialStatus,paymentMethod:input.paymentMethod,subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
+      const response={data:{id,orderNumber,status:initialStatus,paymentMethod:input.paymentMethod,subtotal:priced.subtotal,deliveryFee,discount,promotionDiscount:priced.promotionDiscount,couponDiscount,loyaltyDiscount,total,couponCode:coupon?.code||null,promotions:priced.promotions.map(p=>({code:p.code,discount:p.discount})),trackingToken}};
       await client.query('UPDATE public_order_idempotency SET order_id=$2,response=$3 WHERE idempotency_key=$1',[input.idempotencyKey,id,response]);
       let customerEmail = null;
       if (request.customer?.id) {

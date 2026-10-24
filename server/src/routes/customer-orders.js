@@ -1,6 +1,12 @@
 import { authenticateCustomer } from '../middleware/customer-auth.js';
 
 export default async function customerOrderRoutes(app) {
+  app.get('/customer/loyalty', { preHandler: authenticateCustomer }, async request => {
+    const result = await app.db.query(`SELECT COALESCE(SUM(CASE WHEN entry_type IN ('credito','ajuste') THEN amount ELSE -amount END),0) AS balance
+      FROM cashback_ledger WHERE customer_account_id=$1 AND (expires_at IS NULL OR expires_at>now())`, [request.customer.id]);
+    const setting = await app.db.query('SELECT active,cashback_percent,expires_in_days FROM loyalty_settings WHERE id=true');
+    return { data: { active: Boolean(setting.rows[0]?.active), balance: Number(result.rows[0]?.balance || 0), cashbackPercent: Number(setting.rows[0]?.cashback_percent || 5), expiresInDays: Number(setting.rows[0]?.expires_in_days || 30) } };
+  });
   app.get('/customer/reorder-shortcuts', { preHandler: authenticateCustomer }, async request => {
     const orders=await app.db.query(`SELECT id,order_number,created_at,total FROM orders
       WHERE customer_account_id=$1 ORDER BY created_at DESC LIMIT 3`,[request.customer.id]);

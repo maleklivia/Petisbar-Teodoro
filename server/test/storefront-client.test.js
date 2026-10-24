@@ -60,6 +60,15 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
   assert.match(element('catalog').innerHTML, /disabled.*aria-label="Adicionar"/);
 });
 
+test('consolida água, refrigerante e energético na categoria Bebidas', () => {
+  const { client } = loadClient();
+  for (const raw of ['Águas', 'Refrigerantes', 'Energéticos']) {
+    assert.equal(client.categoryLabel(raw), 'Bebidas');
+    assert.equal(client.categoryMatches({ category: raw }, 'Bebidas'), true);
+  }
+  assert.equal(client.categoryMatches({ category: 'Petiscos' }, 'Bebidas'), false);
+});
+
 test('modo de testes libera item com estoque zero e respeita limite do pedido', async () => {
   const { client, element } = loadClient();
   client.fetchPublic = async path => path.endsWith('storefront')
@@ -180,6 +189,6 @@ test('combo de escolhas exibe desconto e calcula os mesmos centavos sem acrésci
   client.combos.set('one',combo);client.quote={subtotalNormal:65.8,promotionDiscount:3.29};client.renderCheckout=()=>{};
   renderCart();assert.equal(element('cart-fab-total').textContent,client.money(62.51));
   client.promotions=[promotion];client.renderPromotions();
-  assert.match(element('combo-catalog').innerHTML,/5% de desconto nos itens escolhidos/);
+  assert.match(element('combo-catalog').innerHTML,/Desconto aplicado nos itens escolhidos/);
   assert.doesNotMatch(element('combo-catalog').innerHTML,/A partir de R\$.*0,00/);
 });
