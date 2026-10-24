@@ -60,6 +60,15 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
   assert.match(element('catalog').innerHTML, /disabled.*aria-label="Adicionar"/);
 });
 
+test('consolida água, refrigerante e energético na categoria Bebidas', () => {
+  const { client } = loadClient();
+  for (const raw of ['Águas', 'Refrigerantes', 'Energéticos']) {
+    assert.equal(client.categoryLabel(raw), 'Bebidas');
+    assert.equal(client.categoryMatches({ category: raw }, 'Bebidas'), true);
+  }
+  assert.equal(client.categoryMatches({ category: 'Petiscos' }, 'Bebidas'), false);
+});
+
 test('modo de testes libera item com estoque zero e respeita limite do pedido', async () => {
   const { client, element } = loadClient();
   client.fetchPublic = async path => path.endsWith('storefront')
