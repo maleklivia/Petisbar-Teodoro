@@ -94,8 +94,7 @@ const Cardapio = {
       };
       const visual=comboImages[p.code];
       const image=visual?`<img class="combo-image" src="${visual[0]}" alt="${visual[1]}" loading="lazy">`:'';
-      const normal=Number(p.normalPriceEstimate),advertised=p.discount_percent!=null&&Number.isFinite(normal)?normal*(1-Number(p.discount_percent)/100):Number(p.combo_price),saving=Number.isFinite(normal)&&Number.isFinite(advertised)&&normal>advertised?` · economize ${this.money(normal-advertised)}`:'';
-      const priceLabel=p.discount_percent!=null?`${Number(p.discount_percent)}% de desconto nos itens escolhidos${saving}`:`A partir de ${this.money(Number(p.combo_price))}${saving}`;
+      const priceLabel=p.discount_percent!=null?'Desconto aplicado nos itens escolhidos':`A partir de ${this.money(Number(p.combo_price))}`;
       const description=String(p.description||groups).replace(/Skol[^.]*\.?/gi,'').replace(/\s{2,}/g,' ').trim();
       return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(description)}</p><p>${groups}</p><strong>${priceLabel}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
     }).join('')}`;
