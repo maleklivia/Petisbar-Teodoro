@@ -81,10 +81,10 @@ const Cardapio = {
   renderPromotions(){
     const el=document.getElementById('combo-catalog');if(!el)return;
     const available=this.promotions.filter(p=>p.rule_type==='combo'&&(p.combo_price!=null||p.discount_percent!=null)&&p.groups?.length);
-    const discounts=this.promotions.filter(p=>p.rule_type!=='combo');
-    const text=document.getElementById('promotion-text');if(text)text.textContent=available.length||discounts.length?`${available.map(p=>p.name).join(' · ')}${discounts.length?' · Descontos aplicados automaticamente no carrinho':''}`:'Confira as promoções disponíveis no cardápio.';
-    if(!available.length){el.classList.add('hidden');el.innerHTML='';return}
-    el.classList.remove('hidden');el.innerHTML=available.map(p=>{
+    const discounts=this.promotions.filter(p=>p.rule_type==='percentage'&&Number(p.discount_percent)>0&&Array.isArray(p.products));
+    const discountCards=discounts.flatMap(p=>(p.products||[]).map(product=>{const normal=Number(product.salePrice),discount=Number(p.discount_percent),final=normal*(1-discount/100);if(!Number.isFinite(normal)||!Number.isFinite(final))return '';return `<article class="promo-card"><div class="promo-card-top"><span class="product-category">OFERTA</span><em class="promo-ribbon">-${discount}%</em></div><h2>${this.escape(product.name)}</h2><p>${this.escape(p.description||'Oferta especial por tempo limitado.')}</p><div class="promo-price"><del>${this.money(normal)}</del><strong>${this.money(final)}</strong></div><button type="button" data-promo-add="${this.escape(product.id)}">Escolher produto</button></article>`})).join('');
+    if(!available.length&&!discountCards){el.classList.add('hidden');el.innerHTML='';return}
+    el.classList.remove('hidden');el.innerHTML=`<div class="promotion-heading"><span class="product-category">OFERTAS E COMBOS</span><strong>Escolha uma oferta para aproveitar</strong></div>${discountCards}${available.map(p=>{
       const selected=[...this.combos.values()].filter(combo=>combo.promotion.id===p.id).length,groups=(p.groups||[]).map(group=>`${group.requiredQuantity} ${this.escape(group.name.toLowerCase())}`).join(' + ');
       const comboImages={
         'COMBO-BATATA-RECHEADA':['./assets/promotions/combo-duas-batatas-refrigerante.jpg','Duas batatas recheadas em cumbucas com refrigerante'],
@@ -98,7 +98,7 @@ const Cardapio = {
       const priceLabel=p.discount_percent!=null?`${Number(p.discount_percent)}% de desconto nos itens escolhidos${saving}`:`A partir de ${this.money(Number(p.combo_price))}${saving}`;
       const description=String(p.description||groups).replace(/Skol[^.]*\.?/gi,'').replace(/\s{2,}/g,' ').trim();
       return `<article class="combo-card">${image}<span class="product-category">COMBO</span><h2>${this.escape(p.name)}</h2><p>${this.escape(description)}</p><p>${groups}</p><strong>${priceLabel}</strong><button type="button" data-combo-add="${this.escape(p.id)}">${selected?`Adicionar outro · ${selected} no carrinho`:'Montar combo'}</button></article>`;
-    }).join('');
+    }).join('')}`;
   },
   categoryOrder: ['Batatas Recheadas','Petiscos','Açaí','Drinks','Cervejas','Bebidas','Conveniência'],
   featuredProducts(){return [...this.products].filter(product=>product?.active!==false&&Number.isFinite(Number(product.sale_price))).sort((a,b)=>Number(b.sale_price)-Number(a.sale_price)||String(a.name).localeCompare(String(b.name),'pt-BR')).slice(0,5)},
@@ -131,7 +131,7 @@ const Cardapio = {
     document.getElementById('catalog-search').addEventListener('input',e=>{this.search=e.target.value.toLowerCase();this.renderCatalog()});
     document.getElementById('category-list').addEventListener('click',e=>{const button=e.target.closest('[data-category]');if(!button)return;this.category=button.dataset.category;this.renderCategories();this.renderCatalog()});
     document.getElementById('catalog').addEventListener('click',e=>{if(e.target.closest('[data-retry]')){this.refresh();return}const button=e.target.closest('[data-action]');if(button){if(button.dataset.action==='inc')this.beginAdd(button.dataset.id);else this.change(button.dataset.id,-1)}});
-    document.getElementById('combo-catalog').addEventListener('click',e=>{const button=e.target.closest('[data-combo-add]');if(button){const promotion=this.promotions.find(item=>item.id===button.dataset.comboAdd);if(promotion)this.beginCombo(promotion);}});
+    document.getElementById('combo-catalog').addEventListener('click',e=>{const promoButton=e.target.closest('[data-promo-add]');if(promoButton){this.beginAdd(promoButton.dataset.promoAdd);return}const button=e.target.closest('[data-combo-add]');if(button){const promotion=this.promotions.find(item=>item.id===button.dataset.comboAdd);if(promotion)this.beginCombo(promotion);}});
     document.getElementById('featured-catalog').addEventListener('click',e=>{const button=e.target.closest('[data-featured-add]');if(button)this.beginAdd(button.dataset.featuredAdd)});
     document.getElementById('customization-content').addEventListener('change',e=>{if(this.pendingCombo&&(e.target.matches('[data-combo-product]'))){this.captureComboDraft();this.renderComboCustomization();}});
     document.getElementById('customization-content').addEventListener('click',e=>{const button=e.target.closest('[data-combo-quantity]');if(!button||!this.pendingCombo)return;const group=this.pendingCombo.groups.find(item=>item.id===button.dataset.groupId);if(!group)return;this.captureComboDraft();const count=this.pendingComboCounts.get(group.id)||group.requiredQuantity;const next=Math.max(group.requiredQuantity,Math.min(group.maxQuantity,count+Number(button.dataset.comboQuantity)));this.pendingComboCounts.set(group.id,next);this.renderComboCustomization();});
