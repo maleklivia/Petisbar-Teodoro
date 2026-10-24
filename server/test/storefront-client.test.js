@@ -180,6 +180,6 @@ test('combo de escolhas exibe desconto e calcula os mesmos centavos sem acrésci
   client.combos.set('one',combo);client.quote={subtotalNormal:65.8,promotionDiscount:3.29};client.renderCheckout=()=>{};
   renderCart();assert.equal(element('cart-fab-total').textContent,client.money(62.51));
   client.promotions=[promotion];client.renderPromotions();
-  assert.match(element('combo-catalog').innerHTML,/5% de desconto nos itens escolhidos/);
+  assert.match(element('combo-catalog').innerHTML,/Desconto aplicado nos itens escolhidos/);
   assert.doesNotMatch(element('combo-catalog').innerHTML,/A partir de R\$.*0,00/);
 });
