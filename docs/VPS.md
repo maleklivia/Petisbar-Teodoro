@@ -43,4 +43,6 @@ O fluxo de implantação fica preparado, mas só funcionará após cadastrar no 
 
 O deploy usa o checkout em `/opt/petisbar/app`, instala as dependências em `server/`, executa as migrações com `systemd` usando `/etc/petisbar.env` e reinicia `petisbar-api.service`. O Caddy continua servindo os arquivos estáticos desse checkout.
 
+O checkout do cardápio busca o endereço pelo CEP no ViaCEP. A política CSP do Caddy deve manter `connect-src 'self' https://viacep.com.br`; a página usa esse serviço apenas para preencher logradouro, bairro e cidade.
+
 O arquivo `/etc/petisbar.env` permanece apenas na VPS. A implantação não o interpreta pelo shell. O workflow deve ser executado com uma conta SSH autorizada a atualizar esse checkout, instalar dependências como `petisbar`, executar uma unidade transitória de migração e reiniciar o serviço. Ele só publica `origin/main`, verifica a prontidão da API e tenta restaurar o commit anterior se uma etapa falhar.
