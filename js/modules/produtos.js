@@ -120,7 +120,7 @@ const ProdutosModule = {
     if (!items.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
+          <td colspan="11" style="text-align:center;padding:32px;color:var(--text-muted);font-size:var(--text-sm)">
             Nenhum produto encontrado.
           </td>
         </tr>`;
@@ -132,6 +132,9 @@ const ProdutosModule = {
       const margem = (custo !== null && p.precoVenda)
         ? Math.round(((p.precoVenda - custo) / p.precoVenda) * 100)
         : null;
+      const margemIfood = (custo !== null && p.precoIfood)
+        ? Math.round(((p.precoIfood - custo) / p.precoIfood) * 100)
+        : null;
 
       const custoStr    = custo !== null
         ? `<div>${Utils.currency(custo)}</div>${p.precoStatus ? `<div style="font-size:var(--text-xs);color:${p.precoStatus === 'provisório' ? 'var(--color-warning)' : 'var(--text-muted)'}">${Utils.escapeHtml(p.precoStatus)} · ${p.precoRevisadoEm ? Utils.formatDate(p.precoRevisadoEm) : ''}</div>` : ''}${p.fontePreco ? `<a href="${Utils.escapeHtml(p.fontePreco)}" target="_blank" rel="noopener" style="font-size:var(--text-xs)">ver fonte</a>` : ''}`
@@ -139,6 +142,10 @@ const ProdutosModule = {
       const margemColor = margem !== null && margem < 0 ? 'var(--color-danger)' : 'var(--color-success)';
       const margemStr   = margem !== null
         ? `<span style="color:${margemColor};font-weight:600">${margem}%</span>`
+        : '<span style="color:var(--text-muted)">—</span>';
+      const margemIfoodColor = margemIfood !== null && margemIfood < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+      const margemIfoodStr = margemIfood !== null
+        ? `<span style="color:${margemIfoodColor};font-weight:600">${margemIfood}%</span>`
         : '<span style="color:var(--text-muted)">—</span>';
 
       // O servidor já calcula o estoque vendável de fichas técnicas. Nunca
@@ -166,6 +173,7 @@ const ProdutosModule = {
           <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
+          <td>${margemIfoodStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
           <td style="color:var(--text-muted)">${p.tempoPreparo ? p.tempoPreparo + ' min' : '—'}</td>
           <td>
