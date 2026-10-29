@@ -18,6 +18,7 @@ const ProdutosModule = {
   _photoRemove: false,
   _photoPreviewUrl: null,
   _ifoodPriceManualEdit: false,
+  _ifoodFeePercent: 26.2,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
@@ -35,6 +36,10 @@ const ProdutosModule = {
           API.getServerRecipeCards(),
         ]);
         this._items = produtos;
+        try {
+          const ifood = await API.getServerIfoodStatus();
+          if (Number.isFinite(Number(ifood.totalFeePercent))) this._ifoodFeePercent = Number(ifood.totalFeePercent);
+        } catch { /* a margem ainda pode ser exibida com a taxa configurada padrão */ }
         IngredientesModule.setItems(ingredientes);
         FichasModule.setData({ ingredientes, fichas, receitasCurso });
       } catch (error) {
@@ -133,7 +138,7 @@ const ProdutosModule = {
         ? Math.round(((p.precoVenda - custo) / p.precoVenda) * 100)
         : null;
       const margemIfood = (custo !== null && p.precoIfood)
-        ? Math.round(((p.precoIfood - custo) / p.precoIfood) * 100)
+        ? Math.round(((p.precoIfood * (1 - this._ifoodFeePercent / 100) - custo) / p.precoIfood) * 100)
         : null;
 
       const custoStr    = custo !== null
@@ -173,7 +178,7 @@ const ProdutosModule = {
           <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
           <td>${margemStr}</td>
-          <td>${margemIfoodStr}</td>
+          <td title="Preço iFood menos ${this._ifoodFeePercent}% de taxas e o custo do produto">${margemIfoodStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
           <td style="color:var(--text-muted)">${p.tempoPreparo ? p.tempoPreparo + ' min' : '—'}</td>
           <td>
