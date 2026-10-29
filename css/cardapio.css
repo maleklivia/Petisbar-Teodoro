@@ -49,3 +49,5 @@
 .promotion-heading{flex-wrap:wrap}.promotion-heading strong{color:var(--white)}
 @media(max-width:700px){.promotion-heading{align-items:flex-start;flex-direction:column;gap:4px}.promo-image{height:150px}.promo-card{padding:14px}.promo-card h2{font-size:16px}}
 .postal-code-status{min-height:0;margin:0;color:var(--gold);font-size:12px}
+.checkout-form .loyalty-check{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:normal}
+.checkout-form .loyalty-check input[type="checkbox"]{display:inline-block;width:18px;height:18px;min-height:18px;margin:0;padding:0;flex:0 0 18px;accent-color:var(--gold)}
