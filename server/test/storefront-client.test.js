@@ -7,6 +7,7 @@ import vm from 'node:vm';
 
 function loadClient() {
   const elements = new Map();
+  const fields = new Map(['city','street','district'].map(name => [name, { value: '', dataset: {} }]));
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
       textContent: '', innerHTML: '',
@@ -16,20 +17,38 @@ function loadClient() {
     return elements.get(id);
   };
   const context = vm.createContext({
-    document: { addEventListener() {}, getElementById: element },
-    URLSearchParams, Intl, Map, Set, Number, JSON,
+    document: { addEventListener() {}, getElementById: element, querySelector(selector) { const name=selector.match(/\[name="([^"]+)"\]/)?.[1]; return fields.get(name)||null; }, querySelectorAll() { return []; } },
+    URLSearchParams, Intl, Map, Set, Number, JSON, AbortSignal,
   });
   vm.runInContext(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'cardapio.js'), 'utf8'), context);
   const client = vm.runInContext('Cardapio', context);
   client.renderStorefront = () => {};
   client.renderCategories = () => {};
+  client.renderCheckout = () => {};
   const renderCart=()=>clientRenderCart.call(client),clientRenderCart=client.renderCart;
   client.renderCart = () => {};
   client.openCart = () => {};
   client.toast = () => {};
   client.escape = value => String(value);
-  return { client, element, renderCart };
+  return { client, element, renderCart, fields, context };
 }
+
+test('preenche endereço ao consultar CEP sem substituir campos editados manualmente', async () => {
+  const { client, element, fields, context } = loadClient();
+  fields.get('city').value = 'Cidade escolhida pelo cliente';
+  fields.get('street').value = 'Rua antiga';
+  assert.equal(context.document.querySelector('[name="district"]'), fields.get('district'));
+  context.fetch = async url => {
+    assert.equal(url, 'https://viacep.com.br/ws/24230061/json/');
+    return { ok: true, json: async () => ({ localidade: 'Niterói', logradouro: 'Rua das Flores', bairro: 'Centro' }) };
+  };
+  await client.lookupAddressByPostalCode('24230-061');
+  assert.equal(fields.get('city').value, 'Cidade escolhida pelo cliente');
+  assert.equal(fields.get('street').value, 'Rua antiga');
+  assert.match(element('postal-code-status').textContent, /Endereço encontrado/);
+  assert.equal(fields.get('district').value, 'Centro');
+  assert.equal(fields.get('district').dataset.cepAutofilled, 'true');
+});
 
 test('falha de API retira catálogo antigo e bloqueia pedidos', async () => {
   const { client, element } = loadClient();

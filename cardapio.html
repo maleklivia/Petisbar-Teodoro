@@ -49,7 +49,7 @@
         <div id="address-fields" class="address-fields hidden">
           <strong class="address-title">Endereço de entrega</strong>
           <div class="checkout-grid">
-            <label>CEP<input name="postalCode" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" data-delivery-required></label>
+            <label>CEP<input name="postalCode" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" data-delivery-required aria-describedby="postal-code-status"></label>
             <label>Cidade<input name="city" autocomplete="address-level2" data-delivery-required></label>
             <label class="wide">Rua ou avenida<input name="street" autocomplete="address-line1" data-delivery-required></label>
             <label>Número<input name="number" inputmode="numeric" data-delivery-required></label>
@@ -57,6 +57,7 @@
             <label class="wide">Complemento<input name="complement" autocomplete="address-line2" placeholder="Casa, bloco, apartamento…"></label>
             <label class="wide">Ponto de referência<input name="reference" placeholder="Ex.: próximo à praça"></label>
           </div>
+          <p id="postal-code-status" class="postal-code-status" role="status" aria-live="polite"></p>
         </div>
         <label>Forma de pagamento<select name="payment"><option>Pix</option><option>Dinheiro</option><option>Cartão na entrega</option></select></label>
         <div id="coupon-section" class="coupon-section hidden">
