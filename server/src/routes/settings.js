@@ -31,6 +31,10 @@ export default async function settingsRoutes(app) {
     const client = await app.db.connect();
     try {
       await client.query('BEGIN');
+      if (Object.hasOwn(settings, 'storefront.allowOrdersWithoutStockForTesting')) {
+        // O modo de teste e os checkouts usam o mesmo lock para que a virada do estado não cruze uma gravação real.
+        await client.query('SELECT pg_advisory_xact_lock(20261029,1)');
+      }
       for (const [key, value] of Object.entries(settings)) {
         if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(key)) { await client.query('ROLLBACK'); return reply.code(400).send({ error: 'invalid_key' }); }
         await client.query(`INSERT INTO app_settings(key,value) VALUES($1,$2::jsonb)

@@ -23,6 +23,43 @@ test('envia configurações do cardápio como JSON ao VPS', async () => {
   assert.deepEqual(JSON.parse(sent.options.body), { 'storefront.minimumOrder': 20 });
 });
 
+test('modo de teste tem controle isolado e não altera as demais configurações', async () => {
+  const saved = [];
+  const configuration = { 'storefront.isOpen': true, 'storefront.minimumOrder': 20 };
+  const context = vm.createContext({
+    API: {
+      isServerMode: () => true,
+      hasPermission: permission => permission === 'settings.manage',
+      saveServerSettings: async value => { saved.push(value); },
+    },
+    Stores: { config: { get: () => configuration, set: value => Object.assign(configuration, value) } },
+    UI: { toast() {} },
+    Utils: { escapeHtml: value => String(value ?? '') },
+    document: { getElementById: () => ({ innerHTML: '' }) },
+    localStorage: { getItem: () => null },
+  });
+  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'modules', 'configuracoes.js'), 'utf8');
+  vm.runInContext(source, context);
+  const module = vm.runInContext('ConfiguracoesModule', context);
+  module._storefront = { ...configuration, 'storefront.allowOrdersWithoutStockForTesting': false };
+  const html = module._renderStorefront();
+  assert.match(html, /id="cfg-test-mode-toggle"/);
+  assert.match(html, /Ativar modo de teste/);
+  assert.doesNotMatch(html, /name="allowOrdersWithoutStockForTesting"/);
+  await module._setStorefrontTestMode({ disabled: false });
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]['storefront.allowOrdersWithoutStockForTesting'], true);
+  assert.equal(Object.keys(saved[0]).length, 1);
+  assert.equal(configuration['storefront.allowOrdersWithoutStockForTesting'], true);
+  assert.equal(configuration['storefront.isOpen'], true);
+  assert.equal(configuration['storefront.minimumOrder'], 20);
+  await module._setStorefrontTestMode({ disabled: false });
+  assert.equal(saved.length, 2);
+  assert.equal(saved[1]['storefront.allowOrdersWithoutStockForTesting'], false);
+  assert.equal(Object.keys(saved[1]).length, 1);
+  assert.equal(configuration['storefront.isOpen'], true);
+});
+
 test('consulta o estado e as taxas do iFood no endpoint autenticado do VPS', async () => {
   let requestedUrl;
   const context = vm.createContext({

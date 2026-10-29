@@ -158,15 +158,20 @@ test('homologação real de API e PostgreSQL isolado',{skip:!enabled},async t=>{
         assert.equal(priced.totalPromotionDiscount,Math.round((priced.subtotalNormal*.05+Number.EPSILON)*100)/100);
         assert.ok(priced.totalAfterPromotions<priced.subtotalNormal,`${potato.name} / ${sodaFlavor}`);
       }
-      const payload={...publicOrder('Dinheiro'),...cart};
-      const order=(await call('POST','/public/orders',payload,false,201)).data;
-      assert.equal(Number(order.total),Number(quote.totalAfterPromotions));
-      assert.match((await q('SELECT source FROM orders WHERE id=$1',[order.id])).rows[0].source,/\(Teste\)/);
-      await call('PATCH',`/orders/${order.id}/status`,{status:'Pronto'});
-      await call('PATCH',`/orders/${order.id}/status`,{status:'Entregue'});
-      assert.equal((await q('SELECT 1 FROM financial_entries WHERE reference_id=$1',[order.id])).rowCount,0);
-      assert.equal((await q('SELECT 1 FROM stock_movements WHERE reference=$1',[order.id])).rowCount,0);
+      await call('PUT','/settings',{'storefront.isOpen':false});
+      const payload={...publicOrder('Dinheiro'),...cart,expectedTestMode:true};
+      const trackedTables=['orders','order_items','order_status_history','promotion_applications','public_order_idempotency','order_idempotency_keys','stock_movements','financial_entries'];
+      const before=Object.fromEntries(await Promise.all(trackedTables.map(async table=>[table,(await q(`SELECT count(*) FROM ${table}`)).rows[0].count])));
+      const simulated=(await call('POST','/public/orders',payload,false,200)).data;
+      const repeated=(await call('POST','/public/orders',payload,false,200)).data;
+      assert.equal(simulated.simulated,true);assert.equal(simulated.testMode,true);assert.equal(simulated.status,'Simulação concluída');
+      assert.equal(Number(simulated.total),Number(quote.totalAfterPromotions));assert.deepEqual(repeated,simulated);
+      assert.equal('id' in simulated,false);assert.equal('orderNumber' in simulated,false);assert.equal('trackingToken' in simulated,false);
+      const after=Object.fromEntries(await Promise.all(trackedTables.map(async table=>[table,(await q(`SELECT count(*) FROM ${table}`)).rows[0].count])));
+      assert.deepEqual(after,before,'simulação não grava pedidos, idempotência ou efeitos operacionais');
       await call('PUT','/settings',{'storefront.allowOrdersWithoutStockForTesting':false});
+      const staleMode=await call('POST','/public/orders',payload,false,409);assert.equal(staleMode.error,'test_mode_changed');
+      await call('PUT','/settings',{'storefront.isOpen':true});
     });
     await t.test('agenda semanal válida é canônica e dados inválidos não são salvos',async()=>{
       await call('PUT','/settings',{horario:{segunda:'Fechado',terca:'15h – 23h',quarta:'15h – 23h',quinta:'15h – 23h',sexta:'18h – 02h',sabado:'15h – 23h',domingo:'15h – 23h'}});
