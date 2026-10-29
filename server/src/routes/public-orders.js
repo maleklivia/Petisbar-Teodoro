@@ -7,6 +7,7 @@ import { reserveOrderStock } from '../services/order-stock-reservations.js';
 import { hashToken, optionalCustomerAuthenticate } from '../middleware/customer-auth.js';
 import { storefrontAcceptance } from '../services/storefront-hours.js';
 import { sendCustomerEmail } from '../services/customer-email.js';
+import { withSellableProductStock } from '../services/product-stock.js';
 
 const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
@@ -100,11 +101,12 @@ export default async function publicOrderRoutes(app) {
   app.get('/public/catalog', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const catalog=await app.db.query('SELECT id,name,category,description,sale_price,photo_url,current_stock,option_groups FROM products WHERE active=true ORDER BY category,name');
+    const sellableRows=await withSellableProductStock(app.db, catalog.rows);
     const configuredIds=catalog.rows.flatMap(product=>(product.option_groups||[]).flatMap(group=>(group.options||[]).map(option=>option.priceProductId).filter(Boolean)));
     const variantIds=[...new Set([...configuredIds,'p-pet006','p-pet007','p-drk002','p-drk003','p-drk011','p-ref005','p-ref002','p-ref003','p-agu001'])];
     const variants=await app.db.query('SELECT id,sale_price FROM products WHERE id=ANY($1::text[])',[variantIds]);
     const prices = Object.fromEntries(variants.rows.map(row => [row.id, Number(row.sale_price)]));
-    return {data:catalog.rows.map(product => ({...product,
+    return {data:sellableRows.map(product => ({...product,
       option_groups:(product.option_groups||[]).map(group=>({...group,options:(group.options||[]).map(option=>({...option,priceProductPrice:option.priceProductId?prices[option.priceProductId]:null}))})),
       option_prices:product.id==='p-drk001' ? {flavors:{morango:prices['p-drk002'],maracuja:prices['p-drk003']}}
         : product.id==='p-pet001' ? {G:prices['p-pet006']}
