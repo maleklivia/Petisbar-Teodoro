@@ -24,7 +24,6 @@ const ConfiguracoesModule = {
       deliveryTime: String(data.get('deliveryTime') ?? ''),
       hours: String(data.get('hours') ?? ''),
       isOpen: data.get('isOpen') === 'on',
-      allowOrdersWithoutStockForTesting: data.get('allowOrdersWithoutStockForTesting') === 'on',
       paymentMethods: [...form.querySelectorAll('[data-payment]:checked')].map(input => input.dataset.payment),
       promotion: String(data.get('promotion') ?? ''),
       whatsapp: String(data.get('whatsapp') ?? ''),
@@ -96,15 +95,20 @@ const ConfiguracoesModule = {
     const draft = this._readStorefrontDraft();
     const payment = draft?.paymentMethods ?? s['storefront.paymentMethods'] ?? [];
     const promotion = (s['storefront.promotions'] || [])[0] || {};
-    return `<form id="cfg-storefront" style="max-width:620px;display:flex;flex-direction:column;gap:var(--sp-4)">
+    const testMode = s['storefront.allowOrdersWithoutStockForTesting'] === true;
+    return `<section style="max-width:620px;margin-bottom:var(--sp-4);padding:var(--sp-5);background:var(--bg-surface);border:1px solid ${testMode ? 'var(--color-warning)' : 'var(--border-default)'};border-radius:var(--radius-lg)" aria-labelledby="cfg-test-mode-title">
+      <h3 id="cfg-test-mode-title" style="margin:0 0 var(--sp-2)">Modo de teste do cardápio</h3>
+      <p>Estado: <strong>${testMode ? 'ATIVO' : 'Desativado'}</strong></p>
+      <p style="color:var(--text-muted)">${testMode ? 'O checkout apenas simula o pedido. Nenhum pedido ou movimento será gravado no ERP.' : 'Ative para testar o checkout sem criar pedidos no ERP. Os produtos ficam disponíveis mesmo sem estoque.'}</p>
+      <button class="btn ${testMode ? 'btn-ghost' : 'btn-primary'}" id="cfg-test-mode-toggle" type="button" aria-pressed="${testMode}">${testMode ? 'Desativar modo de teste' : 'Ativar modo de teste'}</button>
+    </section>
+    <form id="cfg-storefront" style="max-width:620px;display:flex;flex-direction:column;gap:var(--sp-4)">
       <p>Estas informações são publicadas no cardápio do cliente. A aba aberta se atualiza automaticamente em até 15 segundos.</p>
       ${draft ? '<p role="status">Rascunho deste navegador recuperado. Clique em “Salvar no VPS” para publicá-lo. <button type="button" class="btn btn-ghost" id="cfg-discard-draft">Descartar rascunho</button></p>' : ''}
       <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Utils.escapeHtml(draft?.minimumOrder ?? String(s['storefront.minimumOrder'] ?? 20))}"></label>
       <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
       <label class="form-group">Horário de funcionamento<textarea class="form-input" name="hours" readonly rows="3">${Utils.escapeHtml(s['storefront.hours'] ?? '')}</textarea></label><small>Altere os dias e horários na aba Horário. O cardápio e a aceitação dos pedidos usam essa mesma agenda.</small>
       <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
-      <label class="form-group"><input name="allowOrdersWithoutStockForTesting" type="checkbox" ${(draft?.allowOrdersWithoutStockForTesting ?? s['storefront.allowOrdersWithoutStockForTesting']) ? 'checked' : ''}> Modo de testes: permitir pedidos sem estoque real</label>
-      <small>Durante os testes, todos os produtos ativos ficam disponíveis. Os pedidos entram no ERP identificados como teste. Desative esta opção antes de vender normalmente.</small>
       <fieldset><legend>Formas de pagamento</legend>${['Pix','Dinheiro','Cartão na entrega'].map(method => `<label style="display:block"><input type="checkbox" data-payment="${method}" ${payment.includes(method) ? 'checked' : ''}> ${method}</label>`).join('')}</fieldset>
       <label class="form-group">Texto da promoção<textarea class="form-input" name="promotion" rows="2" maxlength="500">${Utils.escapeHtml(draft?.promotion ?? promotion.description ?? '')}</textarea></label>
       <label class="form-group">WhatsApp do estabelecimento<input class="form-input" name="whatsapp" inputmode="tel" pattern="[0-9]{10,15}" required value="${Utils.escapeHtml(draft?.whatsapp ?? s['storefront.whatsapp'] ?? '')}"></label>
@@ -123,7 +127,6 @@ const ConfiguracoesModule = {
       'storefront.minimumOrder': Number(data.get('minimumOrder')),
       'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
       'storefront.isOpen': data.get('isOpen') === 'on',
-      'storefront.allowOrdersWithoutStockForTesting': data.get('allowOrdersWithoutStockForTesting') === 'on',
       'storefront.paymentMethods': payments,
       'storefront.promotions': [{ ...promotion, description: String(data.get('promotion')).trim() }],
       'storefront.whatsapp': String(data.get('whatsapp')).trim(),
@@ -140,6 +143,24 @@ const ConfiguracoesModule = {
       console.error(error);
       UI.toast('Falha ao salvar no VPS. Os campos continuam nesta tela.', 'error');
     } finally { button.disabled = false; }
+  },
+
+  async _setStorefrontTestMode(button) {
+    if (!API.isServerMode() || !API.hasPermission('settings.manage')) return;
+    const current = this._storefront || {};
+    const enabled = current['storefront.allowOrdersWithoutStockForTesting'] !== true;
+    button.disabled = true;
+    try {
+      await API.saveServerSettings({ 'storefront.allowOrdersWithoutStockForTesting': enabled });
+      this._storefront = { ...current, 'storefront.allowOrdersWithoutStockForTesting': enabled };
+      Stores.config.set({ ...Stores.config.get(), 'storefront.allowOrdersWithoutStockForTesting': enabled });
+      UI.toast(enabled ? 'Modo de teste ativado. O checkout não gravará pedidos no ERP.' : 'Modo de teste desativado. O cardápio voltou ao funcionamento normal.', 'success');
+      this._render();
+    } catch (error) {
+      console.error(error);
+      UI.toast('Não foi possível salvar o modo de teste no VPS.', 'error');
+      button.disabled = false;
+    }
   },
 
   _renderRestaurante(cfg) {
@@ -436,6 +457,8 @@ const ConfiguracoesModule = {
         return;
       }
       if (e.target.closest('#cfg-discard-draft')) { localStorage.removeItem(this._storefrontDraftKey); this._render(); return; }
+      const testModeToggle = e.target.closest('#cfg-test-mode-toggle');
+      if (testModeToggle) { await this._setStorefrontTestMode(testModeToggle); return; }
       const tab = e.target.closest('[data-cfg-tab]');
       if (tab) { this._tab = tab.dataset.cfgTab; this._render(); this._bindEvents(); return; }
 

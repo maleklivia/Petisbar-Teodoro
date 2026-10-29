@@ -24,6 +24,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS customer_accounts_email_normalized_idx
 CREATE UNIQUE INDEX IF NOT EXISTS customer_accounts_google_subject_idx
   ON customer_accounts(google_subject) WHERE google_subject IS NOT NULL;
 
+ALTER TABLE cashback_ledger ADD COLUMN IF NOT EXISTS customer_account_id uuid;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='cashback_ledger'::regclass
+      AND conname='cashback_ledger_customer_account_id_fkey'
+  ) THEN
+    ALTER TABLE cashback_ledger
+      ADD CONSTRAINT cashback_ledger_customer_account_id_fkey
+      FOREIGN KEY (customer_account_id) REFERENCES customer_accounts(id);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS customer_data_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_account_id uuid REFERENCES customer_accounts(id) ON DELETE SET NULL,
