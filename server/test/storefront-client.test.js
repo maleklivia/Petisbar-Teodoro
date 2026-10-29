@@ -35,6 +35,7 @@ function loadClient() {
 
 test('preenche endereço ao consultar CEP sem substituir campos editados manualmente', async () => {
   const { client, element, fields, context } = loadClient();
+  client.storefront = { deliveryZones: { zones: [{ prefixo: '24230', nome: 'Niterói', valor: 5 }] } };
   fields.get('city').value = 'Cidade escolhida pelo cliente';
   fields.get('street').value = 'Rua antiga';
   assert.equal(context.document.querySelector('[name="district"]'), fields.get('district'));
@@ -48,6 +49,30 @@ test('preenche endereço ao consultar CEP sem substituir campos editados manualm
   assert.match(element('postal-code-status').textContent, /Endereço encontrado/);
   assert.equal(fields.get('district').value, 'Centro');
   assert.equal(fields.get('district').dataset.cepAutofilled, 'true');
+});
+
+test('informa com acolhimento quando o CEP é válido mas fica fora da área de entrega', async () => {
+  const { client, element, fields, context } = loadClient();
+  client.storefront = { deliveryZones: { zones: [{ prefixo: '24230', nome: 'Niterói', valor: 5 }] } };
+  context.fetch = async url => {
+    assert.equal(url, 'https://viacep.com.br/ws/01001000/json/');
+    return { ok: true, json: async () => ({ localidade: 'São Paulo', logradouro: 'Praça da Sé', bairro: 'Sé' }) };
+  };
+  await client.lookupAddressByPostalCode('01001-000');
+  assert.equal(fields.get('city').value, 'São Paulo');
+  assert.equal(fields.get('street').value, 'Praça da Sé');
+  assert.equal(fields.get('district').value, 'Sé');
+  assert.equal(element('postal-code-status').textContent, client.deliveryAreaUnavailableMessage());
+  assert.match(element('postal-code-status').textContent, /ainda não entregamos nessa região/i);
+});
+
+test('mantém aviso de CEP não encontrado quando o serviço não reconhece o código', async () => {
+  const { client, element, context } = loadClient();
+  client.storefront = { deliveryZones: { zones: [{ prefixo: '24230', nome: 'Niterói', valor: 5 }] } };
+  context.fetch = async () => ({ ok: true, json: async () => ({ erro: true }) });
+  await client.lookupAddressByPostalCode('00000000');
+  assert.match(element('postal-code-status').textContent, /CEP não encontrado/);
+  assert.doesNotMatch(element('postal-code-status').textContent, /ainda não entregamos/);
 });
 
 test('falha de API retira catálogo antigo e bloqueia pedidos', async () => {
