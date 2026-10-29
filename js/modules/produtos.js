@@ -141,12 +141,14 @@ const ProdutosModule = {
         ? `<span style="color:${margemColor};font-weight:600">${margem}%</span>`
         : '<span style="color:var(--text-muted)">—</span>';
 
+      // O servidor já calcula o estoque vendável de fichas técnicas. Nunca
+      // exiba "ficha" como se fosse uma quantidade disponível.
       const estoque = p.estoqueAtual !== null && p.estoqueAtual !== undefined;
       const estoqueStr = estoque
         ? (p.estoqueAtual <= (p.estoqueMinimo || 0)
             ? `<span style="color:var(--color-danger);font-weight:600">${p.estoqueAtual}</span>`
             : `<span>${p.estoqueAtual}</span>`)
-        : '<span style="color:var(--text-muted)">ficha</span>';
+        : '<span style="color:var(--color-danger);font-weight:600">0</span>';
 
       return `
         <tr>

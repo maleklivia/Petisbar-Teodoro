@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { config } from '../config.js';
 import { resolveIfoodPrice } from '../domain/ifood-pricing.js';
 import { requirePermission } from '../middleware/auth.js';
+import { withSellableProductStock } from '../services/product-stock.js';
 
 const uploadedPhotoUrl = (productId, version = '') => `/api/v1/public/products/${encodeURIComponent(productId)}/photo${version?`?v=${version}`:''}`;
 
@@ -102,7 +103,7 @@ export default async function catalogRoutes(app) {
 
   app.get('/products', { preHandler: requirePermission('catalog.read') }, async () => {
     const { rows } = await app.db.query('SELECT * FROM products ORDER BY category, name');
-    return { data: rows };
+    return { data: await withSellableProductStock(app.db, rows) };
   });
 
   app.get('/products/:id/usage', {preHandler:requirePermission('catalog.read')},async(request,reply)=>{
