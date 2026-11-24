@@ -12,7 +12,7 @@ import { withSellableProductStock } from '../services/product-stock.js';
 const optionSchema = z.record(z.string().regex(/^[a-z][a-zA-Z0-9_-]{0,39}$/),z.unknown()).default({});
 const itemSchema = z.object({ productId: z.string().min(1).max(100), quantity: z.number().int().min(1).max(20), expectedUnitPrice: z.number().nonnegative(), flavoredIce: z.boolean().default(false), options: optionSchema });
 const comboSchema = z.object({ promotionId:z.string().uuid(), selections:z.array(z.object({ groupId:z.string().uuid(), items:z.array(z.object({ productId:z.string().min(1).max(100),quantity:z.number().int().min(1).max(20),flavoredIce:z.boolean().default(false),options:optionSchema })).min(1).max(30) })).min(1).max(20) });
-const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), items: z.array(itemSchema).max(30), combos:z.array(comboSchema).max(10).default([]) }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
+const couponSchema = z.object({ code: z.string().trim().min(1).max(40), phone: z.string().trim().min(8).max(24), fulfillmentType:z.enum(['retirada','entrega']).default('retirada'), items: z.array(itemSchema).max(30), combos:z.array(comboSchema).max(10).default([]) }).refine(data=>data.items.length+data.combos.flatMap(c=>c.selections.flatMap(g=>g.items)).length>0);
 const orderSchema = z.object({
   customer: z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().min(8).max(24) }),
   fulfillmentType: z.enum(['retirada', 'entrega']),
@@ -122,7 +122,7 @@ export default async function publicOrderRoutes(app) {
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
-    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos); if(priced.error)return reply.code(409).send({error:priced.error});
+    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType}); if(priced.error)return reply.code(409).send({error:priced.error});
     if(!pricesMatch(parsed.data.items,priced))return reply.code(409).send({error:'catalog_changed'});
     if(!couponCanStack(priced))return reply.code(409).send({error:'coupon_not_combinable'});
     const amount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));
@@ -167,7 +167,7 @@ export default async function publicOrderRoutes(app) {
           return reply.code(201).send(previous.rows[0].response);
         }
       }
-      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
+      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true,fulfillmentType:input.fulfillmentType}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
       const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
       const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));

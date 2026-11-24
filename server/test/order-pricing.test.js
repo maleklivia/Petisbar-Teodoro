@@ -135,6 +135,35 @@ test('opções configuráveis usam preços canônicos e preservam o efeito de es
   assert.equal(pricesMatch([{productId:'base',expectedUnitPrice:19,options:{size:'G',drink:'soda'}}],priced),true);
 });
 
+test('whisky do copão só pode ser escolhido para retirada, inclusive com opção configurada no ERP',async()=>{
+  const groups=[{key:'beverage',label:'Escolha a bebida',type:'radio',required:true,options:[
+    {value:'vodka',label:'Vodka',priceMode:'base',stockMode:'none'},
+    {value:'whisky',label:'Whisky',priceMode:'base',stockMode:'none',fulfillmentType:'retirada'},
+  ]}];
+  const client={async query(sql){return sql.includes('active=true')
+    ?{rows:[{id:'p-drk010',name:'Copão',category:'Drinks',sale_price:'30.00',current_stock:5,option_groups:groups}]}
+    :{rows:[]};}};
+  const item=[{productId:'p-drk010',quantity:1,options:{beverage:'whisky'}}];
+  assert.deepEqual(await priceOrderItems(client,item,{fulfillmentType:'entrega'}),{error:'product_unavailable_for_fulfillment'});
+  const pickup=await priceOrderItems(client,item,{fulfillmentType:'retirada'});
+  assert.equal(pickup.items[0].unitPrice,30);
+  const explicitlyAvailable={...groups[0],options:groups[0].options.map(option=>option.value==='whisky'?{...option,fulfillmentType:null}:option)};
+  const updatedClient={async query(sql){return sql.includes('active=true')
+    ?{rows:[{id:'p-drk010',name:'Copão',category:'Drinks',sale_price:'30.00',current_stock:5,option_groups:[explicitlyAvailable]}]}
+    :{rows:[]};}};
+  assert.equal((await priceOrderItems(updatedClient,item,{fulfillmentType:'entrega'})).items[0].unitPrice,30);
+});
+
+test('whisky do copão continua restrito em cadastros antigos sem grupos de opções',async()=>{
+  const client={async query(sql){return sql.includes('active=true')
+    ?{rows:[{id:'p-drk011',name:'Copão 700 ml',category:'Drinks',sale_price:'45.00',current_stock:5,option_groups:[]}]}
+    :{rows:[]};}};
+  const item=[{productId:'p-drk011',quantity:1,options:{size:'500ml',beverage:'whisky',iceFlavor:'coco'}}];
+  assert.deepEqual(await priceOrderItems(client,item,{fulfillmentType:'entrega'}),{error:'product_unavailable_for_fulfillment'});
+  const pickup=await priceOrderItems(client,item,{fulfillmentType:'retirada'});
+  assert.equal(pickup.items[0].unitPrice,45);
+});
+
 test('Caipirinha não aceita preço ausente para sabor adicional', async () => {
   const client = { async query(sql) {
     return sql.includes('active=true')

@@ -52,3 +52,18 @@
 .postal-code-status{min-height:0;margin:0;color:var(--gold);font-size:12px}
 .checkout-form .loyalty-check{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:normal}
 .checkout-form .loyalty-check input[type="checkbox"]{display:inline-block;width:18px;height:18px;min-height:18px;margin:0;padding:0;flex:0 0 18px;accent-color:var(--gold)}
+.fulfillment-mode-gate{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.84);backdrop-filter:blur(8px)}
+.fulfillment-mode-gate.hidden{display:none}
+.fulfillment-mode-card{width:min(560px,100%);padding:clamp(22px,5vw,38px);border:1px solid rgba(212,173,79,.45);border-radius:22px;background:var(--surface);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.fulfillment-mode-card h2{margin:8px 0;font-size:clamp(24px,5vw,34px);color:var(--white)}
+.fulfillment-mode-card p{margin:0 0 20px;color:var(--muted);line-height:1.5}
+.fulfillment-mode-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fulfillment-mode-choices button{display:flex;flex-direction:column;gap:7px;min-height:100px;padding:17px;text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--raised);color:var(--white);cursor:pointer}
+.fulfillment-mode-choices button:hover,.fulfillment-mode-choices button:focus-visible{border-color:var(--gold);outline:2px solid rgba(212,173,79,.22)}
+.fulfillment-mode-choices strong{font-size:18px;color:var(--gold-light)}
+.fulfillment-mode-choices span{font-size:13px;color:var(--muted)}
+.fulfillment-mode-banner{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:0 0 16px;padding:12px 15px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.fulfillment-mode-banner>span{color:var(--muted);font-size:14px}.fulfillment-mode-banner>span strong{color:var(--gold-light)}
+.fulfillment-mode-banner>div{display:flex;gap:7px}.fulfillment-mode-banner button{min-height:36px;padding:6px 13px;border:1px solid var(--line);border-radius:9px;background:var(--raised);color:var(--white);font-weight:700;cursor:pointer}
+.fulfillment-mode-banner button[aria-pressed="true"]{border-color:var(--gold);background:var(--gold);color:#111}
+@media(max-width:520px){.fulfillment-mode-choices{grid-template-columns:1fr}.fulfillment-mode-banner{align-items:flex-start;flex-direction:column}.fulfillment-mode-banner>div{width:100%}.fulfillment-mode-banner button{flex:1}}

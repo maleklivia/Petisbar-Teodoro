@@ -16,6 +16,7 @@ const promotionSchema = z.object({
   ruleType:z.enum(['percentage','fixed','combo']), discountPercent:z.number().positive().max(100).nullable().optional(),
   discountAmount:z.number().positive().max(100000).nullable().optional(), comboPrice:z.number().nonnegative().max(100000).nullable().optional(),
   cmvEstimatePercent:z.number().positive().max(99).nullable().optional(),
+  fulfillmentType:z.enum(['retirada','entrega']).nullable().optional(),
   startsAt:z.string().datetime().nullable().optional(), endsAt:z.string().datetime().nullable().optional(),
   priority:z.number().int().min(-100000).max(100000).default(100), stackWithCoupon:z.boolean().default(false),
   productIds:z.array(z.string().min(1).max(100)).max(100).default([]), groups:z.array(groupSchema).max(20).default([]),
@@ -38,18 +39,18 @@ async function savePromotion(client, input, { id=null, userId, ip }) {
     const current=await client.query('SELECT id,active,code FROM promotions WHERE id=$1 FOR UPDATE',[id]);
     if(!current.rowCount)throw Object.assign(new Error('promotion_not_found'),{statusCode:404,code:'promotion_not_found'});
     await client.query(`UPDATE promotions SET code=$2,name=$3,description=$4,rule_type=$5,discount_percent=$6,discount_amount=$7,
-      combo_price=$8,cmv_estimate_percent=$9,starts_at=$10,ends_at=$11,priority=$12,stack_with_coupon=$13,updated_by=$14,updated_at=now(),active=false WHERE id=$1`,
+      combo_price=$8,cmv_estimate_percent=$9,fulfillment_type=$10,starts_at=$11,ends_at=$12,priority=$13,stack_with_coupon=$14,updated_by=$15,updated_at=now(),active=false WHERE id=$1`,
       [id,input.code,input.name,input.description,input.ruleType,input.discountPercent??null,input.discountAmount??null,input.comboPrice??null,
-        input.cmvEstimatePercent??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
+        input.cmvEstimatePercent??null,input.fulfillmentType??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
     await client.query('DELETE FROM promotion_products WHERE promotion_id=$1',[id]);
     await client.query('UPDATE promotion_groups SET active=false WHERE promotion_id=$1',[id]);
     if(current.rows[0].active)await client.query(`INSERT INTO audit_logs(user_id,action,entity_type,entity_id,metadata,ip)
       VALUES($1,'promotion.deactivate','promotion',$2,$3,$4)`,[userId,id,{code:current.rows[0].code,reason:'edited_rule'},ip]);
   }else{
     const created=await client.query(`INSERT INTO promotions(code,name,description,rule_type,discount_percent,discount_amount,combo_price,
-      cmv_estimate_percent,starts_at,ends_at,priority,stack_with_coupon,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
+      cmv_estimate_percent,fulfillment_type,starts_at,ends_at,priority,stack_with_coupon,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING id`,
       [input.code,input.name,input.description,input.ruleType,input.discountPercent??null,input.discountAmount??null,input.comboPrice??null,
-        input.cmvEstimatePercent??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
+        input.cmvEstimatePercent??null,input.fulfillmentType??null,input.startsAt??null,input.endsAt??null,input.priority,input.stackWithCoupon,userId]);
     promotionId=created.rows[0].id;
   }
   for(const productId of input.productIds)await client.query('INSERT INTO promotion_products(promotion_id,product_id) VALUES($1,$2)',[promotionId,productId]);
@@ -129,7 +130,7 @@ export default async function promotionRoutes(app){
   });
   app.post('/public/pricing/quote',async(request,reply)=>{
     const parsed=quoteSchema.safeParse(request.body);if(!parsed.success)return reply.code(400).send({error:'validation_error'});
-    const client=await app.db.connect();try{await client.query('BEGIN');const result=await calculatePromotions(client,parsed.data.items,parsed.data.combos);
+    const client=await app.db.connect();try{await client.query('BEGIN');const result=await calculatePromotions(client,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType});
       await client.query('ROLLBACK');if(result.error)return reply.code(409).send({error:result.error,details:result});
       return {data:{subtotalNormal:result.subtotal,promotions:result.promotions.map(p=>({code:p.code,name:p.name,discount:p.discount,items:p.items})),
         rejectedPromotions:result.rejectedPromotions,totalPromotionDiscount:result.promotionDiscount,totalAfterPromotions:roundMoney(result.subtotal-result.promotionDiscount)}};
@@ -140,4 +141,4 @@ export default async function promotionRoutes(app){
 const zId=z.string().uuid();
 const zStatus=z.object({active:z.boolean()});
 const lineSchema=z.object({productId:z.string().min(1).max(100),quantity:z.number().int().min(1).max(20),expectedUnitPrice:z.number().nonnegative().optional(),options:z.record(z.string(),z.unknown()).default({})});
-const quoteSchema=z.object({items:z.array(lineSchema).max(30).default([]),combos:z.array(z.object({promotionId:zId,selections:z.array(z.object({groupId:zId,items:z.array(lineSchema).min(1).max(30)})).min(1)})).max(10).default([])}).refine(data=>data.items.length+data.combos.reduce((n,combo)=>n+combo.selections.reduce((m,group)=>m+group.items.length,0),0)>0);
+const quoteSchema=z.object({fulfillmentType:z.enum(['retirada','entrega']).default('retirada'),items:z.array(lineSchema).max(30).default([]),combos:z.array(z.object({promotionId:zId,selections:z.array(z.object({groupId:zId,items:z.array(lineSchema).min(1).max(30)})).min(1)})).max(10).default([])}).refine(data=>data.items.length+data.combos.reduce((n,combo)=>n+combo.selections.reduce((m,group)=>m+group.items.length,0),0)>0);

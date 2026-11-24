@@ -196,13 +196,13 @@ function optionsAllowed(options, allowed) {
   });
 }
 
-export async function calculatePromotions(db, requestedItems, requestedCombos = [], { lock = false } = {}) {
+export async function calculatePromotions(db, requestedItems, requestedCombos = [], { lock = false, fulfillmentType = 'retirada' } = {}) {
   const allLines = requestedItems.flatMap(item => Array.from({length:item.quantity},()=>({ ...item, quantity:1, source: 'cart' })));
   const promos = await listPromotions(db, { activeOnly: true });
   const now=Date.now();
   const periodReason=promotion=>promotion.starts_at&&new Date(promotion.starts_at).getTime()>now?'promotion_not_started':promotion.ends_at&&new Date(promotion.ends_at).getTime()<now?'promotion_expired':null;
-  const eligiblePromos=promos.filter(promotion=>!periodReason(promotion));
-  const promoById = new Map(promos.map(promo => [promo.id, promo]));
+  const eligiblePromos=promos.filter(promotion=>(!promotion.fulfillment_type||promotion.fulfillment_type===fulfillmentType)&&!periodReason(promotion));
+  const promoById = new Map(promos.filter(promotion=>!promotion.fulfillment_type||promotion.fulfillment_type===fulfillmentType).map(promo => [promo.id, promo]));
   const comboReservations = [];
   const rejected = [];
 
@@ -238,7 +238,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
     if (promotion.combo_price === null && promotion.discount_percent === null) return { error: 'promotion_price_unconfigured' };
   }
 
-  const priced = await priceOrderItems(db, allLines, { lock });
+  const priced = await priceOrderItems(db, allLines, { lock, fulfillmentType });
   if(priced?.error)return {error:priced.error};
   if (!priced) return { error: 'product_unavailable' };
   const items = priced.items.map((item,index) => ({ ...item, listUnitPrice:item.unitPrice,

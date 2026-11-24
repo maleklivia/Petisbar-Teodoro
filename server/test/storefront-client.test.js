@@ -162,6 +162,21 @@ test('mostra opções configuradas no ERP e mantém unidades do mesmo produto se
   assert.equal(client.subtotal(),56);
 });
 
+test('modalidade inicial filtra promoções e opções de retirada sem depender do checkout',()=>{
+  const {client}=loadClient();
+  const copao={id:'p-drk010',option_groups:[{key:'beverage',options:[
+    {value:'vodka',label:'Vodka'},
+    {value:'whisky',label:'Whisky',fulfillmentType:'retirada'},
+  ]}]};
+  assert.equal(client.productAvailableForMode(copao,{beverage:'whisky'},'retirada'),true);
+  assert.equal(client.productAvailableForMode(copao,{beverage:'whisky'},'entrega'),false);
+  assert.equal(client.productAvailableForMode(copao,{beverage:'vodka'},'entrega'),true);
+  assert.equal(client.productAvailableForMode({...copao,option_groups:[{key:'beverage',options:[{value:'whisky',fulfillmentType:null}]}]},{beverage:'whisky'},'entrega'),true);
+  client.fulfillmentType='entrega';
+  client.promotions=[{code:'TODOS',active:true},{code:'RETIRADA',fulfillment_type:'retirada'},{code:'ENTREGA',fulfillment_type:'entrega'}];
+  assert.deepEqual([...client.promotionsForMode()].map(promotion=>promotion.code),['TODOS','ENTREGA']);
+});
+
 test('Batata Frita aparece uma vez e oferece P 300g e G 500g', async () => {
   const { client, element } = loadClient();
   client.fetchPublic = async path => path.endsWith('storefront')

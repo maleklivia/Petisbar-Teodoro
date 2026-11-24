@@ -27,7 +27,7 @@ export function stockAllowsOrder(items, allowWithoutStock = false) {
   return [...required.values()].every(item=>item.currentStock>=item.quantity);
 }
 
-export async function priceOrderItems(client, requested, { lock = false } = {}) {
+export async function priceOrderItems(client, requested, { lock = false, fulfillmentType = null } = {}) {
   const ids = [...new Set(requested.map(item => item.productId))];
   let result = await client.query(`
     SELECT id,name,category,sale_price,current_stock,option_groups
@@ -51,7 +51,7 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
         if(group.required&&!values.length){optionErrors.push('product_options_required');continue;}
         if(group.type==='radio'&&values.length>1){optionErrors.push('product_options_invalid');continue;}
         if(new Set(values).size!==values.length){optionErrors.push('product_options_invalid');continue;}
-        for(const choice of values){const option=group.options?.find(entry=>entry.value===choice);if(!option){optionErrors.push('product_options_invalid');continue;}if(option.priceProductId)configuredPriceIds.add(option.priceProductId);}
+        for(const choice of values){const option=group.options?.find(entry=>entry.value===choice);if(!option){optionErrors.push('product_options_invalid');continue;}const legacyRestriction=['p-drk010','p-drk011'].includes(product.id)&&group.key==='beverage'&&choice==='whisky'?'retirada':null,restriction=option.fulfillmentType===undefined?legacyRestriction:option.fulfillmentType;if(fulfillmentType&&restriction&&restriction!==fulfillmentType)optionErrors.push('product_unavailable_for_fulfillment');if(option.priceProductId)configuredPriceIds.add(option.priceProductId);}
       }
     } else {
       const legacyAllowed={
@@ -75,12 +75,13 @@ export async function priceOrderItems(client, requested, { lock = false } = {}) 
       if(selected.flavor&&!['natural','morango','maracuja'].includes(selected.flavor))optionErrors.push('product_options_invalid');
       if(selected.sodaFlavor&&!['coca-cola','guarana','sprite'].includes(selected.sodaFlavor))optionErrors.push('product_options_invalid');
       if(selected.beverage&&!['vodka','whisky'].includes(selected.beverage))optionErrors.push('product_options_invalid');
+      if(fulfillmentType==='entrega'&&['p-drk010','p-drk011'].includes(product.id)&&selected.beverage==='whisky')optionErrors.push('product_unavailable_for_fulfillment');
       if(selected.iceFlavor&&!['coco','maracuja'].includes(selected.iceFlavor))optionErrors.push('product_options_invalid');
       if(selected.drink&&!['none','coca-cola','guarana','agua'].includes(selected.drink))optionErrors.push('product_options_invalid');
       if(selected.complement&&(!Array.isArray(selected.complement)||selected.complement.some(value=>!['leite-condensado','leite-em-po','granola','pacoca'].includes(value))))optionErrors.push('product_options_invalid');
     }
   }
-  if(optionErrors.length)return {error:optionErrors.includes('product_options_required')?'product_options_required':'product_options_invalid'};
+  if(optionErrors.length)return {error:optionErrors.includes('product_unavailable_for_fulfillment')?'product_unavailable_for_fulfillment':optionErrors.includes('product_options_required')?'product_options_required':'product_options_invalid'};
   const drinkIds = { 'coca-cola': 'p-ref005', guarana: 'p-ref002', agua: 'p-agu001' };
   const sodaIds = { 'coca-cola': 'p-ref005', guarana: 'p-ref002', sprite: 'p-ref003' };
   const priceIds = [...new Set([...configuredPriceIds,...requested.flatMap(item => [
