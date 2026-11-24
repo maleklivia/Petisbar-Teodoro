@@ -173,7 +173,7 @@ const EstoqueModule = {
           precoVenda: Number(item.precoVenda) || 0, precoIfood: item.precoIfood ?? null,
           ativoIfood: Boolean(item.ativoIfood), custoCompra: item.custoCompra ?? null,
           ativo: item.ativo !== false, tempoPreparo: Number(item.tempoPreparo) || 0,
-          peso: item.peso ?? null, estoqueAtual: item.estoqueAtual ?? null,
+          ...(item.peso == null ? {} : { peso: Number(item.peso) }), estoqueAtual: item.estoqueAtual ?? null,
           estoqueMinimo: item.estoqueMinimo ?? null, foto: item.foto || '',
           optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups.map(group => ({
             key: group.key, label: group.label, type: group.type || 'radio', required: Boolean(group.required),
