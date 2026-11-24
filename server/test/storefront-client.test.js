@@ -91,13 +91,13 @@ test('usa cadastro recebido do ERP sem substituir nome, foto ou disponibilidade'
   const { client, element } = loadClient();
   client.fetchPublic = async path => path.endsWith('storefront')
     ? { isOpen: true, minimumOrder: 20 }
-    : [{ id: 'p-br003', name: 'Nome do ERP', category: 'BATATAS RECHEADAS', description: 'Descrição do ERP', sale_price: 29.9, photo_url: '../assets/products/batatas-recheadas-referencia.jpg', current_stock: 0 }];
+    : [{ id: 'p-br003', name: 'Nome do ERP', category: 'Petiscos', description: 'Descrição do ERP', sale_price: 29.9, photo_url: '../assets/products/batatas-recheadas-referencia.jpg', current_stock: 0 }];
   await client.refresh();
   assert.equal(client.apiActive, true);
-  assert.equal(client.categoryLabel('BATATAS RECHEADAS'), 'Batatas Recheadas');
-  assert.equal(client.categoryMatches(client.products[0], 'Batatas Recheadas'), true);
+  assert.equal(client.categoryLabel('Petiscos'), 'Petiscos');
+  assert.equal(client.categoryMatches(client.products[0], 'Petiscos'), true);
   assert.match(element('catalog').innerHTML, /Nome do ERP/);
-  assert.match(element('catalog').innerHTML, />Batatas Recheadas<\/span>/);
+  assert.match(element('catalog').innerHTML, />Petiscos<\/span>/);
   assert.doesNotMatch(element('catalog').innerHTML, /BATATAS RECHEADAS/);
   assert.match(element('catalog').innerHTML, /assets\/products\/batatas-recheadas-referencia.jpg/);
   assert.match(element('catalog').innerHTML, /Indisponível/);
