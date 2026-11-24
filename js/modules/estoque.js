@@ -10,6 +10,7 @@ const EstoqueModule = {
   _filtroStatus: 'todos',
   _serverMode: false,
   _canWrite: true,
+  _canEditProdutos: true,
   _ingredientes: [],
   _produtos: [],
   _movimentacoes: [],
@@ -17,6 +18,7 @@ const EstoqueModule = {
   async init() {
     this._serverMode = API.isServerMode();
     this._canWrite = !this._serverMode || API.hasPermission('stock.write');
+    this._canEditProdutos = !this._serverMode || API.hasPermission('catalog.write');
     if (this._serverMode) {
       const el = document.getElementById('estoque-content');
       if (el) el.innerHTML = '<div class="empty-state"><p>Carregando estoque…</p></div>';
@@ -140,14 +142,46 @@ const EstoqueModule = {
         </select>
       </div>
       <div class="table-wrap"><table class="data-table">
-        <thead><tr><th>Produto</th><th>Categoria</th><th>Descrição</th><th style="text-align:right">Estoque Atual</th><th>Status</th></tr></thead>
+        <thead><tr><th>Produto</th><th>Categoria</th><th>Descrição</th><th style="text-align:right">Estoque Atual</th><th>Status</th>${this._canEditProdutos ? '<th>Ações</th>' : ''}</tr></thead>
         <tbody>${data.length ? data.map(p => {
           const tracked = p.estoqueAtual !== null && p.estoqueAtual !== undefined;
           const qty = tracked ? Number(p.estoqueAtual) : null;
           const critical = tracked && qty <= Number(p.estoqueMinimo || 0);
-          return `<tr class="${critical ? 'row--alert' : ''}"><td style="font-weight:600">${Utils.escapeHtml(p.nome)}<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo || p.sku || '')}</div></td><td style="color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</td><td style="color:var(--text-muted);font-size:var(--text-sm)">${Utils.escapeHtml(p.descricao || '—')}</td><td style="text-align:right;font-weight:700;color:${critical ? 'var(--color-danger)' : 'var(--text-primary)'}">${tracked ? `${qty} un` : 'Sob demanda'}</td><td>${critical ? '<span class="badge badge-danger">Crítico</span>' : '<span class="badge badge-success">OK</span>'}</td></tr>`;
-        }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px">Nenhum produto encontrado.</td></tr>'}</tbody>
+          return `<tr class="${critical ? 'row--alert' : ''}"><td style="font-weight:600">${Utils.escapeHtml(p.nome)}<div style="font-size:var(--text-xs);color:var(--text-muted)">${Utils.escapeHtml(p.codigo || p.sku || '')}</div></td><td style="color:var(--text-muted)">${Utils.escapeHtml(Utils.displayCategory(p.categoria))}</td><td style="color:var(--text-muted);font-size:var(--text-sm)">${Utils.escapeHtml(p.descricao || '—')}</td><td style="text-align:right;font-weight:700;color:${critical ? 'var(--color-danger)' : 'var(--text-primary)'}">${tracked ? `${qty} un` : 'Sob demanda'}</td><td>${critical ? '<span class="badge badge-danger">Crítico</span>' : '<span class="badge badge-success">OK</span>'}</td>${this._canEditProdutos ? `<td><button class="btn btn-secondary btn-sm" data-est-edit="${Utils.escapeHtml(p.id)}">Editar</button></td>` : ''}</tr>`;
+        }).join('') : `<tr><td colspan="${this._canEditProdutos ? 6 : 5}" style="text-align:center;color:var(--text-muted);padding:32px">Nenhum produto encontrado.</td></tr>`}</tbody>
       </table></div>`;
+  },
+
+  _abrirModalEdicaoProduto(id) {
+    if (!this._canEditProdutos) return;
+    const item = this._getProdutos().find(p => p.id === id);
+    if (!item) return;
+    const categorias = [...new Set([...(typeof CATEGORIAS_PRODUTO !== 'undefined' ? CATEGORIAS_PRODUTO : []), item.categoria])].filter(Boolean);
+    UI.openModal({
+      title: 'Editar produto',
+      size: 'wide',
+      body: `<form id="form-estoque-produto" autocomplete="off">
+        <div class="form-group"><label class="form-label">Nome</label><input class="form-input" name="nome" required maxlength="160" value="${Utils.escapeHtml(item.nome || '')}"></div>
+        <div class="form-group"><label class="form-label">Categoria</label><select class="form-input" name="categoria" required>${categorias.map(c => `<option value="${Utils.escapeHtml(c)}" ${c === item.categoria ? 'selected' : ''}>${Utils.escapeHtml(c)}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" name="descricao" rows="4" maxlength="1000">${Utils.escapeHtml(item.descricao || '')}</textarea></div>
+      </form>`,
+      confirmLabel: 'Salvar',
+      onConfirm: async data => {
+        const updated = { ...item, nome: String(data.nome || '').trim(), categoria: String(data.categoria || '').trim(), descricao: String(data.descricao || '').trim() };
+        if (!updated.nome || !updated.categoria) { UI.toast('Nome e categoria são obrigatórios.', 'warning'); return; }
+        if (this._serverMode) {
+          const saved = await API.saveServerProduct(updated);
+          this._produtos = this._produtos.map(p => p.id === saved.id ? saved : p);
+        } else {
+          this._produtos = this._produtos.map(p => p.id === updated.id ? updated : p);
+          Stores.produtos.set(this._produtos);
+        }
+        UI.closeModal();
+        this._render();
+        this._bindEvents();
+        UI.toast('Produto atualizado.', 'success');
+      },
+    });
   },
 
   _renderIngredientes(ings) {
@@ -303,6 +337,9 @@ const EstoqueModule = {
       if (e.target.closest('#btn-movimentacao')) { if (this._canWrite) this._abrirModalMovimentacao(); return; }
 
       if (e.target.closest('#btn-lista-compras')) { this._baixarListaCompras(); return; }
+
+      const editar = e.target.closest('[data-est-edit]');
+      if (editar) { this._abrirModalEdicaoProduto(editar.dataset.estEdit); return; }
 
       const repor = e.target.closest('[data-est-repor]');
       if (repor) {
