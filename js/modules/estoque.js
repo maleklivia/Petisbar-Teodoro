@@ -167,7 +167,23 @@ const EstoqueModule = {
       </form>`,
       confirmLabel: 'Salvar',
       onConfirm: async data => {
-        const updated = { ...item, nome: String(data.nome || '').trim(), categoria: String(data.categoria || '').trim(), descricao: String(data.descricao || '').trim() };
+        const updated = {
+          id: item.id, codigo: item.codigo || item.sku || '', nome: String(data.nome || '').trim(),
+          categoria: String(data.categoria || '').trim(), descricao: String(data.descricao || '').trim(),
+          precoVenda: Number(item.precoVenda) || 0, precoIfood: item.precoIfood ?? null,
+          ativoIfood: Boolean(item.ativoIfood), custoCompra: item.custoCompra ?? null,
+          ativo: item.ativo !== false, tempoPreparo: Number(item.tempoPreparo) || 0,
+          peso: item.peso ?? null, estoqueAtual: item.estoqueAtual ?? null,
+          estoqueMinimo: item.estoqueMinimo ?? null, foto: item.foto || '',
+          optionGroups: Array.isArray(item.optionGroups) ? item.optionGroups.map(group => ({
+            key: group.key, label: group.label, type: group.type || 'radio', required: Boolean(group.required),
+            options: (group.options || []).map(option => ({
+              value: option.value, label: option.label, priceMode: option.priceMode || 'base',
+              stockMode: option.stockMode || 'none', priceProductId: option.priceProductId || null,
+              fulfillmentType: option.fulfillmentType || null,
+            })),
+          })) : [],
+        };
         if (!updated.nome || !updated.categoria) { UI.toast('Nome e categoria são obrigatórios.', 'warning'); return; }
         if (this._serverMode) {
           const saved = await API.saveServerProduct(updated);
