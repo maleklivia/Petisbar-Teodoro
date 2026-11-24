@@ -27,6 +27,7 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
       id:promotion.id,code:promotion.code,rule_type:promotion.rule_type,priority:promotion.priority,
       discount_percent:promotion.discount_percent,discount_amount:promotion.discount_amount,combo_price:promotion.combo_price,
       cmv_estimate_percent:promotion.cmv_estimate_percent??null,
+      fulfillment_type:promotion.fulfillment_type??null,
       stack_with_coupon:promotion.stack_with_coupon,active:true,starts_at:null,ends_at:null,
     }))};
     }
@@ -34,9 +35,9 @@ function fakeDb({promotions=[],groups=[],products=[],costs=[],variants=[]}={}){
   }};
 }
 
-function promo(id,{code=id,rule_type='combo',priority=100,combo_price=18,discount_percent=null,discount_amount=null,cmv_estimate_percent=null,stack_with_coupon=false,products:targetProducts=[],starts_at=null,ends_at=null}={}){
+function promo(id,{code=id,rule_type='combo',priority=100,combo_price=18,discount_percent=null,discount_amount=null,cmv_estimate_percent=null,fulfillment_type=null,stack_with_coupon=false,products:targetProducts=[],starts_at=null,ends_at=null}={}){
   return {id,code,name:code,description:'',rule_type,priority,combo_price,discount_percent,discount_amount,stack_with_coupon,
-    cmv_estimate_percent,active:true,starts_at,ends_at,products:targetProducts};
+    cmv_estimate_percent,fulfillment_type,active:true,starts_at,ends_at,products:targetProducts};
 }
 
 function group(promotionId,{products:allowed=[{id:'beer',name:'Cerveja',category:'Cervejas',salePrice:10,surcharge:0,active:true,allowedOptions:{}}]}={}){
@@ -105,6 +106,18 @@ test('o mesmo carrinho usa preços normais atuais e cupons não acumulam por pad
   assert.equal(result.subtotal,12);
   assert.equal(result.promotionDiscount,1.2);
   assert.equal(couponCanStack(result),false);
+});
+
+test('promoções limitadas à modalidade só são aplicadas no tipo de pedido correspondente',async()=>{
+  const deliveryOffer=promo(percentId,{code:'ENTREGA10',rule_type:'percentage',discount_percent:10,fulfillment_type:'entrega',stack_with_coupon:true,products:[{id:'beer',name:'Cerveja',salePrice:10}]});
+  const database=fakeDb({promotions:[deliveryOffer],products:[beerProduct],costs:[beerCost]});
+  const item=[{productId:'beer',quantity:1,options:{}}];
+  const pickup=await calculatePromotions(database,item,[],{fulfillmentType:'retirada'});
+  const delivery=await calculatePromotions(database,item,[],{fulfillmentType:'entrega'});
+  assert.equal(pickup.promotionDiscount,0);
+  assert.equal(pickup.promotions.length,0);
+  assert.equal(delivery.promotionDiscount,1);
+  assert.equal(delivery.promotions[0].code,'ENTREGA10');
 });
 
 test('informa promoção automática expirada e bloqueia combo ainda não iniciado',async()=>{

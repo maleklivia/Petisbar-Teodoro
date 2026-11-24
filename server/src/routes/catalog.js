@@ -44,6 +44,7 @@ const productSchema = z.object({
       priceMode: z.enum(['base','replace','add']).default('base'),
       stockMode: z.enum(['none','replace','add']).default('none'),
       priceProductId: z.string().min(1).max(100).nullable().optional(),
+      fulfillmentType: z.enum(['retirada','entrega']).nullable().optional(),
     })).min(1).max(40),
   })).max(20).default([]),
 });

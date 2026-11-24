@@ -7,15 +7,19 @@
   <meta name="description" content="Cardápio digital do Petisbar Teodoro. Faça seu pedido para retirada ou entrega.">
   <title>Peça online — Petisbar Teodoro</title>
   <link rel="stylesheet" href="./css/variables.css">
-  <link rel="stylesheet" href="./css/cardapio.css?v=20261029-5">
+  <link rel="stylesheet" href="./css/cardapio.css?v=20261124-6">
 </head>
 <body>
+  <section id="fulfillment-mode-gate" class="fulfillment-mode-gate hidden" role="dialog" aria-modal="true" aria-labelledby="fulfillment-gate-title">
+    <div class="fulfillment-mode-card"><span class="store-eyebrow">Petisbar Teodoro</span><h2 id="fulfillment-gate-title">Como você quer receber?</h2><p>Escolha uma opção para ver ofertas e produtos disponíveis para seu pedido.</p><div class="fulfillment-mode-choices"><button type="button" data-fulfillment-mode="retirada"><strong>Retirada</strong><span>Busque seu pedido no Petisbar.</span></button><button type="button" data-fulfillment-mode="entrega"><strong>Entrega</strong><span>Consulte a taxa pelo seu CEP.</span></button></div></div>
+  </section>
   <header class="store-header">
     <img src="./assets/petisbar-teodoro-logo.jpg" alt="Petisbar Teodoro" class="store-logo">
     <div class="store-header-copy"><span class="store-eyebrow">Petisbar Teodoro</span><h1>Sabor para compartilhar.</h1><p>Escolha seus favoritos. Retirada ou entrega sob confirmação do estabelecimento.</p><div id="store-status" class="store-status" aria-live="polite"><span class="status-dot"></span><strong>Consultando horário…</strong></div><a class="store-track-link" href="./pages/pedido.html">Acompanhar meu pedido</a> <a class="store-track-link" href="./pages/minha-conta.html">Minha conta</a></div>
   </header>
 
   <main class="store-main">
+    <section id="fulfillment-mode-banner" class="fulfillment-mode-banner hidden" aria-label="Modalidade do pedido"><span>Seu pedido: <strong data-mode-current></strong></span><div><button type="button" data-fulfillment-mode="retirada" aria-pressed="false">Retirada</button><button type="button" data-fulfillment-mode="entrega" aria-pressed="false">Entrega</button></div></section>
     <section id="order-confirmation" class="store-panel hidden" role="status" aria-live="polite"><strong id="order-confirmation-number"></strong><span>Seu pedido foi registrado.</span><div id="pix-payment" class="hidden"><strong>Pagamento Pix</strong><p id="pix-payment-help">Escaneie o QR Code ou copie o código Pix.</p><img id="pix-qr" alt="QR Code Pix" class="hidden"><input id="pix-copy" readonly aria-label="Pix copia e cola"><button id="pix-copy-button" type="button">Copiar código Pix</button><a id="pix-ticket" target="_blank" rel="noopener" class="hidden">Abrir pagamento</a></div><a href="./pages/pedido.html">Acompanhar pedido</a></section>
     <section id="reorder-shortcuts" class="reorder-shortcuts hidden" aria-label="Peça novamente"></section>
     <section class="store-highlights" aria-label="Informações da loja">
@@ -90,7 +94,7 @@
     </section>
   </div>
   <div id="toast" class="store-toast" role="status" aria-live="polite"></div>
-  <script src="./js/cardapio.js?v=20261124-1"></script>
+  <script src="./js/cardapio.js?v=20261124-6"></script>
 </body>
 </html>
 

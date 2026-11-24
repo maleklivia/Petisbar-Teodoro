@@ -23,6 +23,7 @@ const createSchema = z.object({
   notes: z.string().trim().max(500).default(''),
   scheduledFor:z.string().datetime().nullable().optional(),
   deliveryFee: z.number().nonnegative().max(10000).default(0),
+  fulfillmentType:z.enum(['retirada','entrega']).optional(),
   discount: z.number().nonnegative().max(10000).default(0),
   combos:z.array(z.object({promotionId:z.string().uuid(),selections:z.array(z.object({groupId:z.string().uuid(),items:z.array(z.object({productId:z.string().min(1),quantity:z.number().int().min(1).max(20),flavoredIce:z.boolean().default(false),options:z.record(z.string(),z.unknown()).default({})})).min(1)})).min(1)})).max(10).default([]),
   items: z.array(z.object({
@@ -94,7 +95,8 @@ export default async function orderRoutes(app) {
     const client = await app.db.connect();
     try {
       await client.query('BEGIN');
-      const priced = await calculatePromotions(client, input.items, input.combos, { lock: true });
+      const fulfillmentType=input.fulfillmentType||(input.deliveryFee>0?'entrega':'retirada');
+      const priced = await calculatePromotions(client, input.items, input.combos, { lock: true, fulfillmentType });
       if (priced.error) {
         await client.query('ROLLBACK');
         return reply.code(409).send({ error: priced.error });
@@ -128,7 +130,7 @@ export default async function orderRoutes(app) {
            payment_method,notes,fulfillment_type,created_by,promotion_discount,scheduled_for)
         VALUES ($1,$2,$3,$4,$5,'Novo',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       `, [id,orderNumber,input.source,clientId,clientName,priced.subtotal,input.deliveryFee,roundMoney(priced.promotionDiscount+input.discount),total,
-        input.paymentMethod,input.notes,input.deliveryFee > 0 ? 'entrega' : 'retirada',request.user.id,priced.promotionDiscount,input.scheduledFor||null]);
+        input.paymentMethod,input.notes,fulfillmentType,request.user.id,priced.promotionDiscount,input.scheduledFor||null]);
       const reservation=await reserveOrderStock(client,{orderId:id,items:priced.items});
       if(reservation.error){await client.query('ROLLBACK');return reply.code(409).send({error:reservation.error,details:reservation});}
       for(const application of priced.promotions)await client.query(`INSERT INTO promotion_applications(id,order_id,promotion_id,code,name,rule_type,discount_amount,normal_subtotal,applied_subtotal,item_snapshot)
