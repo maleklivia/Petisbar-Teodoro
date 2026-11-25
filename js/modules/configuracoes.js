@@ -21,7 +21,6 @@ const ConfiguracoesModule = {
     const data = new FormData(form);
     const draft = {
       minimumOrder: String(data.get('minimumOrder') ?? ''),
-      deliveryPriceIncreasePercent: String(data.get('deliveryPriceIncreasePercent') ?? ''),
       deliveryTime: String(data.get('deliveryTime') ?? ''),
       hours: String(data.get('hours') ?? ''),
       isOpen: data.get('isOpen') === 'on',
@@ -107,7 +106,7 @@ const ConfiguracoesModule = {
       <p>Estas informações são publicadas no cardápio do cliente. A aba aberta se atualiza automaticamente em até 15 segundos.</p>
       ${draft ? '<p role="status">Rascunho deste navegador recuperado. Clique em “Salvar no VPS” para publicá-lo. <button type="button" class="btn btn-ghost" id="cfg-discard-draft">Descartar rascunho</button></p>' : ''}
       <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Utils.escapeHtml(draft?.minimumOrder ?? String(s['storefront.minimumOrder'] ?? 20))}"></label>
-      <label class="form-group">Acréscimo provisório para entrega (%)<input class="form-input" name="deliveryPriceIncreasePercent" type="number" min="0" max="100" step="1" required value="${Utils.escapeHtml(draft?.deliveryPriceIncreasePercent ?? String(s['storefront.deliveryPriceIncreasePercent'] ?? 25))}"><small>Aplicado somente aos preços de pedidos para entrega. Retirada mantém os preços atuais. A entrega será exibida como grátis; revise este percentual após começar a vender.</small></label>
+      <p>A entrega é grátis nas regiões atendidas. Defina os preços dos produtos no cadastro do ERP.</p>
       <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
       <label class="form-group">Horário de funcionamento<textarea class="form-input" name="hours" readonly rows="3">${Utils.escapeHtml(s['storefront.hours'] ?? '')}</textarea></label><small>Altere os dias e horários na aba Horário. O cardápio e a aceitação dos pedidos usam essa mesma agenda.</small>
       <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
@@ -127,7 +126,6 @@ const ConfiguracoesModule = {
     const promotion = (current['storefront.promotions'] || [])[0] || {};
     const settings = {
       'storefront.minimumOrder': Number(data.get('minimumOrder')),
-      'storefront.deliveryPriceIncreasePercent': Number(data.get('deliveryPriceIncreasePercent')),
       'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
       'storefront.isOpen': data.get('isOpen') === 'on',
       'storefront.paymentMethods': payments,

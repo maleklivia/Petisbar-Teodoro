@@ -27,8 +27,7 @@ export function stockAllowsOrder(items, allowWithoutStock = false) {
   return [...required.values()].every(item=>item.currentStock>=item.quantity);
 }
 
-export async function priceOrderItems(client, requested, { lock = false, fulfillmentType = null, deliveryIncreasePercent = 0 } = {}) {
-  const deliveryMultiplier=fulfillmentType==='entrega'?1+Math.max(0,Math.min(100,Number(deliveryIncreasePercent)||0))/100:1;
+export async function priceOrderItems(client, requested, { lock = false, fulfillmentType = null } = {}) {
   const ids = [...new Set(requested.map(item => item.productId))];
   let result = await client.query(`
     SELECT id,name,category,sale_price,current_stock,option_groups
@@ -121,7 +120,7 @@ export async function priceOrderItems(client, requested, { lock = false, fulfill
     if (!groups.length && ['p-drk010', 'p-drk011'].includes(product.id) && item.options?.size === '700ml') unitPrice = optionPrices.get('p-drk011');
     if (!groups.length && product.id === 'p-pet002' && drinkIds[item.options?.drink]) unitPrice += optionPrices.get(drinkIds[item.options.drink]);
     if (!groups.length && product.id === 'p-ref001' && sodaIds[item.options?.sodaFlavor]) unitPrice = optionPrices.get(sodaIds[item.options.sodaFlavor]);
-    unitPrice = roundMoney(unitPrice*deliveryMultiplier);
+    unitPrice = roundMoney(unitPrice);
     const canAddFlavoredIce = ['p-drk010', 'p-drk011'].includes(product.id);
     const options = { ...(item.options || {}) };
     if(groups.length){const effects=[];for(const group of groups){const selected=item.options?.[group.key],values=Array.isArray(selected)?selected:selected===undefined?[]:[selected];for(const value of values){const choice=group.options.find(entry=>entry.value===value);if(choice?.priceProductId&&choice.stockMode&&choice.stockMode!=='none'){const linked=priceProducts.get(choice.priceProductId);effects.push({productId:choice.priceProductId,mode:choice.stockMode,currentStock:linked?.current_stock??null});}}}if(effects.length)options._stockEffects=effects;}
@@ -142,7 +141,7 @@ export async function priceOrderItems(client, requested, { lock = false, fulfill
     };
   });
   return { items, subtotal: roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0)),
-    basePrices: new Map(result.rows.map(product=>[product.id,roundMoney(Number(product.sale_price)*deliveryMultiplier)])) };
+    basePrices: new Map(result.rows.map(product=>[product.id,roundMoney(Number(product.sale_price))])) };
 }
 
 export { roundMoney };

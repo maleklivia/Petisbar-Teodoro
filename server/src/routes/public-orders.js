@@ -67,7 +67,6 @@ function discountFor(coupon, subtotal) {
 export default async function publicOrderRoutes(app) {
   const defaultStorefront = {
     minimumOrder: 20,
-    deliveryPriceIncreasePercent: 25,
     deliveryTime: '30–60 min',
     isOpen: false,
     hours: 'Horários definidos no ERP',
@@ -79,7 +78,7 @@ export default async function publicOrderRoutes(app) {
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryPriceIncreasePercent', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
+    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
@@ -87,7 +86,6 @@ export default async function publicOrderRoutes(app) {
     const acceptance = storefrontAcceptance(manuallyEnabled, values.horario||hours);
     return { data: {
       minimumOrder: Number(values['storefront.minimumOrder'] ?? defaultStorefront.minimumOrder),
-      deliveryPriceIncreasePercent: Number(values['storefront.deliveryPriceIncreasePercent'] ?? defaultStorefront.deliveryPriceIncreasePercent),
       deliveryTime: String(values['storefront.deliveryTime'] ?? defaultStorefront.deliveryTime),
       isOpen: acceptance.open,
       manuallyEnabled,
@@ -124,8 +122,7 @@ export default async function publicOrderRoutes(app) {
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
-    const setting=await app.db.query("SELECT value FROM app_settings WHERE key='storefront.deliveryPriceIncreasePercent'");
-    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType,deliveryIncreasePercent:Number(setting.rows[0]?.value??25)}); if(priced.error)return reply.code(409).send({error:priced.error});
+    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType}); if(priced.error)return reply.code(409).send({error:priced.error});
     if(!pricesMatch(parsed.data.items,priced))return reply.code(409).send({error:'catalog_changed'});
     if(!couponCanStack(priced))return reply.code(409).send({error:'coupon_not_combinable'});
     const amount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));
@@ -170,10 +167,9 @@ export default async function publicOrderRoutes(app) {
           return reply.code(201).send(previous.rows[0].response);
         }
       }
-      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones','storefront.deliveryPriceIncreasePercent']]);
+      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
       const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));
-      const deliveryIncreasePercent=Number(storefrontValues['storefront.deliveryPriceIncreasePercent']??defaultStorefront.deliveryPriceIncreasePercent);
-      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true,fulfillmentType:input.fulfillmentType,deliveryIncreasePercent}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
+      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true,fulfillmentType:input.fulfillmentType}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
       if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
       const manuallyEnabled=storefrontValues['storefront.isOpen']===undefined?defaultStorefront.isOpen:Boolean(storefrontValues['storefront.isOpen']);
       const hours=String(storefrontValues['storefront.hours']??defaultStorefront.hours);

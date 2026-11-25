@@ -51,14 +51,14 @@ test('preenche endereço ao consultar CEP sem substituir campos editados manualm
   assert.equal(fields.get('district').dataset.cepAutofilled, 'true');
 });
 
-test('preços do cardápio variam por modalidade e a entrega permanece grátis dentro da área',()=>{
+test('preços do cardápio seguem o ERP nas duas modalidades e a entrega permanece grátis dentro da área',()=>{
   const {client}=loadClient();
   client.products=[{id:'food',sale_price:20,option_groups:[]}];
   client.storefront={deliveryPriceIncreasePercent:25,deliveryZones:{zones:[{prefixo:'24230',nome:'Centro'}]}};
   client.fulfillmentType='retirada';
   assert.equal(client.productUnitPrice(client.products[0]),20);
   client.fulfillmentType='entrega';
-  assert.equal(client.productUnitPrice(client.products[0]),25);
+  assert.equal(client.productUnitPrice(client.products[0]),20);
   assert.deepEqual(JSON.parse(JSON.stringify(client.deliveryForPostalCode('24230-061'))),{fee:0,zone:'Centro'});
   assert.equal(client.deliveryForPostalCode('24348-000'),null);
 });
