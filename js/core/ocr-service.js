@@ -297,11 +297,11 @@ const OcrService = {
     if (!itens.length) {
       for (const l of linhas) {
         if (l.length < 5) continue;
-        if (/^(CNPJ|CPF|TOTAL|DATA|HORA|TROCO|DINHEIRO|CARTAO|PIX|DANFE|NFC|ITEM|QTD|PRECO|DESCONTO|SUBTOTAL|CAIXA|CEST|NCM|ICMS)/i.test(l)) continue;
+        if (/^(CNPJ|CPF|TOTAL|DATA|HORA|TROCO|DINHEIRO|CARTAO|PIX|DANFE|NFC|ITEM|QTD|PRECO|DESCONTO|SUBTOTAL|CAIXA|CEST|NCM|ICMS|TRIBUTOS|FONTE|FORMA\s+DE\s+PAGAMENTO|VALOR\s+A\s+PAGAR|VALOR\s+TOTAL|CONSUMIDOR|CONSULTE|PROTOCOLO|COD\b|PROCON|CODECON)/i.test(l)) continue;
         const priceMatch = l.match(/([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})/g);
         if (!priceMatch) continue;
         const nome = l.replace(/[\d.,*R$%]/g, '').trim().replace(/\s+/g, ' ');
-        if (nome.length < 3) continue;
+        if (nome.length < 3 || /\b(TRIBUTOS?|IMPOSTO|FEDERAL|ESTADUAL|MUNICIPAL|PAGAMENTO|TROCO|DESCONTO|TOTAL|VALOR|PROTOCOLO)\b/i.test(nome)) continue;
         const cu = this._parseBR(priceMatch[priceMatch.length - 1]);
         if (cu <= 0 || cu > 9999) continue;
         if (!vistos.has(nome)) {
@@ -340,6 +340,7 @@ const OcrService = {
   },
 
   _itemValido(nome, qty, cu) {
-    return nome.length >= 3 && qty > 0 && cu > 0;
+    return nome.length >= 3 && qty > 0 && cu > 0
+      && !/\b(TRIBUTOS?|IMPOSTO|FEDERAL|ESTADUAL|MUNICIPAL|PAGAMENTO|PROTOCOLO|DESCONTO|SUBTOTAL|VALOR\s+A\s+PAGAR)\b/i.test(nome);
   },
 };
