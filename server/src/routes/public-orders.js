@@ -75,10 +75,11 @@ export default async function publicOrderRoutes(app) {
     whatsapp: '5521975816050',
     allowOrdersWithoutStockForTesting: false,
     deliveryZones: { defaultFee: null, zones: [] },
+    highDemand: false,
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
+    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones', 'storefront.highDemand'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
@@ -95,6 +96,7 @@ export default async function publicOrderRoutes(app) {
       promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
       allowOrdersWithoutStockForTesting: values['storefront.allowOrdersWithoutStockForTesting'] === true,
+      highDemand: values['storefront.highDemand'] === true,
       deliveryZones: { defaultFee: null, zones: (values['storefront.deliveryZones']?.zones || []).map(zone=>({prefixo:zone.prefixo,nome:zone.nome})) },
     } };
   });

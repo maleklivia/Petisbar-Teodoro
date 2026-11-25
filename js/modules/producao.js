@@ -23,6 +23,9 @@ const ProducaoModule = {
       try {
         const orders = await API.getServerOrders();
         this._orders = orders.map(order => this._mapServerOrder(order));
+        const settings = await API.getServerSettings();
+        this._paused = settings['storefront.isOpen'] === false;
+        this._highDemand = settings['storefront.highDemand'] === true;
       } catch {
         UI.toast('Falha ao carregar a produção do servidor.', 'danger');
         this._orders = [];
@@ -73,7 +76,7 @@ const ProducaoModule = {
         <div class="production-tabs"><button class="production-tab is-active">Kanban</button><button class="production-tab">Roteirização</button></div>
         <input class="form-input production-search" id="production-search" placeholder="Buscar (nome, telefone, pedido)" value="${Utils.escapeHtml(this._search)}">
         <button class="btn btn-ghost" id="production-pause">${this._paused ? '▶ Retomar loja' : 'Ⅱ Pausar loja'}</button>
-        <button class="btn btn-ghost" id="production-demand">♨ Informar alta demanda</button>
+        <button class="btn btn-ghost" id="production-demand">♨ ${this._highDemand ? 'Remover alta demanda' : 'Informar alta demanda'}</button>
         <button class="btn btn-ghost" id="production-report">Abrir relatório diário</button>
       </div>
       <div class="kanban-board">
@@ -149,8 +152,18 @@ const ProducaoModule = {
   _bindToolbar() {
     const search=document.getElementById('production-search');
     if(search) search.addEventListener('input',()=>{this._search=search.value;this._render();});
-    document.getElementById('production-pause')?.addEventListener('click',()=>{this._paused=!this._paused;this._render();UI.toast(this._paused?'Loja pausada para novos pedidos.':'Loja retomada.','success');});
-    document.getElementById('production-demand')?.addEventListener('click',()=>{this._highDemand=!this._highDemand;UI.toast(this._highDemand?'Alta demanda informada à equipe.':'Aviso de alta demanda removido.','success');});
+    document.getElementById('production-pause')?.addEventListener('click',async()=>{
+      if(!this._serverMode){this._paused=!this._paused;this._render();return UI.toast(this._paused?'Loja pausada para novos pedidos.':'Loja retomada.','success');}
+      const nextOpen=this._paused;
+      try { await API.saveServerSettings({'storefront.isOpen':nextOpen}); this._paused=!nextOpen; this._render(); UI.toast(this._paused?'Loja pausada para novos pedidos.':'Loja retomada.','success'); }
+      catch { UI.toast('Não foi possível alterar o estado da loja.','danger'); }
+    });
+    document.getElementById('production-demand')?.addEventListener('click',async()=>{
+      if(!this._serverMode){this._highDemand=!this._highDemand;return UI.toast(this._highDemand?'Alta demanda informada à equipe.':'Aviso de alta demanda removido.','success');}
+      const next=!this._highDemand;
+      try { await API.saveServerSettings({'storefront.highDemand':next}); this._highDemand=next; this._render(); UI.toast(this._highDemand?'Alta demanda informada à equipe.':'Aviso de alta demanda removido.','success'); }
+      catch { UI.toast('Não foi possível atualizar a alta demanda.','danger'); }
+    });
     document.getElementById('production-report')?.addEventListener('click',()=>UI.toast('Relatório diário disponível na aba Relatórios.','success'));
   },
 
