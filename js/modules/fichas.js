@@ -11,6 +11,7 @@ const FichasModule = {
   _activeProduto: null,
   _activeCourseRecipeId: null,
   _cmvGoal: 35,
+  _deliveryAllocationPercent: 0,
   _allProdutos: [],
   _receitasCurso: [],
   _serverMode: false,
@@ -49,6 +50,7 @@ const FichasModule = {
       this._fichas = Stores.fichas.get();
     }
     this._cmvGoal = (Storage.getState().settings || {}).cmvGoal || 35;
+    this._deliveryAllocationPercent = Utils.deliveryAllocationPercent(Stores.config.get());
     this._renderProdutoList(produtos);
     this._bindSearch(produtos);
 
@@ -323,7 +325,9 @@ const FichasModule = {
     const custo  = this.calcCusto(ficha);
     const custoCompleto = this._costComplete(ficha);
     const preco  = produto.precoVenda || 0;
-    const lucro  = custoCompleto ? preco - custo : null;
+    const deliveryPercent = this._deliveryAllocationPercent;
+    const deliveryAllocation = Utils.deliveryAllocationCost(preco, deliveryPercent);
+    const lucro  = custoCompleto ? preco - custo - deliveryAllocation : null;
     const margem = custoCompleto && preco ? Math.round((lucro / preco) * 100) : null;
     const cmvPct = custoCompleto && preco ? Math.round((custo / preco) * 100) : null;
     const cmvW   = cmvPct === null ? 0 : Math.min(100, cmvPct);
@@ -382,14 +386,18 @@ const FichasModule = {
         </div>
         <div>
           <span class="ficha-summary__label">Preço de Venda</span>
-          <span class="ficha-summary__value">${Utils.currency(preco)}</span>
+          <span class="ficha-summary__value" id="fs-preco-venda">${Utils.currency(preco)}</span>
         </div>
         <div>
-          <span class="ficha-summary__label">Lucro Est.</span>
+          <span class="ficha-summary__label" id="fs-delivery-cost-label">Rateio de entrega (${deliveryPercent}%)</span>
+          <span class="ficha-summary__value" id="fs-delivery-cost">${Utils.currency(deliveryAllocation)}</span>
+        </div>
+        <div>
+          <span class="ficha-summary__label">Lucro após rateio</span>
           <span class="ficha-summary__value ${lucro === null ? '' : lucro < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-lucro">${lucro === null ? '—' : Utils.currency(lucro)}</span>
         </div>
         <div>
-          <span class="ficha-summary__label">Margem</span>
+          <span class="ficha-summary__label">Margem após rateio</span>
           <span class="ficha-summary__value ${margem === null ? '' : margem < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'}" id="fs-margem">${margem === null ? '—' : `${margem}%`}</span>
         </div>
       </div>
@@ -543,11 +551,21 @@ const FichasModule = {
     });
   },
 
+  refreshDeliveryAllocation(percent) {
+    this._deliveryAllocationPercent = percent;
+    if (this._activeProdutoId && this._activeProduto) {
+      const ficha = this.getByProduto(this._activeProdutoId);
+      if (ficha) this._refreshSummary(ficha, this._activeProduto);
+    }
+  },
+
   _refreshSummary(ficha, produto) {
     const custo  = this.calcCusto(ficha);
     const custoCompleto = this._costComplete(ficha);
     const preco  = produto.precoVenda || 0;
-    const lucro  = custoCompleto ? preco - custo : null;
+    const deliveryPercent = this._deliveryAllocationPercent;
+    const deliveryAllocation = Utils.deliveryAllocationCost(preco, deliveryPercent);
+    const lucro  = custoCompleto ? preco - custo - deliveryAllocation : null;
     const margem = custoCompleto && preco ? Math.round((lucro / preco) * 100) : null;
     const cmvPct = custoCompleto && preco ? Math.round((custo / preco) * 100) : null;
     const cmvW   = cmvPct === null ? 0 : Math.min(100, cmvPct);
@@ -561,6 +579,11 @@ const FichasModule = {
     const setCls = (el, base, cls) => { if (el) el.className = `${base} ${cls}`; };
 
     if ($('fs-custo'))    $('fs-custo').textContent    = Utils.currency(custo);
+    if ($('fs-preco-venda')) $('fs-preco-venda').textContent = Utils.currency(preco);
+    const allocationLabel = document.querySelector('#ficha-editor #fs-delivery-cost-label');
+    const allocationValue = document.querySelector('#ficha-editor #fs-delivery-cost');
+    if (allocationLabel) allocationLabel.textContent = `Rateio de entrega (${deliveryPercent}%)`;
+    if (allocationValue) allocationValue.textContent = Utils.currency(deliveryAllocation);
     const costLabel = document.querySelector('#ficha-editor .ficha-summary__label');
     if (costLabel) costLabel.textContent = custoCompleto ? 'Custo (Ficha)' : 'Custo parcial';
     if ($('fs-lucro'))  { $('fs-lucro').textContent  = custoCompleto ? Utils.currency(lucro) : '—';  setCls($('fs-lucro'),  'ficha-summary__value', !custoCompleto ? '' : lucro  < 0 ? 'ficha-summary__value--danger' : 'ficha-summary__value--success'); }
