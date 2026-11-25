@@ -663,12 +663,25 @@ const ComprasModule = {
       const qr = await OcrService.lerQr(file).catch(() => null);
       const statusEl = document.getElementById('ocr-status');
       if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
-      const texto = await this._processarOcrServidor(file, pct => {
-        const bar = document.getElementById('ocr-bar');
-        const pctEl = document.getElementById('ocr-pct');
-        if (bar) bar.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = pct + '%';
-      });
+      let texto;
+      try {
+        texto = await this._processarOcrServidor(file, pct => {
+          const bar = document.getElementById('ocr-bar');
+          const pctEl = document.getElementById('ocr-pct');
+          if (bar) bar.style.width = pct + '%';
+          if (pctEl) pctEl.textContent = pct + '%';
+        });
+      } catch (serverError) {
+        // O OCR local permite importar mesmo quando a integração opcional
+        // do Google Vision não está configurada ou está indisponível.
+        if (statusEl) statusEl.textContent = 'Servidor indisponível. Tentando leitura local…';
+        texto = await OcrService.processar(file, pct => {
+          const bar = document.getElementById('ocr-bar');
+          const pctEl = document.getElementById('ocr-pct');
+          if (bar) bar.style.width = pct + '%';
+          if (pctEl) pctEl.textContent = pct + '%';
+        });
+      }
       const resultado = OcrService.parsearCupom(texto);
       const { itens, total } = resultado;
       const fiscal = { qr, cnpj: resultado.cnpj, chaveAcesso: qr?.chaveAcesso || resultado.chaveAcesso };
