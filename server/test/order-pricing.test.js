@@ -41,6 +41,16 @@ test('recalcula preços no servidor e preserva somente opções permitidas', asy
   assert.equal(priced.items[1].options.flavoredIce, false);
 });
 
+test('aplica o acréscimo provisório somente na entrega e arredonda cada item', async()=>{
+  const client={async query(sql){return{rows:sql.includes('active=true')?[{id:'food',name:'Petisco',category:'Petiscos',sale_price:'20.00',current_stock:5}]:[]}}};
+  const item=[{productId:'food',quantity:1,options:{}}];
+  const pickup=await priceOrderItems(client,item,{fulfillmentType:'retirada',deliveryIncreasePercent:25});
+  const delivery=await priceOrderItems(client,item,{fulfillmentType:'entrega',deliveryIncreasePercent:25});
+  assert.equal(pickup.items[0].unitPrice,20);
+  assert.equal(delivery.items[0].unitPrice,25);
+  assert.equal(delivery.subtotal,25);
+});
+
 test('retorna nulo quando algum produto não está disponível', async () => {
   const client = { query: async () => ({ rows: [] }) };
   assert.equal(await priceOrderItems(client, [{ productId: 'missing', quantity: 1 }]), null);

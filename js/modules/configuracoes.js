@@ -21,6 +21,7 @@ const ConfiguracoesModule = {
     const data = new FormData(form);
     const draft = {
       minimumOrder: String(data.get('minimumOrder') ?? ''),
+      deliveryPriceIncreasePercent: String(data.get('deliveryPriceIncreasePercent') ?? ''),
       deliveryTime: String(data.get('deliveryTime') ?? ''),
       hours: String(data.get('hours') ?? ''),
       isOpen: data.get('isOpen') === 'on',
@@ -106,6 +107,7 @@ const ConfiguracoesModule = {
       <p>Estas informações são publicadas no cardápio do cliente. A aba aberta se atualiza automaticamente em até 15 segundos.</p>
       ${draft ? '<p role="status">Rascunho deste navegador recuperado. Clique em “Salvar no VPS” para publicá-lo. <button type="button" class="btn btn-ghost" id="cfg-discard-draft">Descartar rascunho</button></p>' : ''}
       <label class="form-group">Pedido mínimo (R$)<input class="form-input" name="minimumOrder" type="number" min="0" step="0.01" required value="${Utils.escapeHtml(draft?.minimumOrder ?? String(s['storefront.minimumOrder'] ?? 20))}"></label>
+      <label class="form-group">Acréscimo provisório para entrega (%)<input class="form-input" name="deliveryPriceIncreasePercent" type="number" min="0" max="100" step="1" required value="${Utils.escapeHtml(draft?.deliveryPriceIncreasePercent ?? String(s['storefront.deliveryPriceIncreasePercent'] ?? 25))}"><small>Aplicado somente aos preços de pedidos para entrega. Retirada mantém os preços atuais. A entrega será exibida como grátis; revise este percentual após começar a vender.</small></label>
       <label class="form-group">Prazo de entrega<input class="form-input" name="deliveryTime" maxlength="80" required value="${Utils.escapeHtml(draft?.deliveryTime ?? s['storefront.deliveryTime'] ?? '')}"></label>
       <label class="form-group">Horário de funcionamento<textarea class="form-input" name="hours" readonly rows="3">${Utils.escapeHtml(s['storefront.hours'] ?? '')}</textarea></label><small>Altere os dias e horários na aba Horário. O cardápio e a aceitação dos pedidos usam essa mesma agenda.</small>
       <label class="form-group"><input name="isOpen" type="checkbox" ${(draft?.isOpen ?? s['storefront.isOpen']) ? 'checked' : ''}> Aceitar pedidos agora</label>
@@ -125,6 +127,7 @@ const ConfiguracoesModule = {
     const promotion = (current['storefront.promotions'] || [])[0] || {};
     const settings = {
       'storefront.minimumOrder': Number(data.get('minimumOrder')),
+      'storefront.deliveryPriceIncreasePercent': Number(data.get('deliveryPriceIncreasePercent')),
       'storefront.deliveryTime': String(data.get('deliveryTime')).trim(),
       'storefront.isOpen': data.get('isOpen') === 'on',
       'storefront.paymentMethods': payments,
@@ -274,23 +277,23 @@ const ConfiguracoesModule = {
     return `
       <div style="max-width:560px;display:flex;flex-direction:column;gap:var(--sp-4)">
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-6)">
-          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Frete</h3>
+          <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Áreas de entrega</h3>
           <div class="form-group">
-            <label class="form-label">Frete Padrão (R$)</label>
+            <label class="form-label">Referência de custo padrão (uso interno, R$)</label>
             <input type="number" class="form-input" id="cfg-frete-padrao" value="${f.padrao ?? ''}" min="0" step="0.50" style="max-width:160px">
-            <small style="color:var(--text-muted);font-size:var(--text-xs)">Deixe em branco para bloquear CEPs fora das zonas cadastradas</small>
+            <small style="color:var(--text-muted);font-size:var(--text-xs)">Não será cobrado do cliente. Deixe em branco para atender somente os CEPs das zonas cadastradas.</small>
           </div>
 
           <h4 style="font-weight:700;margin:var(--sp-5) 0 var(--sp-3)">Zonas de Entrega por CEP</h4>
           <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--sp-4)">
-            Configure frete por prefixo de CEP. Ex.: prefixo "0410" cobre todos os CEPs que começam com 0410.
+            Cadastre as regiões atendidas e uma referência interna de custo. O cliente verá a entrega como grátis.
           </p>
           <div id="cfg-zonas-list" style="display:flex;flex-direction:column;gap:var(--sp-2);margin-bottom:var(--sp-3)">
             ${zonas.length ? zonas.map((z, i) => `
               <div class="zona-row" style="display:flex;align-items:center;gap:var(--sp-2)">
                 <input type="text" class="form-input zona-nome" placeholder="Nome da zona" value="${Utils.escapeHtml(z.nome || '')}" style="flex:2">
                 <input type="text" class="form-input zona-prefixo" placeholder="Prefixo CEP (ex: 0410)" value="${Utils.escapeHtml(z.prefixo || '')}" style="flex:2" maxlength="8">
-                <input type="number" class="form-input zona-valor" placeholder="R$" value="${z.valor ?? ''}" min="0" step="0.50" style="flex:1">
+                <input type="number" class="form-input zona-valor" placeholder="Custo ref. R$" aria-label="Custo estimado interno da zona (não cobrado do cliente)" value="${z.valor ?? ''}" min="0" step="0.50" style="flex:1">
                 <button type="button" class="btn btn-ghost btn-rm-zona" style="color:var(--color-danger);flex-shrink:0">✕</button>
               </div>
             `).join('') : '<p style="font-size:var(--text-sm);color:var(--text-muted)">Nenhuma zona configurada.</p>'}
