@@ -223,6 +223,29 @@ input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 }
 
+.table-sort-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.table-sort-btn span {
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.table-sort-btn.is-active,
+.table-sort-btn.is-active span {
+  color: var(--color-primary);
+}
+
 .data-table td {
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--text-base);

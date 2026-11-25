@@ -99,11 +99,29 @@ const ProdutosModule = {
         return true;
       })
       .sort((a, b) => {
-        const av = a[this._sortField] ?? '';
-        const bv = b[this._sortField] ?? '';
+        const av = this._sortValue(a, this._sortField);
+        const bv = this._sortValue(b, this._sortField);
         const cmp = typeof av === 'string' ? av.localeCompare(bv, 'pt-BR') : av - bv;
         return this._sortDir === 'asc' ? cmp : -cmp;
       });
+  },
+
+  _sortValue(product, field) {
+    if (field === 'categoria') return Utils.displayCategory(product.categoria || '');
+    if (field === 'margem') {
+      const custo = this.getCusto(product.id);
+      return custo !== null && product.precoVenda
+        ? ((product.precoVenda - custo) / product.precoVenda) * 100
+        : -Infinity;
+    }
+    if (field === 'precoVenda') return Number(product.precoVenda) || 0;
+    return product[field] ?? '';
+  },
+
+  _sortButton(label, field) {
+    const active = this._sortField === field;
+    const arrow = active ? (this._sortDir === 'asc' ? '↑' : '↓') : '↕';
+    return `<button type="button" class="table-sort-btn${active ? ' is-active' : ''}" data-sort-field="${field}" aria-label="Ordenar por ${label}">${label} <span aria-hidden="true">${arrow}</span></button>`;
   },
 
   /* ── Custo via Ficha Técnica ───────────────────────────────── */
@@ -131,6 +149,12 @@ const ProdutosModule = {
         </tr>`;
       return;
     }
+
+    document.querySelector('#table-cardapio thead')?.querySelectorAll('[data-sort-field]').forEach(button => {
+      button.classList.toggle('is-active', button.dataset.sortField === this._sortField);
+      const arrow = button.querySelector('span');
+      if (arrow) arrow.textContent = button.dataset.sortField === this._sortField ? (this._sortDir === 'asc' ? '↑' : '↓') : '↕';
+    });
 
     tbody.innerHTML = items.map(p => {
       const custo  = this.getCusto(p.id);
@@ -642,6 +666,17 @@ const ProdutosModule = {
     const catFilter   = document.getElementById('cardapio-categoria');
     const ativoFilter = document.getElementById('cardapio-ativo');
     const newBtn      = document.getElementById('btn-novo-produto');
+
+    document.querySelectorAll('#table-cardapio [data-sort-field]').forEach(button => {
+      if (button.dataset.bound === 'true') return;
+      button.dataset.bound = 'true';
+      button.addEventListener('click', () => {
+        const field = button.dataset.sortField;
+        if (this._sortField === field) this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+        else { this._sortField = field; this._sortDir = 'asc'; }
+        this._render();
+      });
+    });
 
     if (search) {
       search.addEventListener('input', Utils.debounce(() => {
