@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS cost_history (
   unit text NOT NULL,
   is_initial_base boolean NOT NULL DEFAULT false,
   recorded_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT cost_history_one_owner CHECK ((ingredient_id IS NOT NULL) <> (product_id IS NOT NULL),
+  CONSTRAINT cost_history_one_owner CHECK ((ingredient_id IS NOT NULL) <> (product_id IS NOT NULL)),
   CONSTRAINT cost_history_unique_item UNIQUE (purchase_item_id)
 );
 
