@@ -120,19 +120,19 @@ test('promoções limitadas à modalidade só são aplicadas no tipo de pedido c
   assert.equal(delivery.promotions[0].code,'ENTREGA10');
 });
 
-test('entrega aplica o acréscimo antes de calcular promoções percentuais e preço fechado do combo',async()=>{
+test('entrega usa o preço do ERP antes de calcular promoções percentuais e preço fechado do combo',async()=>{
   const percentage=promo(percentId,{code:'ENTREGA10',rule_type:'percentage',discount_percent:10,products:[{id:'beer',name:'Cerveja',salePrice:10}]});
   const database=fakeDb({promotions:[percentage],products:[beerProduct],costs:[beerCost]});
-  const delivery=await calculatePromotions(database,[{productId:'beer',quantity:1,options:{}}],[],{fulfillmentType:'entrega',deliveryIncreasePercent:25});
-  assert.equal(delivery.subtotal,12.5);
-  assert.equal(delivery.promotionDiscount,1.25);
-  assert.equal(delivery.items[0].unitPrice,11.25);
+  const delivery=await calculatePromotions(database,[{productId:'beer',quantity:1,options:{}}],[],{fulfillmentType:'entrega'});
+  assert.equal(delivery.subtotal,10);
+  assert.equal(delivery.promotionDiscount,1);
+  assert.equal(delivery.items[0].unitPrice,9);
 
   const comboDatabase=fakeDb({promotions:[promo(comboId,{combo_price:18})],groups:[group(comboId)],products:[beerProduct],costs:[beerCost]});
-  const combo=await calculatePromotions(comboDatabase,[],[{promotionId:comboId,selections:[{groupId,items:[{productId:'beer',quantity:2,options:{}}]}]}],{fulfillmentType:'entrega',deliveryIncreasePercent:25});
-  assert.equal(combo.subtotal,25);
-  assert.equal(combo.promotions[0].price,22.5);
-  assert.equal(combo.promotionDiscount,2.5);
+  const combo=await calculatePromotions(comboDatabase,[],[{promotionId:comboId,selections:[{groupId,items:[{productId:'beer',quantity:2,options:{}}]}]}],{fulfillmentType:'entrega'});
+  assert.equal(combo.subtotal,20);
+  assert.equal(combo.promotions[0].price,18);
+  assert.equal(combo.promotionDiscount,2);
 });
 
 test('informa promoção automática expirada e bloqueia combo ainda não iniciado',async()=>{
