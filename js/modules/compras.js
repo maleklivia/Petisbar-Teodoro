@@ -635,18 +635,25 @@ const ComprasModule = {
       UI.toast('OCR não disponível nesta página.', 'error');
       return;
     }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.setAttribute('capture', 'environment');
-    input.onchange = e => {
-      const file = e.target.files[0];
-      if (file) {
-        UI.toast('Foto recebida. Iniciando leitura…', 'success');
-        this._processarCupomOCR(file);
-      } else UI.toast('Nenhuma foto foi selecionada.', 'warning');
+    const abrirSeletor = capture => {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*';
+      if (capture) input.setAttribute('capture', 'environment');
+      input.onchange = e => {
+        const file = e.target.files[0];
+        if (file) { UI.toast('Foto recebida. Iniciando leitura…', 'success'); this._processarCupomOCR(file); }
+        else UI.toast('Nenhuma foto foi selecionada.', 'warning');
+      };
+      input.click();
     };
-    input.click();
+    UI.openModal({
+      title: 'Importar comprovante',
+      body: '<p>Escolha como deseja enviar a nota fiscal:</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px"><button type="button" class="btn btn-primary" id="ocr-tirar-foto">📷 Tirar foto</button><button type="button" class="btn btn-ghost" id="ocr-enviar-foto">🖼️ Escolher foto</button></div>',
+      confirmLabel: 'Fechar',
+      onConfirm: () => UI.closeModal(),
+    });
+    document.getElementById('ocr-tirar-foto')?.addEventListener('click', () => { UI.closeModal(); abrirSeletor(true); });
+    document.getElementById('ocr-enviar-foto')?.addEventListener('click', () => { UI.closeModal(); abrirSeletor(false); });
   },
 
   async _processarCupomOCR(file) {
