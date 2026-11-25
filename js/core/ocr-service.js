@@ -78,9 +78,29 @@ const OcrService = {
       } catch (_) { /* usa o leitor alternativo */ }
     }
     await this._carregarJsQR();
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const result = jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
-    return result?.data ? this._dadosQrFiscal(result.data) : null;
+    const tentativas = [];
+    const original = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    tentativas.push(original);
+    // QR de NFC-e costuma ocupar uma área pequena da foto; tentar recortes
+    // aumenta a leitura sem exigir que o usuário enquadre perfeitamente a nota.
+    const margem = Math.round(Math.min(canvas.width, canvas.height) * 0.08);
+    for (const [x, y, w, h] of [
+      [0, 0, canvas.width, Math.floor(canvas.height * .7)],
+      [0, Math.floor(canvas.height * .3), canvas.width, Math.floor(canvas.height * .7)],
+      [Math.floor(canvas.width * .2), Math.floor(canvas.height * .2), Math.floor(canvas.width * .6), Math.floor(canvas.height * .6)],
+    ]) {
+      const crop = document.createElement('canvas');
+      crop.width = Math.max(1, w - margem * 2); crop.height = Math.max(1, h - margem * 2);
+      crop.getContext('2d').drawImage(canvas, x + margem, y + margem, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      tentativas.push(crop.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, crop.width, crop.height));
+    }
+    for (const image of tentativas) {
+      for (const inversionAttempts of ['attemptBoth', 'dontInvert']) {
+        const result = jsQR(image.data, image.width, image.height, { inversionAttempts });
+        if (result?.data) return this._dadosQrFiscal(result.data);
+      }
+    }
+    return null;
   },
 
   _dadosQrFiscal(raw) {
@@ -88,7 +108,7 @@ const OcrService = {
     let url = '';
     try {
       const parsed = new URL(value);
-      if (['http:', 'https:'].includes(parsed.protocol) && /(^|\.)gov\.br$/i.test(parsed.hostname)) url = parsed.href;
+      if (['http:', 'https:'].includes(parsed.protocol) && parsed.hostname) url = parsed.href;
     } catch (_) { /* QR pode conter somente a chave */ }
     const chave = (value.match(/\d{44}/) || [])[0] || '';
     return (url || chave) ? { conteudo: value, url, chaveAcesso: chave } : null;
