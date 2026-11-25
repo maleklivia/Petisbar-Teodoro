@@ -129,9 +129,10 @@ const OcrService = {
   },
 
   async prepararImagem(file) {
-    // 1600 px é suficiente para texto de cupom/print e evita travar o worker
+    // 1000 px mantém os caracteres legíveis e evita travar o OCR local em
+    // celulares mais lentos.
     // em imagens grandes de celular ou capturas de tela.
-    const { canvas, ctx } = await this._desenharImagem(file, 1600);
+    const { canvas, ctx } = await this._desenharImagem(file, 1000);
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = image.data;
     for (let i = 0; i < pixels.length; i += 4) {
@@ -145,12 +146,14 @@ const OcrService = {
 
   async processar(file, onProgress) {
     const imagemPreparada = await this.prepararImagem(file);
-    onProgress?.(1);
+    onProgress?.(8);
     // OCRAD é local e não usa Web Worker/WASM; funciona como caminho rápido
     // para prints de lojas e comprovantes online.
     try {
       await this._carregarOcrad();
+      onProgress?.(20);
       const textoLocal = OCRAD(imagemPreparada);
+      onProgress?.(70);
       if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
     } catch (_) { /* tenta Tesseract como segunda opção */ }
     await this._carregarTesseract();
