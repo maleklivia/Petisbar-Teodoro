@@ -272,10 +272,25 @@ const ConfiguracoesModule = {
     const remoteZones = cfg['storefront.deliveryZones'];
     const f = remoteZones ? { padrao: remoteZones.defaultFee, zonas: remoteZones.zones || [] } : (cfg.frete || {});
     const zonas = f.zonas || [];
+    const minimumOrder = Number(cfg['storefront.minimumOrder'] ?? 20);
+    const estimateSettings = {...cfg,frete:{...(cfg.frete||{}),zonas}};
+    const estimatedAllocation = Utils.deliveryAllocationEstimate(estimateSettings);
+    const savedAllocation = cfg['pricing.deliveryAllocationPercent'];
+    const allocation = savedAllocation ?? estimatedAllocation ?? '';
+    const averageCost = zonas.map(zone=>Number(zone.valor)).filter(value=>Number.isFinite(value)&&value>=0);
+    const averageCostLabel = averageCost.length
+      ? Utils.currency(averageCost.reduce((sum,value)=>sum+value,0)/averageCost.length)
+      : 'sem valores de custo nas zonas';
     return `
       <div style="max-width:560px;display:flex;flex-direction:column;gap:var(--sp-4)">
         <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--sp-6)">
           <h3 style="font-family:var(--font-display);letter-spacing:.04em;margin-bottom:var(--sp-5)">Áreas de entrega</h3>
+          <div class="form-group" style="padding:var(--sp-4);border:1px solid var(--border-color);border-radius:var(--radius-md);margin-bottom:var(--sp-5)">
+            <label class="form-label" for="cfg-rateio-entrega">Rateio estimado de entrega no preço comum (%)</label>
+            <input type="number" class="form-input" id="cfg-rateio-entrega" value="${allocation}" min="0" max="90" step="0.1" required style="max-width:180px">
+            <small style="display:block;color:var(--text-muted);font-size:var(--text-xs);margin-top:8px">Estimativa inicial: média simples dos custos por zona (${averageCostLabel}) ÷ pedido mínimo (${Utils.currency(minimumOrder)}) × 50% de vendas em entrega. ${estimatedAllocation == null ? 'Preencha custos estimados nas zonas para calcular uma sugestão.' : `Sugestão inicial: ${estimatedAllocation}%.`} ${savedAllocation == null ? 'É uma hipótese provisória sem histórico; confirme e salve o percentual.' : 'Percentual salvo; revise quando houver dados reais.'}</small>
+            <small style="display:block;color:var(--text-muted);font-size:var(--text-xs);margin-top:8px">Entra apenas no cálculo do preço sugerido do cardápio, igual para retirada e entrega. Não aparece como taxa no checkout e não altera diretamente preços já cadastrados. O preço do iFood continua separado.</small>
+          </div>
           <div class="form-group">
             <label class="form-label">Referência de custo padrão (uso interno, R$)</label>
             <input type="number" class="form-input" id="cfg-frete-padrao" value="${f.padrao ?? ''}" min="0" step="0.50" style="max-width:160px">
@@ -313,11 +328,14 @@ const ConfiguracoesModule = {
       if (prefixo) zonas.push({ nome, prefixo, valor: isNaN(valor) ? 0 : valor });
     });
     const defaultValue = document.getElementById('cfg-frete-padrao')?.value?.trim();
+    const rateioValue = document.getElementById('cfg-rateio-entrega')?.value?.trim();
+    const deliveryAllocationPercent = Number(rateioValue);
     const deliveryZones = { defaultFee: defaultValue === '' ? null : parseFloat(defaultValue), zones: zonas };
     cfg.frete = { padrao: deliveryZones.defaultFee, zonas };
     if (zonas.some(z=>!/^\d{1,8}$/.test(z.prefixo)||!Number.isFinite(z.valor)||z.valor<0)) throw new Error('Revise os prefixos e valores das zonas.');
-    await this._persist({...cfg,'storefront.deliveryZones':deliveryZones});
-    UI.toast('Configurações de entrega salvas.', 'success');
+    if (rateioValue === '' || !Number.isFinite(deliveryAllocationPercent) || deliveryAllocationPercent < 0 || deliveryAllocationPercent > 90) throw new Error('Informe um rateio de entrega entre 0% e 90%.');
+    await this._persist({...cfg,'storefront.deliveryZones':deliveryZones,'pricing.deliveryAllocationPercent':deliveryAllocationPercent});
+    UI.toast('Custos de entrega e rateio salvos.', 'success');
   },
 
   _adicionarZona() {

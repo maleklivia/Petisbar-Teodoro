@@ -19,6 +19,7 @@ const ProdutosModule = {
   _photoPreviewUrl: null,
   _ifoodPriceManualEdit: false,
   _ifoodFeePercent: 26.2,
+  _deliveryAllocationPercent: null,
 
   /* ── Inicialização ─────────────────────────────────────────── */
 
@@ -36,6 +37,16 @@ const ProdutosModule = {
           API.getServerRecipeCards(),
         ]);
         this._items = produtos;
+        if (API.hasPermission('settings.manage')) {
+          try {
+            const remoteSettings = await API.getServerSettings();
+            Stores.config.set({ ...Stores.config.get(), ...remoteSettings });
+            this._deliveryAllocationPercent = Utils.deliveryAllocationPercent(Stores.config.get());
+            FichasModule.refreshDeliveryAllocation(this._deliveryAllocationPercent);
+          } catch (error) {
+            console.warn('Não foi possível atualizar o rateio de entrega nas margens.', error);
+          }
+        }
         try {
           const ifood = await API.getServerIfoodStatus();
           if (Number.isFinite(Number(ifood.totalFeePercent))) this._ifoodFeePercent = Number(ifood.totalFeePercent);
@@ -45,6 +56,9 @@ const ProdutosModule = {
       } catch (error) {
         UI.toast('Falha ao carregar catálogo do servidor.', 'danger');
         this._items = [];
+      }
+      if (this._deliveryAllocationPercent === null) {
+        this._deliveryAllocationPercent = Utils.deliveryAllocationPercent(Stores.config.get());
       }
     } else {
       this._items = Stores.produtos.get();
@@ -134,8 +148,10 @@ const ProdutosModule = {
 
     tbody.innerHTML = items.map(p => {
       const custo  = this.getCusto(p.id);
+      const deliveryPercent = this._deliveryAllocationPercent ?? Utils.deliveryAllocationPercent(Stores.config.get());
+      const deliveryAllocation = Utils.deliveryAllocationCost(p.precoVenda || 0, deliveryPercent);
       const margem = (custo !== null && p.precoVenda)
-        ? Math.round(((p.precoVenda - custo) / p.precoVenda) * 100)
+        ? Math.round(((p.precoVenda - custo - deliveryAllocation) / p.precoVenda) * 100)
         : null;
       const margemIfood = (custo !== null && p.precoIfood)
         ? Math.round(((p.precoIfood * (1 - this._ifoodFeePercent / 100) - custo) / p.precoIfood) * 100)
@@ -177,7 +193,7 @@ const ProdutosModule = {
           <td style="font-weight:600">${Utils.currency(p.precoVenda)}</td>
           <td><strong>${p.precoIfood == null ? '—' : Utils.currency(p.precoIfood)}</strong><div style="font-size:var(--text-xs);color:var(--text-muted)">${p.ativoIfood ? 'Ativo' : 'Aguardando integração'}</div></td>
           <td>${custoStr}</td>
-          <td>${margemStr}</td>
+          <td title="Margem após custo técnico e rateio estimado de entrega (${deliveryPercent}%). Não inclui taxas de pagamento, tributos ou custos fixos.">${margemStr}</td>
           <td title="Preço iFood menos ${this._ifoodFeePercent}% de taxas e o custo do produto">${margemIfoodStr}</td>
           <td style="color:var(--text-muted);text-align:center">${estoqueStr}</td>
           <td style="color:var(--text-muted)">${p.tempoPreparo ? p.tempoPreparo + ' min' : '—'}</td>
@@ -281,6 +297,7 @@ const ProdutosModule = {
               <label class="form-label">Preço de Venda (R$) *</label>
               <input class="form-input" name="precoVenda" type="number" step="0.01" min="0.01"
                 required placeholder="0,00" value="${item?.precoVenda ?? ''}">
+              <div id="menu-price-guidance" aria-live="polite" style="margin-top:8px;padding:10px;border:1px solid var(--border-color);border-radius:var(--radius-md);color:var(--text-muted);font-size:var(--text-xs)"></div>
             </div>
             <div class="form-group">
               <label class="form-label">Tempo de Preparo (min)</label>
@@ -337,6 +354,7 @@ const ProdutosModule = {
       onConfirm: () => this._submitForm(editing, item),
     });
     this._bindIfoodPriceEditor(item);
+    this._bindMenuPriceGuidance(item);
     if(editing&&this._serverMode)this._loadProductUsage(item.id);
     this._bindProductPhotoEditor(item);
     this._drawOptionGroups(item?.optionGroups||[]);
@@ -350,6 +368,42 @@ const ProdutosModule = {
       this._drawOptionGroups(groups);
     });
     document.getElementById('add-product-option-group').addEventListener('click',()=>{const groups=this._collectOptionGroups();groups.push({key:`grupo${groups.length+1}`,label:'Novo grupo',type:'radio',required:false,options:[{value:'opcao1',label:'Opção 1',priceMode:'base'}]});this._drawOptionGroups(groups)});
+  },
+
+  _bindMenuPriceGuidance(item) {
+    const saleInput = document.querySelector('#form-produto [name="precoVenda"]');
+    const guidance = document.getElementById('menu-price-guidance');
+    if (!saleInput || !guidance) return;
+    this._refreshMenuPriceGuidance(item);
+  },
+
+  _refreshMenuPriceGuidance(item) {
+    const saleInput = document.querySelector('#form-produto [name="precoVenda"]');
+    const guidance = document.getElementById('menu-price-guidance');
+    if (!saleInput || !guidance) return;
+    const settings = Stores.config.get();
+    const allocationPercent = this._deliveryAllocationPercent ?? Utils.deliveryAllocationPercent(settings);
+    const targetMargin = Number(settings.metas?.margemMeta ?? 60);
+    const cost = this.getCusto(item?.id) ?? item?.custoCompra ?? null;
+    const suggestedPrice = cost !== null ? Utils.menuPriceForMargin(cost, targetMargin, allocationPercent) : null;
+    guidance.replaceChildren();
+    if (suggestedPrice === null) {
+      guidance.textContent = `Rateio de entrega: ${allocationPercent}%. O preço comum vale para retirada e entrega; o preço do iFood é separado. Complete a ficha para calcular uma sugestão.`;
+      return;
+    }
+    guidance.append(document.createTextNode(`Custo técnico ${Utils.currency(cost)} · margem alvo ${targetMargin}% · rateio estimado ${allocationPercent}% (${Utils.currency(Utils.deliveryAllocationCost(suggestedPrice, allocationPercent))} na sugestão). Preço comum para retirada e entrega; iFood separado. `));
+    if (Math.abs(Number(saleInput.value) - suggestedPrice) > 0.001) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'btn btn-secondary btn-sm'; button.textContent = `Usar sugestão ${Utils.currency(suggestedPrice)}`;
+      button.addEventListener('click', () => {
+        saleInput.value = suggestedPrice.toFixed(2);
+        saleInput.dispatchEvent(new Event('input', { bubbles: true }));
+        saleInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      guidance.append(button);
+    } else {
+      guidance.append(document.createTextNode(`Preço atual de ${Utils.currency(suggestedPrice)} já corresponde à sugestão.`));
+    }
   },
 
   async _loadProductUsage(id){
@@ -385,6 +439,7 @@ const ProdutosModule = {
           if (hint) hint.textContent = followsSuggestion
             ? `Atualiza automaticamente usando ${preview.totalFeePercent}% de taxas totais configuradas no VPS. Edite para fixar um valor manual; mensalidade não incluída.`
             : `Preço manual preservado. A referência atual usa ${preview.totalFeePercent}% de taxas totais configuradas no VPS; mensalidade não incluída.`;
+          this._refreshMenuPriceGuidance(item);
         }).catch(() => { followsSuggestion = false; })
       : Promise.resolve();
 
@@ -398,6 +453,7 @@ const ProdutosModule = {
     });
     saleInput.addEventListener('input', () => {
       const sequence = ++requestSequence;
+      this._refreshMenuPriceGuidance(item);
       const saleValue = saleInput.value;
       void modeReady.then(async () => {
         if (!followsSuggestion || this._ifoodPriceManualEdit) return;

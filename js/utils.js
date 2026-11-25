@@ -26,6 +26,32 @@ const Utils = {
     return `${Math.round((ratio || 0) * 100)}%`;
   },
 
+  deliveryAllocationEstimate(settings = {}) {
+    const zones = settings['storefront.deliveryZones']?.zones || settings.frete?.zonas || [];
+    const costs = zones.map(zone => Number(zone?.valor)).filter(value => Number.isFinite(value) && value >= 0);
+    const minimumOrder = Number(settings['storefront.minimumOrder'] ?? 20);
+    if (!costs.length || !(minimumOrder > 0)) return null;
+    const averageDeliveryCost = costs.reduce((sum, value) => sum + value, 0) / costs.length;
+    // Sem histórico, presume metade das vendas em cada modalidade e usa o pedido mínimo como base conservadora.
+    return Math.ceil((averageDeliveryCost / minimumOrder * 0.5) * 100);
+  },
+
+  deliveryAllocationPercent(settings = {}) {
+    const configured = settings['pricing.deliveryAllocationPercent'];
+    if (configured !== null && configured !== undefined && configured !== '' && Number.isFinite(Number(configured))) return Number(configured);
+    return this.deliveryAllocationEstimate(settings) ?? 0;
+  },
+
+  deliveryAllocationCost(salePrice, percent) {
+    return Math.round((Number(salePrice) * Number(percent) / 100 + Number.EPSILON) * 100) / 100;
+  },
+
+  menuPriceForMargin(cost, targetMarginPercent, deliveryPercent) {
+    const remaining = 1 - (Number(targetMarginPercent) + Number(deliveryPercent)) / 100;
+    if (!(Number(cost) > 0) || !(remaining > 0)) return null;
+    return Math.ceil((Number(cost) / remaining) * 100 - 1e-9) / 100;
+  },
+
   number(value) {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
   },
