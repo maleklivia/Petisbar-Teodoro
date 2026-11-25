@@ -101,6 +101,12 @@ const ProdutosModule = {
       .sort((a, b) => {
         const av = this._sortValue(a, this._sortField);
         const bv = this._sortValue(b, this._sortField);
+        const aMissing = av === null || av === undefined;
+        const bMissing = bv === null || bv === undefined;
+        if (aMissing || bMissing) {
+          if (aMissing && bMissing) return 0;
+          return aMissing ? 1 : -1;
+        }
         const cmp = typeof av === 'string' ? av.localeCompare(bv, 'pt-BR') : av - bv;
         return this._sortDir === 'asc' ? cmp : -cmp;
       });
@@ -112,7 +118,7 @@ const ProdutosModule = {
       const custo = this.getCusto(product.id);
       return custo !== null && product.precoVenda
         ? ((product.precoVenda - custo) / product.precoVenda) * 100
-        : -Infinity;
+        : null;
     }
     if (field === 'precoVenda') return Number(product.precoVenda) || 0;
     return product[field] ?? '';
