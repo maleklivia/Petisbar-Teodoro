@@ -129,11 +129,23 @@ async function applyReceipt(client, purchase, userId) {
       if (!ingredient.rowCount) throw Object.assign(new Error('ingredient_not_found'),{code:'ingredient_not_found',statusCode:409});
       receivedUnit=ingredient.rows[0].unit;receivedQuantity=convertQuantity(Number(item.quantity),item.unit,receivedUnit);
       const nextStock = number(ingredient.rows[0].current_stock) + receivedQuantity;
+      const priorHistory = await client.query('SELECT 1 FROM cost_history WHERE ingredient_id=$1 LIMIT 1', [item.ingredient_id]);
+      await client.query(`
+        INSERT INTO cost_history (id, ingredient_id, purchase_id, purchase_item_id, unit_cost, quantity, unit, is_initial_base)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (purchase_item_id) DO NOTHING
+      `, [`cost-${purchase.id}-${item.id}`, item.ingredient_id, purchase.id, item.id, Number(item.subtotal) / receivedQuantity, receivedQuantity, receivedUnit, priorHistory.rowCount === 0]);
       await client.query('UPDATE ingredients SET current_stock=$2, unit_cost=$3, updated_at=now() WHERE id=$1', [item.ingredient_id, nextStock, Number(item.subtotal)/receivedQuantity]);
     } else if (item.product_id) {
       const product = await client.query('SELECT * FROM products WHERE id=$1 FOR UPDATE', [item.product_id]);
       if (!product.rowCount) continue;
       const nextStock = number(product.rows[0].current_stock) + number(item.quantity);
+      const priorHistory = await client.query('SELECT 1 FROM cost_history WHERE product_id=$1 LIMIT 1', [item.product_id]);
+      await client.query(`
+        INSERT INTO cost_history (id, product_id, purchase_id, purchase_item_id, unit_cost, quantity, unit, is_initial_base)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (purchase_item_id) DO NOTHING
+      `, [`cost-${purchase.id}-${item.id}`, item.product_id, purchase.id, item.id, item.unit_cost, Number(item.quantity), item.unit, priorHistory.rowCount === 0]);
       await client.query('UPDATE products SET current_stock=$2, purchase_cost=$3, updated_at=now() WHERE id=$1', [item.product_id, nextStock, item.unit_cost]);
     } else continue;
     const key = item.ingredient_id || item.product_id;
