@@ -130,7 +130,7 @@ export default async function promotionRoutes(app){
   });
   app.post('/public/pricing/quote',async(request,reply)=>{
     const parsed=quoteSchema.safeParse(request.body);if(!parsed.success)return reply.code(400).send({error:'validation_error'});
-    const client=await app.db.connect();try{await client.query('BEGIN');const result=await calculatePromotions(client,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType});
+    const client=await app.db.connect();try{await client.query('BEGIN');const setting=await client.query("SELECT value FROM app_settings WHERE key='storefront.deliveryPriceIncreasePercent'");const result=await calculatePromotions(client,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType,deliveryIncreasePercent:Number(setting.rows[0]?.value??25)});
       await client.query('ROLLBACK');if(result.error)return reply.code(409).send({error:result.error,details:result});
       return {data:{subtotalNormal:result.subtotal,promotions:result.promotions.map(p=>({code:p.code,name:p.name,discount:p.discount,items:p.items})),
         rejectedPromotions:result.rejectedPromotions,totalPromotionDiscount:result.promotionDiscount,totalAfterPromotions:roundMoney(result.subtotal-result.promotionDiscount)}};

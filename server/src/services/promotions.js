@@ -196,7 +196,8 @@ function optionsAllowed(options, allowed) {
   });
 }
 
-export async function calculatePromotions(db, requestedItems, requestedCombos = [], { lock = false, fulfillmentType = 'retirada' } = {}) {
+export async function calculatePromotions(db, requestedItems, requestedCombos = [], { lock = false, fulfillmentType = 'retirada', deliveryIncreasePercent = 0 } = {}) {
+  const deliveryMultiplier=fulfillmentType==='entrega'?1+Math.max(0,Math.min(100,Number(deliveryIncreasePercent)||0))/100:1;
   const allLines = requestedItems.flatMap(item => Array.from({length:item.quantity},()=>({ ...item, quantity:1, source: 'cart' })));
   const promos = await listPromotions(db, { activeOnly: true });
   const now=Date.now();
@@ -238,14 +239,14 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
     if (promotion.combo_price === null && promotion.discount_percent === null) return { error: 'promotion_price_unconfigured' };
   }
 
-  const priced = await priceOrderItems(db, allLines, { lock, fulfillmentType });
+  const priced = await priceOrderItems(db, allLines, { lock, fulfillmentType, deliveryIncreasePercent });
   if(priced?.error)return {error:priced.error};
   if (!priced) return { error: 'product_unavailable' };
   const items = priced.items.map((item,index) => ({ ...item, listUnitPrice:item.unitPrice,
     listSubtotal:item.subtotal, optionSurcharge:money(Math.max(0,item.unitPrice - priced.basePrices.get(item.productId))), promotionDiscount:0, promotionId:null, promotionApplicationId:null,
     comboGroupId:allLines[index].comboGroupId || null, comboGroupName:allLines[index].comboGroupName || null,
     comboPromotionId:allLines[index].comboPromotionId || null, comboInstanceId:allLines[index].comboPromotionId || null,
-    groupSurcharge:Number(allLines[index].groupSurcharge || 0) }));
+    groupSurcharge:money(Number(allLines[index].groupSurcharge || 0)*deliveryMultiplier) }));
   const promoRows = await db.query(`SELECT p.* FROM promotions p WHERE id=ANY($1::uuid[]) AND ${activeNow} ORDER BY priority DESC,code ${lock ? 'FOR UPDATE' : ''}`,
     [[...new Set([...requestedCombos.map(combo=>combo.promotionId),...eligiblePromos.filter(p=>p.rule_type!=='combo').map(p=>p.id)])]]);
   const locked = new Map(promoRows.rows.map(row => [row.id, row]));
@@ -273,7 +274,7 @@ export async function calculatePromotions(db, requestedItems, requestedCombos = 
       const selectedSurcharges = money(lineIndexes.reduce((sum,index)=>sum+items[index].groupSurcharge+items[index].optionSurcharge,0));
       const total = promo.discount_percent!==null
         ? money(normal-money(normal*Number(promo.discount_percent)/100))
-        : Math.min(normal,money(Number(promo.combo_price) + selectedSurcharges));
+        : Math.min(normal,money(Number(promo.combo_price)*deliveryMultiplier + selectedSurcharges));
       if (total > normal) {
         rejected.push({ promotionId:promo.id,code:promo.code,reason:'combo_price_exceeds_normal' });
         return { error:'combo_price_exceeds_normal', promotion:promo.code, normalPrice:normal };

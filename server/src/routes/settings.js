@@ -20,6 +20,7 @@ export default async function settingsRoutes(app) {
   app.put('/settings', { preHandler: requirePermission('settings.manage') }, async (request, reply) => {
     const settings = request.body && typeof request.body === 'object' ? request.body : null;
     if (!settings || Array.isArray(settings)) return reply.code(400).send({ error: 'validation_error' });
+    if(Object.hasOwn(settings,'storefront.deliveryPriceIncreasePercent')&&(!Number.isFinite(Number(settings['storefront.deliveryPriceIncreasePercent']))||Number(settings['storefront.deliveryPriceIncreasePercent'])<0||Number(settings['storefront.deliveryPriceIncreasePercent'])>100))return reply.code(400).send({error:'invalid_delivery_price_increase'});
     if(settings.horario!=null){
       if(!weeklyHours(settings.horario))return reply.code(400).send({error:'invalid_hours'});
       settings.horario=weeklyHoursText(settings.horario);

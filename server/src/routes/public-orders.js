@@ -39,8 +39,8 @@ function deliveryForPostalCode(value, settings) {
     .filter(item => String(item?.prefixo || '').replace(/\D/g, '') && postalCode.startsWith(String(item.prefixo).replace(/\D/g, '')))
     .sort((a, b) => String(b.prefixo).length - String(a.prefixo).length)[0];
   if (!zone) return null;
-  const fee = Number(zone.valor);
-  return Number.isFinite(fee) && fee >= 0 ? { fee: roundMoney(fee), zone: String(zone.nome || zone.prefixo) } : null;
+  const estimatedCost = Number(zone.valor);
+  return Number.isFinite(estimatedCost) && estimatedCost >= 0 ? { fee: 0, zone: String(zone.nome || zone.prefixo) } : null;
 }
 async function findCoupon(db, code, lock = false) {
   const { rows } = await db.query(`SELECT id,code,discount_percent,discount_amount,max_discount,max_uses,first_order_only FROM coupons WHERE upper(code)=upper($1) AND active=true AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>=now()) ${lock ? 'FOR UPDATE' : ''}`, [code]);
@@ -67,6 +67,7 @@ function discountFor(coupon, subtotal) {
 export default async function publicOrderRoutes(app) {
   const defaultStorefront = {
     minimumOrder: 20,
+    deliveryPriceIncreasePercent: 25,
     deliveryTime: '30–60 min',
     isOpen: false,
     hours: 'Horários definidos no ERP',
@@ -78,7 +79,7 @@ export default async function publicOrderRoutes(app) {
   };
   app.get('/public/storefront', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
+    const keys = ['horario','storefront.minimumOrder', 'storefront.deliveryPriceIncreasePercent', 'storefront.deliveryTime', 'storefront.isOpen', 'storefront.hours', 'storefront.paymentMethods', 'storefront.promotions', 'storefront.whatsapp', 'storefront.allowOrdersWithoutStockForTesting', 'storefront.deliveryZones'];
     const { rows } = await app.db.query('SELECT key,value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
     const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
     const manuallyEnabled = values['storefront.isOpen'] === undefined ? defaultStorefront.isOpen : Boolean(values['storefront.isOpen']);
@@ -86,6 +87,7 @@ export default async function publicOrderRoutes(app) {
     const acceptance = storefrontAcceptance(manuallyEnabled, values.horario||hours);
     return { data: {
       minimumOrder: Number(values['storefront.minimumOrder'] ?? defaultStorefront.minimumOrder),
+      deliveryPriceIncreasePercent: Number(values['storefront.deliveryPriceIncreasePercent'] ?? defaultStorefront.deliveryPriceIncreasePercent),
       deliveryTime: String(values['storefront.deliveryTime'] ?? defaultStorefront.deliveryTime),
       isOpen: acceptance.open,
       manuallyEnabled,
@@ -95,7 +97,7 @@ export default async function publicOrderRoutes(app) {
       promotions: Array.isArray(values['storefront.promotions']) ? values['storefront.promotions'] : defaultStorefront.promotions,
       whatsapp: String(values['storefront.whatsapp'] ?? defaultStorefront.whatsapp),
       allowOrdersWithoutStockForTesting: values['storefront.allowOrdersWithoutStockForTesting'] === true,
-      deliveryZones: values['storefront.deliveryZones'] && typeof values['storefront.deliveryZones'] === 'object' ? values['storefront.deliveryZones'] : defaultStorefront.deliveryZones,
+      deliveryZones: { defaultFee: null, zones: (values['storefront.deliveryZones']?.zones || []).map(zone=>({prefixo:zone.prefixo,nome:zone.nome})) },
     } };
   });
   // O cardápio e o fechamento usam os mesmos dados de produto e estoque.
@@ -122,7 +124,8 @@ export default async function publicOrderRoutes(app) {
     const phone=normalizePhone(parsed.data.phone); if(!validPhone(phone))return reply.code(400).send({error:'invalid_phone'});
     const coupon=await findCoupon(app.db,parsed.data.code); if(!coupon)return reply.code(404).send({error:'coupon_not_found'});
     const reason=await couponEligibility(app.db,coupon,phone); if(reason)return reply.code(409).send({error:reason});
-    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType}); if(priced.error)return reply.code(409).send({error:priced.error});
+    const setting=await app.db.query("SELECT value FROM app_settings WHERE key='storefront.deliveryPriceIncreasePercent'");
+    const priced=await calculatePromotions(app.db,parsed.data.items,parsed.data.combos,{fulfillmentType:parsed.data.fulfillmentType,deliveryIncreasePercent:Number(setting.rows[0]?.value??25)}); if(priced.error)return reply.code(409).send({error:priced.error});
     if(!pricesMatch(parsed.data.items,priced))return reply.code(409).send({error:'catalog_changed'});
     if(!couponCanStack(priced))return reply.code(409).send({error:'coupon_not_combinable'});
     const amount=discountFor(coupon,Math.max(0,priced.subtotal-priced.promotionDiscount));
@@ -167,10 +170,11 @@ export default async function publicOrderRoutes(app) {
           return reply.code(201).send(previous.rows[0].response);
         }
       }
-      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true,fulfillmentType:input.fulfillmentType}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
-      if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
-      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones']]);
+      const storefrontResult=await client.query("SELECT key,value FROM app_settings WHERE key=ANY($1::text[]) FOR SHARE",[['horario','storefront.isOpen','storefront.hours','storefront.deliveryZones','storefront.deliveryPriceIncreasePercent']]);
       const storefrontValues=Object.fromEntries(storefrontResult.rows.map(row=>[row.key,row.value]));
+      const deliveryIncreasePercent=Number(storefrontValues['storefront.deliveryPriceIncreasePercent']??defaultStorefront.deliveryPriceIncreasePercent);
+      const priced=await calculatePromotions(client,input.items,input.combos,{lock:true,fulfillmentType:input.fulfillmentType,deliveryIncreasePercent}); if(priced.error){await client.query('ROLLBACK');return reply.code(409).send({error:priced.error,details:priced});}
+      if(!pricesMatch(input.items,priced)){await client.query('ROLLBACK');return reply.code(409).send({error:'catalog_changed'});}
       const manuallyEnabled=storefrontValues['storefront.isOpen']===undefined?defaultStorefront.isOpen:Boolean(storefrontValues['storefront.isOpen']);
       const hours=String(storefrontValues['storefront.hours']??defaultStorefront.hours);
       const deliveryZones=storefrontValues['storefront.deliveryZones'] && typeof storefrontValues['storefront.deliveryZones']==='object' ? storefrontValues['storefront.deliveryZones'] : defaultStorefront.deliveryZones;
