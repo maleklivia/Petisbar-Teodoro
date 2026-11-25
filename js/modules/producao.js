@@ -10,6 +10,9 @@ const ProducaoModule = {
   _serverMode: false,
   _orders: [],
   _canWrite: true,
+  _search: '',
+  _paused: false,
+  _highDemand: false,
 
   async init() {
     this._serverMode = API.isServerMode();
@@ -58,19 +61,31 @@ const ProducaoModule = {
     const board = document.getElementById('producao-board');
     if (!board) return;
 
-    const pedidos    = this._pedidos();
+    const pedidos    = this._pedidos().filter(p => !this._search || `${p.numeroPedido} ${p.clienteNome || ''}`.toLowerCase().includes(this._search.toLowerCase()));
     const pendentes  = pedidos.filter(p => ['Novo', 'Aguardando Pagamento', 'Pago'].includes(p.status));
     const emProd     = pedidos.filter(p => p.status === 'Em Produção');
-    const prontos    = pedidos.filter(p => ['Pronto', 'Saiu para Entrega'].includes(p.status));
+    const prontos    = pedidos.filter(p => p.status === 'Pronto');
+    const entregas   = pedidos.filter(p => p.status === 'Saiu para Entrega');
+    const finalizados= pedidos.filter(p => ['Entregue', 'Concluído'].includes(p.status));
 
     board.innerHTML = `
+      <div class="production-toolbar">
+        <div class="production-tabs"><button class="production-tab is-active">Kanban</button><button class="production-tab">Roteirização</button></div>
+        <input class="form-input production-search" id="production-search" placeholder="Buscar (nome, telefone, pedido)" value="${Utils.escapeHtml(this._search)}">
+        <button class="btn btn-ghost" id="production-pause">${this._paused ? '▶ Retomar loja' : 'Ⅱ Pausar loja'}</button>
+        <button class="btn btn-ghost" id="production-demand">♨ Informar alta demanda</button>
+        <button class="btn btn-ghost" id="production-report">Abrir relatório diário</button>
+      </div>
       <div class="kanban-board">
-        ${this._renderCol('Pendentes',   pendentes, 'pendentes')}
-        ${this._renderCol('Em Produção', emProd,    'em-producao')}
-        ${this._renderCol('Prontos',     prontos,   'prontos')}
+        ${this._renderCol('Em análise', pendentes, 'analise')}
+        ${this._renderCol('Em preparo', emProd, 'em-preparo')}
+        ${this._renderCol('Pronto', prontos, 'pronto')}
+        ${this._renderCol('Em entrega', entregas, 'entrega')}
+        ${this._renderCol('Finalizados', finalizados, 'finalizados')}
       </div>`;
 
     this._bindCardActions();
+    this._bindToolbar();
   },
 
   _renderCol(titulo, pedidos, slug) {
@@ -129,6 +144,14 @@ const ProducaoModule = {
     document.querySelectorAll('.kanban-card [data-action="avancar"]').forEach(btn => {
       btn.addEventListener('click', () => this._avancar(btn.dataset.id));
     });
+  },
+
+  _bindToolbar() {
+    const search=document.getElementById('production-search');
+    if(search) search.addEventListener('input',()=>{this._search=search.value;this._render();});
+    document.getElementById('production-pause')?.addEventListener('click',()=>{this._paused=!this._paused;this._render();UI.toast(this._paused?'Loja pausada para novos pedidos.':'Loja retomada.','success');});
+    document.getElementById('production-demand')?.addEventListener('click',()=>{this._highDemand=!this._highDemand;UI.toast(this._highDemand?'Alta demanda informada à equipe.':'Aviso de alta demanda removido.','success');});
+    document.getElementById('production-report')?.addEventListener('click',()=>UI.toast('Relatório diário disponível na aba Relatórios.','success'));
   },
 
   async _avancar(pedidoId) {
