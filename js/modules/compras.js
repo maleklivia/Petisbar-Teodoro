@@ -684,7 +684,14 @@ const ComprasModule = {
       }
       const resultado = OcrService.parsearCupom(texto);
       const { itens, total } = resultado;
-      const fiscal = { qr, cnpj: resultado.cnpj, chaveAcesso: qr?.chaveAcesso || resultado.chaveAcesso };
+      // Em celulares, o QR pode ficar pequeno ou inclinado. Se a câmera não
+      // conseguir decodificá-lo, a chave impressa na NFC-e ainda permite
+      // identificar a nota e abrir a consulta oficial da Sefaz-RJ.
+      const chave = qr?.chaveAcesso || resultado.chaveAcesso || '';
+      const qrFallback = !qr && chave.length === 44 && /fazenda\.rj\.gov\.br/i.test(texto)
+        ? { conteudo: chave, chaveAcesso: chave, url: `https://www.fazenda.rj.gov.br/nfce/consulta?chNFe=${chave}` }
+        : null;
+      const fiscal = { qr: qr || qrFallback, cnpj: resultado.cnpj, chaveAcesso: chave };
       document.body.removeChild(overlay);
 
       if (!itens.length) {
