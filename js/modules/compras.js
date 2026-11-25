@@ -638,9 +638,13 @@ const ComprasModule = {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    input.setAttribute('capture', 'environment');
     input.onchange = e => {
       const file = e.target.files[0];
-      if (file) this._processarCupomOCR(file);
+      if (file) {
+        UI.toast('Foto recebida. Iniciando leitura…', 'success');
+        this._processarCupomOCR(file);
+      } else UI.toast('Nenhuma foto foi selecionada.', 'warning');
     };
     input.click();
   },

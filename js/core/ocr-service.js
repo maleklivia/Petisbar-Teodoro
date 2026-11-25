@@ -57,14 +57,28 @@ const OcrService = {
   },
 
   async _desenharImagem(file, maxSide = 2400) {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    let source;
+    let close = () => {};
+    try {
+      source = await createImageBitmap(file);
+      close = () => source.close?.();
+    } catch (_) {
+      // Safari/iOS pode entregar imagens que não têm suporte a createImageBitmap.
+      source = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('formato_de_imagem_nao_suportado'));
+        image.src = URL.createObjectURL(file);
+      });
+      close = () => URL.revokeObjectURL(source.src);
+    }
+    const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close?.();
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    close();
     return { canvas, ctx };
   },
 
