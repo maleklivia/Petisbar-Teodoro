@@ -41,14 +41,14 @@ test('recalcula preços no servidor e preserva somente opções permitidas', asy
   assert.equal(priced.items[1].options.flavoredIce, false);
 });
 
-test('aplica o acréscimo provisório somente na entrega e arredonda cada item', async()=>{
+test('usa o preço cadastrado no ERP tanto na entrega quanto na retirada', async()=>{
   const client={async query(sql){return{rows:sql.includes('active=true')?[{id:'food',name:'Petisco',category:'Petiscos',sale_price:'20.00',current_stock:5}]:[]}}};
   const item=[{productId:'food',quantity:1,options:{}}];
-  const pickup=await priceOrderItems(client,item,{fulfillmentType:'retirada',deliveryIncreasePercent:25});
-  const delivery=await priceOrderItems(client,item,{fulfillmentType:'entrega',deliveryIncreasePercent:25});
+  const pickup=await priceOrderItems(client,item,{fulfillmentType:'retirada'});
+  const delivery=await priceOrderItems(client,item,{fulfillmentType:'entrega'});
   assert.equal(pickup.items[0].unitPrice,20);
-  assert.equal(delivery.items[0].unitPrice,25);
-  assert.equal(delivery.subtotal,25);
+  assert.equal(delivery.items[0].unitPrice,20);
+  assert.equal(delivery.subtotal,20);
 });
 
 test('retorna nulo quando algum produto não está disponível', async () => {
