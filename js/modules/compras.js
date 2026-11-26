@@ -638,10 +638,11 @@ const ComprasModule = {
     const abrirSeletor = capture => {
       const input = document.createElement('input');
       input.type = 'file'; input.accept = 'image/*';
+      if (!capture) input.multiple = true;
       if (capture) input.setAttribute('capture', 'environment');
       input.onchange = e => {
-        const file = e.target.files[0];
-        if (file) { UI.toast('Foto recebida. Iniciando leitura…', 'success'); this._processarCupomOCR(file); }
+        const files = [...(e.target.files || [])];
+        if (files.length) { UI.toast(`${files.length} foto(s) recebida(s). Iniciando leitura…`, 'success'); this._processarCupomOCR(files); }
         else UI.toast('Nenhuma foto foi selecionada.', 'warning');
       };
       input.click();
@@ -656,7 +657,8 @@ const ComprasModule = {
     document.getElementById('ocr-enviar-foto')?.addEventListener('click', () => { UI.closeModal(); abrirSeletor(false); });
   },
 
-  async _processarCupomOCR(file) {
+  async _processarCupomOCR(inputFiles) {
+    const files = Array.isArray(inputFiles) ? inputFiles : [inputFiles];
     // Overlay de progresso
     const overlay = document.createElement('div');
     overlay.id = 'ocr-overlay';
@@ -671,28 +673,29 @@ const ComprasModule = {
     document.body.appendChild(overlay);
 
     try {
-      const qr = await OcrService.lerQr(file).catch(() => null);
       const statusEl = document.getElementById('ocr-status');
-      if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
-      let texto;
-      try {
-        texto = await this._processarOcrServidor(file, pct => {
+      if (statusEl && files.length > 1) statusEl.textContent = `Lendo ${files.length} fotos…`;
+      let qr = null;
+      const textos = [];
+      for (let i = 0; i < files.length; i++) {
+        if (!qr) qr = await OcrService.lerQr(files[i]).catch(() => null);
+        const texto = await this._processarOcrServidor(files[i], pct => {
+          const progress = Math.round(((i + pct / 100) / files.length) * 100);
           const bar = document.getElementById('ocr-bar');
           const pctEl = document.getElementById('ocr-pct');
-          if (bar) bar.style.width = pct + '%';
-          if (pctEl) pctEl.textContent = pct + '%';
-        });
-      } catch (serverError) {
-        // O OCR local permite importar mesmo quando a integração opcional
-        // do Google Vision não está configurada ou está indisponível.
-        if (statusEl) statusEl.textContent = 'Servidor indisponível. Tentando leitura local…';
-        texto = await OcrService.processar(file, pct => {
+          if (bar) bar.style.width = progress + '%';
+          if (pctEl) pctEl.textContent = progress + '%';
+        }).catch(async () => OcrService.processar(files[i], pct => {
+          const progress = Math.round(((i + pct / 100) / files.length) * 100);
           const bar = document.getElementById('ocr-bar');
           const pctEl = document.getElementById('ocr-pct');
-          if (bar) bar.style.width = pct + '%';
-          if (pctEl) pctEl.textContent = pct + '%';
-        });
+          if (bar) bar.style.width = progress + '%';
+          if (pctEl) pctEl.textContent = progress + '%';
+        }));
+        textos.push(texto);
       }
+      if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
+      const texto = textos.join('\n');
       const resultado = OcrService.parsearCupom(texto);
       const { itens, total } = resultado;
       // Em celulares, o QR pode ficar pequeno ou inclinado. Se a câmera não
