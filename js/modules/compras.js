@@ -677,22 +677,27 @@ const ComprasModule = {
       if (statusEl && files.length > 1) statusEl.textContent = `Lendo ${files.length} fotos…`;
       let qr = null;
       const textos = [];
+      let ultimoProgresso = 0;
+      const atualizarProgresso = (indice, pct) => {
+        const calculado = Math.round(((indice + Math.max(0, Math.min(100, pct)) / 100) / files.length) * 100);
+        const progress = Math.max(ultimoProgresso, calculado);
+        ultimoProgresso = progress;
+        const bar = document.getElementById('ocr-bar');
+        const pctEl = document.getElementById('ocr-pct');
+        if (bar) bar.style.width = progress + '%';
+        if (pctEl) pctEl.textContent = progress + '%';
+      };
       for (let i = 0; i < files.length; i++) {
         if (!qr) qr = await OcrService.lerQr(files[i]).catch(() => null);
         try {
-          const texto = await this._processarOcrServidor(files[i], pct => {
-            const progress = Math.round(((i + pct / 100) / files.length) * 100);
-            const bar = document.getElementById('ocr-bar');
-            const pctEl = document.getElementById('ocr-pct');
-            if (bar) bar.style.width = progress + '%';
-            if (pctEl) pctEl.textContent = progress + '%';
-          }).catch(async () => OcrService.processar(files[i], pct => {
-            const progress = Math.round(((i + pct / 100) / files.length) * 100);
-            const bar = document.getElementById('ocr-bar');
-            const pctEl = document.getElementById('ocr-pct');
-            if (bar) bar.style.width = progress + '%';
-            if (pctEl) pctEl.textContent = progress + '%';
-          }));
+          const progresso = pct => atualizarProgresso(i, pct);
+          const texto = await this._processarOcrServidor(files[i], progresso).catch(async () => {
+            if (statusEl) statusEl.textContent = `Servidor indisponível. Lendo foto ${i + 1} localmente…`;
+            return Promise.race([
+              OcrService.processar(files[i], progresso),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Leitura local excedeu 35 segundos')), 35000)),
+            ]);
+          });
           textos.push(texto);
         } catch (error) {
           textos.push('');
