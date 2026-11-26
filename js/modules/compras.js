@@ -720,7 +720,16 @@ const ComprasModule = {
 
       if (!itens.length) {
         const dica = qr ? 'O QR foi encontrado, mas os itens precisam de uma foto mais nítida.' : 'Enquadre o cupom inteiro, inclusive o QR Code.';
-        UI.toast(`Não foi possível identificar os itens. ${dica}`, 'warning');
+        UI.openModal({
+          title: 'Leitura concluída sem itens',
+          size: 'wide',
+          body: `<div class="empty-state" style="padding:12px 0;text-align:left">
+            <p><strong>Não foi possível transformar as fotos em itens.</strong></p>
+            <p>${Utils.escapeHtml(dica)} O texto lido foi preservado abaixo para diagnóstico; nenhuma compra foi criada.</p>
+            <textarea class="form-input" rows="10" readonly style="width:100%;font-family:monospace;font-size:12px">${Utils.escapeHtml(texto || '(nenhum texto retornado pelo OCR)')}</textarea>
+          </div>`,
+          confirmLabel: 'Fechar',
+        });
         return;
       }
 
