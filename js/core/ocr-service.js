@@ -269,7 +269,10 @@ const OcrService = {
     }
 
     // DANFE NFC-e com descrição quebrada e os números na linha seguinte.
-    const RE_DETALHE = /^([\d.,]+)\s+(KG|KGS|G|GR|L|LT|LTS|ML|UN|UNID|CX|SC|PCT?|P[CÇ])\s+([\d.,]+)\s+([\d.,]+)$/i;
+    // NFC-e costuma imprimir a descrição em uma linha e, logo abaixo,
+    // "quantidade unidade x preço unitário preço total". O padrão anterior
+    // não aceitava o "x" e descartava todos os itens desse formato.
+    const RE_DETALHE = /^([\d.,]+)\s+(KG|KGS|G|GR|L|LT|LTS|ML|UN|UNID|CX|SC|PCT?|P[CÇ])\s+(?:[xX×]\s*)?([\d.,]+)\s+([\d.,]+)$/i;
     for (let i = 1; i < linhas.length; i++) {
       const detalhe = linhas[i].match(RE_DETALHE);
       if (!detalhe) continue;
@@ -277,7 +280,12 @@ const OcrService = {
       for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
         const anterior = linhas[j];
         if (RE_DETALHE.test(anterior) || /^(CÓDIGO|DESCRIÇÃO|QTD|QTDE|SUBTOTAL|TOTAL|DESCONTOS|FORMAS? DE PAGAMENTO)/i.test(anterior)) break;
-        const parte = anterior.replace(/^\d{3,14}\s+/, '').trim();
+        // Remove número do item e EAN quando o OCR os preserva antes da
+        // descrição (ex.: "001 7898556015219 CAT T PRAHESA 1,01kg").
+        const parte = anterior
+          .replace(/^\d{1,3}\s+(?:\d{8,14}\s+)?/, '')
+          .replace(/\s+[\d.,]+\s*(?:kg|kgs|g|gr|l|lt|ml|un|pc|pç|cx|sc|pct)\s*$/i, '')
+          .trim();
         if (parte.length >= 3 && !/^(CNPJ|CPF|DANFE|NFC|AVENIDA|RUA|CEP|TELEFONE)/i.test(parte)) partesNome.unshift(parte);
       }
       const nome = partesNome.join(' ').replace(/\s+/g, ' ').trim();
