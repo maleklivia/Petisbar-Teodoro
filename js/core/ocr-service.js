@@ -149,12 +149,15 @@ const OcrService = {
     onProgress?.(8);
     // OCRAD é local e não usa Web Worker/WASM; funciona como caminho rápido
     // para prints de lojas e comprovantes online.
+    const mobile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     try {
       await this._carregarOcrad();
-      onProgress?.(20);
-      const textoLocal = OCRAD(imagemPreparada);
-      onProgress?.(70);
-      if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
+      if (!mobile) {
+        onProgress?.(20);
+        const textoLocal = OCRAD(imagemPreparada);
+        onProgress?.(70);
+        if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
+      }
     } catch (_) { /* tenta Tesseract como segunda opção */ }
     await this._carregarTesseract();
     const asset = nome => new URL(`/js/vendor/tesseract/${nome}`, window.location.origin).href;

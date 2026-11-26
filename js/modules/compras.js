@@ -679,20 +679,25 @@ const ComprasModule = {
       const textos = [];
       for (let i = 0; i < files.length; i++) {
         if (!qr) qr = await OcrService.lerQr(files[i]).catch(() => null);
-        const texto = await this._processarOcrServidor(files[i], pct => {
-          const progress = Math.round(((i + pct / 100) / files.length) * 100);
-          const bar = document.getElementById('ocr-bar');
-          const pctEl = document.getElementById('ocr-pct');
-          if (bar) bar.style.width = progress + '%';
-          if (pctEl) pctEl.textContent = progress + '%';
-        }).catch(async () => OcrService.processar(files[i], pct => {
-          const progress = Math.round(((i + pct / 100) / files.length) * 100);
-          const bar = document.getElementById('ocr-bar');
-          const pctEl = document.getElementById('ocr-pct');
-          if (bar) bar.style.width = progress + '%';
-          if (pctEl) pctEl.textContent = progress + '%';
-        }));
-        textos.push(texto);
+        try {
+          const texto = await this._processarOcrServidor(files[i], pct => {
+            const progress = Math.round(((i + pct / 100) / files.length) * 100);
+            const bar = document.getElementById('ocr-bar');
+            const pctEl = document.getElementById('ocr-pct');
+            if (bar) bar.style.width = progress + '%';
+            if (pctEl) pctEl.textContent = progress + '%';
+          }).catch(async () => OcrService.processar(files[i], pct => {
+            const progress = Math.round(((i + pct / 100) / files.length) * 100);
+            const bar = document.getElementById('ocr-bar');
+            const pctEl = document.getElementById('ocr-pct');
+            if (bar) bar.style.width = progress + '%';
+            if (pctEl) pctEl.textContent = progress + '%';
+          }));
+          textos.push(texto);
+        } catch (error) {
+          textos.push('');
+          if (statusEl) statusEl.textContent = `Não foi possível ler a foto ${i + 1}. Continuando…`;
+        }
       }
       if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
       const texto = textos.join('\n');
