@@ -739,7 +739,17 @@ const ComprasModule = {
     const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
     const imageBase64 = String(dataUrl).split(',')[1] || '';
     onProgress?.(25);
-    const response = await fetch('../api/v1/purchases/ocr', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ imageBase64 }) });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let response;
+    try {
+      response = await fetch('../api/v1/purchases/ocr', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ imageBase64 }), signal: controller.signal });
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('OCR do servidor demorou mais de 12 segundos');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error === 'ocr_not_configured' ? 'OCR do servidor ainda não configurado' : payload.error || 'Falha no OCR do servidor');
     onProgress?.(100);
