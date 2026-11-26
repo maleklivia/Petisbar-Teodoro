@@ -57,14 +57,28 @@ const OcrService = {
   },
 
   async _desenharImagem(file, maxSide = 2400) {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    let source;
+    let close = () => {};
+    try {
+      source = await createImageBitmap(file);
+      close = () => source.close?.();
+    } catch (_) {
+      // Safari/iOS pode entregar imagens que não têm suporte a createImageBitmap.
+      source = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('formato_de_imagem_nao_suportado'));
+        image.src = URL.createObjectURL(file);
+      });
+      close = () => URL.revokeObjectURL(source.src);
+    }
+    const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close?.();
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    close();
     return { canvas, ctx };
   },
 
@@ -78,9 +92,29 @@ const OcrService = {
       } catch (_) { /* usa o leitor alternativo */ }
     }
     await this._carregarJsQR();
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const result = jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
-    return result?.data ? this._dadosQrFiscal(result.data) : null;
+    const tentativas = [];
+    const original = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    tentativas.push(original);
+    // QR de NFC-e costuma ocupar uma área pequena da foto; tentar recortes
+    // aumenta a leitura sem exigir que o usuário enquadre perfeitamente a nota.
+    const margem = Math.round(Math.min(canvas.width, canvas.height) * 0.08);
+    for (const [x, y, w, h] of [
+      [0, 0, canvas.width, Math.floor(canvas.height * .7)],
+      [0, Math.floor(canvas.height * .3), canvas.width, Math.floor(canvas.height * .7)],
+      [Math.floor(canvas.width * .2), Math.floor(canvas.height * .2), Math.floor(canvas.width * .6), Math.floor(canvas.height * .6)],
+    ]) {
+      const crop = document.createElement('canvas');
+      crop.width = Math.max(1, w - margem * 2); crop.height = Math.max(1, h - margem * 2);
+      crop.getContext('2d').drawImage(canvas, x + margem, y + margem, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      tentativas.push(crop.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, crop.width, crop.height));
+    }
+    for (const image of tentativas) {
+      for (const inversionAttempts of ['attemptBoth', 'dontInvert']) {
+        const result = jsQR(image.data, image.width, image.height, { inversionAttempts });
+        if (result?.data) return this._dadosQrFiscal(result.data);
+      }
+    }
+    return null;
   },
 
   _dadosQrFiscal(raw) {
@@ -88,16 +122,17 @@ const OcrService = {
     let url = '';
     try {
       const parsed = new URL(value);
-      if (['http:', 'https:'].includes(parsed.protocol) && /(^|\.)gov\.br$/i.test(parsed.hostname)) url = parsed.href;
+      if (['http:', 'https:'].includes(parsed.protocol) && parsed.hostname) url = parsed.href;
     } catch (_) { /* QR pode conter somente a chave */ }
     const chave = (value.match(/\d{44}/) || [])[0] || '';
     return (url || chave) ? { conteudo: value, url, chaveAcesso: chave } : null;
   },
 
   async prepararImagem(file) {
-    // 1600 px é suficiente para texto de cupom/print e evita travar o worker
+    // 1000 px mantém os caracteres legíveis e evita travar o OCR local em
+    // celulares mais lentos.
     // em imagens grandes de celular ou capturas de tela.
-    const { canvas, ctx } = await this._desenharImagem(file, 1600);
+    const { canvas, ctx } = await this._desenharImagem(file, 1000);
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = image.data;
     for (let i = 0; i < pixels.length; i += 4) {
@@ -111,13 +146,18 @@ const OcrService = {
 
   async processar(file, onProgress) {
     const imagemPreparada = await this.prepararImagem(file);
-    onProgress?.(1);
+    onProgress?.(8);
     // OCRAD é local e não usa Web Worker/WASM; funciona como caminho rápido
     // para prints de lojas e comprovantes online.
+    const mobile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     try {
       await this._carregarOcrad();
-      const textoLocal = OCRAD(imagemPreparada);
-      if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
+      if (!mobile) {
+        onProgress?.(20);
+        const textoLocal = OCRAD(imagemPreparada);
+        onProgress?.(70);
+        if (textoLocal && textoLocal.trim().length >= 10) return textoLocal;
+      }
     } catch (_) { /* tenta Tesseract como segunda opção */ }
     await this._carregarTesseract();
     const asset = nome => new URL(`/js/vendor/tesseract/${nome}`, window.location.origin).href;
@@ -229,7 +269,10 @@ const OcrService = {
     }
 
     // DANFE NFC-e com descrição quebrada e os números na linha seguinte.
-    const RE_DETALHE = /^([\d.,]+)\s+(KG|KGS|G|GR|L|LT|LTS|ML|UN|UNID|CX|SC|PCT?|P[CÇ])\s+([\d.,]+)\s+([\d.,]+)$/i;
+    // NFC-e costuma imprimir a descrição em uma linha e, logo abaixo,
+    // "quantidade unidade x preço unitário preço total". O padrão anterior
+    // não aceitava o "x" e descartava todos os itens desse formato.
+    const RE_DETALHE = /^([\d.,]+)\s+(KG|KGS|G|GR|L|LT|LTS|ML|UN|UNID|CX|SC|PCT?|P[CÇ])\s+(?:[xX×]\s*)?([\d.,]+)\s+([\d.,]+)$/i;
     for (let i = 1; i < linhas.length; i++) {
       const detalhe = linhas[i].match(RE_DETALHE);
       if (!detalhe) continue;
@@ -237,7 +280,12 @@ const OcrService = {
       for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
         const anterior = linhas[j];
         if (RE_DETALHE.test(anterior) || /^(CÓDIGO|DESCRIÇÃO|QTD|QTDE|SUBTOTAL|TOTAL|DESCONTOS|FORMAS? DE PAGAMENTO)/i.test(anterior)) break;
-        const parte = anterior.replace(/^\d{3,14}\s+/, '').trim();
+        // Remove número do item e EAN quando o OCR os preserva antes da
+        // descrição (ex.: "001 7898556015219 CAT T PRAHESA 1,01kg").
+        const parte = anterior
+          .replace(/^\d{1,3}\s+(?:\d{8,14}\s+)?/, '')
+          .replace(/\s+[\d.,]+\s*(?:kg|kgs|g|gr|l|lt|ml|un|pc|pç|cx|sc|pct)\s*$/i, '')
+          .trim();
         if (parte.length >= 3 && !/^(CNPJ|CPF|DANFE|NFC|AVENIDA|RUA|CEP|TELEFONE)/i.test(parte)) partesNome.unshift(parte);
       }
       const nome = partesNome.join(' ').replace(/\s+/g, ' ').trim();
@@ -277,11 +325,11 @@ const OcrService = {
     if (!itens.length) {
       for (const l of linhas) {
         if (l.length < 5) continue;
-        if (/^(CNPJ|CPF|TOTAL|DATA|HORA|TROCO|DINHEIRO|CARTAO|PIX|DANFE|NFC|ITEM|QTD|PRECO|DESCONTO|SUBTOTAL|CAIXA|CEST|NCM|ICMS)/i.test(l)) continue;
+        if (/^(CNPJ|CPF|TOTAL|DATA|HORA|TROCO|DINHEIRO|CARTAO|PIX|DANFE|NFC|ITEM|QTD|PRECO|DESCONTO|SUBTOTAL|CAIXA|CEST|NCM|ICMS|TRIBUTOS|FONTE|FORMA\s+DE\s+PAGAMENTO|VALOR\s+A\s+PAGAR|VALOR\s+TOTAL|CONSUMIDOR|CONSULTE|PROTOCOLO|COD\b|PROCON|CODECON)/i.test(l)) continue;
         const priceMatch = l.match(/([\d]{1,3}(?:[.,]\d{3})*[.,]\d{2})/g);
         if (!priceMatch) continue;
         const nome = l.replace(/[\d.,*R$%]/g, '').trim().replace(/\s+/g, ' ');
-        if (nome.length < 3) continue;
+        if (nome.length < 3 || /\b(TRIBUTOS?|IMPOSTO|FEDERAL|ESTADUAL|MUNICIPAL|PAGAMENTO|TROCO|DESCONTO|TOTAL|VALOR|PROTOCOLO)\b/i.test(nome)) continue;
         const cu = this._parseBR(priceMatch[priceMatch.length - 1]);
         if (cu <= 0 || cu > 9999) continue;
         if (!vistos.has(nome)) {
@@ -320,6 +368,7 @@ const OcrService = {
   },
 
   _itemValido(nome, qty, cu) {
-    return nome.length >= 3 && qty > 0 && cu > 0;
+    return nome.length >= 3 && qty > 0 && cu > 0
+      && !/\b(TRIBUTOS?|IMPOSTO|FEDERAL|ESTADUAL|MUNICIPAL|PAGAMENTO|PROTOCOLO|DESCONTO|SUBTOTAL|VALOR\s+A\s+PAGAR)\b/i.test(nome);
   },
 };

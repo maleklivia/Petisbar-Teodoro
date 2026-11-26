@@ -635,17 +635,30 @@ const ComprasModule = {
       UI.toast('OCR não disponível nesta página.', 'error');
       return;
     }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = e => {
-      const file = e.target.files[0];
-      if (file) this._processarCupomOCR(file);
+    const abrirSeletor = capture => {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*';
+      if (!capture) input.multiple = true;
+      if (capture) input.setAttribute('capture', 'environment');
+      input.onchange = e => {
+        const files = [...(e.target.files || [])];
+        if (files.length) { UI.toast(`${files.length} foto(s) recebida(s). Iniciando leitura…`, 'success'); this._processarCupomOCR(files); }
+        else UI.toast('Nenhuma foto foi selecionada.', 'warning');
+      };
+      input.click();
     };
-    input.click();
+    UI.openModal({
+      title: 'Importar comprovante',
+      body: '<p>Escolha como deseja enviar a nota fiscal:</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px"><button type="button" class="btn btn-primary" id="ocr-tirar-foto">📷 Tirar foto</button><button type="button" class="btn btn-ghost" id="ocr-enviar-foto">🖼️ Escolher foto</button></div>',
+      confirmLabel: 'Fechar',
+      onConfirm: () => UI.closeModal(),
+    });
+    document.getElementById('ocr-tirar-foto')?.addEventListener('click', () => { UI.closeModal(); abrirSeletor(true); });
+    document.getElementById('ocr-enviar-foto')?.addEventListener('click', () => { UI.closeModal(); abrirSeletor(false); });
   },
 
-  async _processarCupomOCR(file) {
+  async _processarCupomOCR(inputFiles) {
+    const files = Array.isArray(inputFiles) ? inputFiles : [inputFiles];
     // Overlay de progresso
     const overlay = document.createElement('div');
     overlay.id = 'ocr-overlay';
@@ -660,23 +673,63 @@ const ComprasModule = {
     document.body.appendChild(overlay);
 
     try {
-      const qr = await OcrService.lerQr(file).catch(() => null);
       const statusEl = document.getElementById('ocr-status');
-      if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
-      const texto = await this._processarOcrServidor(file, pct => {
+      if (statusEl && files.length > 1) statusEl.textContent = `Lendo ${files.length} fotos…`;
+      let qr = null;
+      const textos = [];
+      let ultimoProgresso = 0;
+      const atualizarProgresso = (indice, pct) => {
+        const calculado = Math.round(((indice + Math.max(0, Math.min(100, pct)) / 100) / files.length) * 100);
+        const progress = Math.max(ultimoProgresso, calculado);
+        ultimoProgresso = progress;
         const bar = document.getElementById('ocr-bar');
         const pctEl = document.getElementById('ocr-pct');
-        if (bar) bar.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = pct + '%';
-      });
+        if (bar) bar.style.width = progress + '%';
+        if (pctEl) pctEl.textContent = progress + '%';
+      };
+      for (let i = 0; i < files.length; i++) {
+        if (!qr) qr = await OcrService.lerQr(files[i]).catch(() => null);
+        try {
+          const progresso = pct => atualizarProgresso(i, pct);
+          const texto = await this._processarOcrServidor(files[i], progresso).catch(async () => {
+            if (statusEl) statusEl.textContent = `Servidor indisponível. Lendo foto ${i + 1} localmente…`;
+            return Promise.race([
+              OcrService.processar(files[i], progresso),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Leitura local excedeu 35 segundos')), 35000)),
+            ]);
+          });
+          textos.push(texto);
+        } catch (error) {
+          textos.push('');
+          if (statusEl) statusEl.textContent = `Não foi possível ler a foto ${i + 1}. Continuando…`;
+        }
+      }
+      if (statusEl) statusEl.textContent = qr ? 'QR Code encontrado. Lendo os itens…' : 'Lendo os itens do cupom…';
+      const texto = textos.join('\n');
       const resultado = OcrService.parsearCupom(texto);
       const { itens, total } = resultado;
-      const fiscal = { qr, cnpj: resultado.cnpj, chaveAcesso: qr?.chaveAcesso || resultado.chaveAcesso };
+      // Em celulares, o QR pode ficar pequeno ou inclinado. Se a câmera não
+      // conseguir decodificá-lo, a chave impressa na NFC-e ainda permite
+      // identificar a nota e abrir a consulta oficial da Sefaz-RJ.
+      const chave = qr?.chaveAcesso || resultado.chaveAcesso || '';
+      const qrFallback = !qr && chave.length === 44 && /fazenda\.rj\.gov\.br/i.test(texto)
+        ? { conteudo: chave, chaveAcesso: chave, url: `https://www.fazenda.rj.gov.br/nfce/consulta?chNFe=${chave}` }
+        : null;
+      const fiscal = { qr: qr || qrFallback, cnpj: resultado.cnpj, chaveAcesso: chave };
       document.body.removeChild(overlay);
 
       if (!itens.length) {
         const dica = qr ? 'O QR foi encontrado, mas os itens precisam de uma foto mais nítida.' : 'Enquadre o cupom inteiro, inclusive o QR Code.';
-        UI.toast(`Não foi possível identificar os itens. ${dica}`, 'warning');
+        UI.openModal({
+          title: 'Leitura concluída sem itens',
+          size: 'wide',
+          body: `<div class="empty-state" style="padding:12px 0;text-align:left">
+            <p><strong>Não foi possível transformar as fotos em itens.</strong></p>
+            <p>${Utils.escapeHtml(dica)} O texto lido foi preservado abaixo para diagnóstico; nenhuma compra foi criada.</p>
+            <textarea class="form-input" rows="10" readonly style="width:100%;font-family:monospace;font-size:12px">${Utils.escapeHtml(texto || '(nenhum texto retornado pelo OCR)')}</textarea>
+          </div>`,
+          confirmLabel: 'Fechar',
+        });
         return;
       }
 
@@ -700,7 +753,17 @@ const ComprasModule = {
     const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
     const imageBase64 = String(dataUrl).split(',')[1] || '';
     onProgress?.(25);
-    const response = await fetch('../api/v1/purchases/ocr', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ imageBase64 }) });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let response;
+    try {
+      response = await fetch('../api/v1/purchases/ocr', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ imageBase64 }), signal: controller.signal });
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('OCR do servidor demorou mais de 12 segundos');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error === 'ocr_not_configured' ? 'OCR do servidor ainda não configurado' : payload.error || 'Falha no OCR do servidor');
     onProgress?.(100);
