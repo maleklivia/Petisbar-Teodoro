@@ -23,6 +23,25 @@ test('envia configurações do cardápio como JSON ao VPS', async () => {
   assert.deepEqual(JSON.parse(sent.options.body), { 'storefront.minimumOrder': 20 });
 });
 
+test('calcula um rateio provisório de entrega e sugere preço sem alterar o preço automaticamente', () => {
+  const context = vm.createContext({ Intl, Date, Math, Number, Array, String, Object, JSON });
+  const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'utils.js'), 'utf8');
+  vm.runInContext(source, context);
+  const utils = vm.runInContext('Utils', context);
+  const settings = {
+    'storefront.minimumOrder': 20,
+    'storefront.deliveryZones': { zones: [
+      { valor: 0 }, { valor: 0 }, { valor: 0 }, { valor: 5 },
+      { valor: 7 }, { valor: 8 }, { valor: 8 }, { valor: 10 },
+    ] },
+  };
+  assert.equal(utils.deliveryAllocationEstimate(settings), 12);
+  assert.equal(utils.menuPriceForMargin(12, 60, 12), 42.86);
+  assert.equal(utils.deliveryAllocationCost(42.86, 12), 5.14);
+  assert.equal(utils.menuPriceForMargin(12, 90, 12), null);
+  assert.equal(utils.deliveryAllocationEstimate({ 'storefront.minimumOrder': 0, 'storefront.deliveryZones': { zones: [{ valor: 5 }] } }), null);
+});
+
 test('modo de teste tem controle isolado e não altera as demais configurações', async () => {
   const saved = [];
   const configuration = { 'storefront.isOpen': true, 'storefront.minimumOrder': 20 };
